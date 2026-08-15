@@ -17,13 +17,17 @@ branch="pr-${pr}"
 
 case "$cmd" in
   create)
-    pnpm exec neonctl branches create \
-      --project-id "$NEON_PROJECT_ID" \
-      --name "$branch" \
-      --parent staging \
-      --output json
+    if ! pnpm exec neonctl branches get "$branch" --project-id "$NEON_PROJECT_ID" --output json >/dev/null 2>&1; then
+      pnpm exec neonctl branches create \
+        --project-id "$NEON_PROJECT_ID" \
+        --name "$branch" \
+        --parent staging \
+        --output json >&2
+    fi
     pnpm exec neonctl connection-string "$branch" \
-      --project-id "$NEON_PROJECT_ID"
+      --project-id "$NEON_PROJECT_ID" \
+      --database-name marginsheet \
+      --role-name neondb_owner
     ;;
   delete)
     pnpm exec neonctl branches delete "$branch" \
