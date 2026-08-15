@@ -90,19 +90,26 @@ describe("sentry scrubber", () => {
     expect(JSON.stringify(out)).not.toContain("203.0.113.47");
   });
 
-  it("drops the user context entirely, however it is populated", () => {
+  it("replaces user context with an explicit null ip_address, never deletes it", () => {
     const withIp = scrubEvent({
       message: "boom",
       user: { ip_address: "2a06:98c0:3600::103", id: "hh_123", email: "a@b.co" },
     });
-    expect("user" in withIp).toBe(false);
-    expect(JSON.stringify(withIp)).not.toContain("2a06:98c0");
+    // Explicit null: deleting the object makes Sentry ingest infer one.
+    expect(withIp.user).toEqual({ ip_address: null });
+    const s = JSON.stringify(withIp);
+    expect(s).not.toContain("2a06:98c0");
+    expect(s).not.toContain("hh_123");
+    expect(s).not.toContain("a@b.co");
 
     const autoIp = scrubEvent({ message: "boom", user: { ip_address: "{{auto}}" } });
-    expect("user" in autoIp).toBe(false);
+    expect(autoIp.user).toEqual({ ip_address: null });
+    expect(JSON.stringify(autoIp)).not.toContain("{{auto}}");
+  });
 
-    // An event with no user context is untouched.
-    expect(scrubEvent({ message: "boom" })).toEqual({ message: "boom" });
+  it("sets the null user context even when the event carried none", () => {
+    const out = scrubEvent({ message: "boom" }) as Record<string, unknown>;
+    expect(out.user).toEqual({ ip_address: null });
   });
 
   it("preserves event shape and non-sensitive content", () => {
@@ -112,6 +119,8 @@ describe("sentry scrubber", () => {
       values: [1, 2, 3],
       nested: { ok: true, note: null },
     };
-    expect(scrubEvent(event)).toEqual(event);
+    // Everything the event carried survives untouched; the only addition is
+    // the null user context that suppresses server-side IP inference.
+    expect(scrubEvent(event)).toEqual({ ...event, user: { ip_address: null } });
   });
 });
