@@ -46,6 +46,10 @@ Sentry is configured to hold no network identity for households. Three layers, a
 2. **The scrubber** (`packages/shared/src/sentry-scrub.ts`, run as `beforeSend` and `beforeBreadcrumb`) redacts `CF-Connecting-IP` and its proxy-convention variants, Cloudflare's per-request geolocation headers, and sets an explicit null `user.ip_address`.
 3. **Sentry org setting "Prevent Storing of IP Addresses"** (Settings, Security and Privacy). This is the authority: Sentry's ingest infers an IP from the connecting hop and derives a geography from it **after** `beforeSend` has run, so client-side code alone cannot suppress it. Verified 15 Aug 2026 by inspecting a live event.
 
+Verified 15 Aug 2026 against live events in all six worker environments: no IP address in the user context, no `user` tag, `Cf-Ipcountry` redacted, and no `CF-Connecting-IP` present in captured headers.
+
+**Known residuals, accepted.** Sentry resolves a country from the connecting IP before discarding the address, so events carry `Geography: United States (US)`. It is country-level only (the pre-fix events showed a city), it describes Cloudflare's egress datacenter rather than a household, it is derived server-side after `beforeSend` and cannot be suppressed by client code, and Sentry exposes no setting to disable it. Events also carry `Culture: Timezone`. Neither identifies a household. Revisit if Sentry ever adds a control, or if a household-facing surface begins reporting client-side events.
+
 PostHog carries the matching controls in the committed snippet at `apps/web/public/index.html`: autocapture off, session recording off, automatic pageviews off, memory persistence. Named events only, declared in `packages/shared/src/analytics.ts`.
 
 ## Rules
