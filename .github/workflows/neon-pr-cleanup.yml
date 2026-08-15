@@ -1,0 +1,25 @@
+# Destroys the PR's ephemeral Neon branch when the PR closes (merged or not).
+name: neon-pr-cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+env:
+  NEON_PROJECT_ID: fancy-paper-35797264
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Delete the PR's Neon branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: scripts/neon-pr-branch.sh delete ${{ github.event.pull_request.number }} || true

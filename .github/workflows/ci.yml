@@ -1,0 +1,121 @@
+# The gates (M0 plan Task 0.4). All five block; branch protection on main
+# requires them by job name. Isolation runs here too but is not yet required.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEON_PROJECT_ID: fancy-paper-35797264
+
+jobs:
+  typecheck-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - run: pnpm --filter @marginsheet/api --filter @marginsheet/conversation test
+
+  golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @marginsheet/conversation test:golden
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @marginsheet/lint test
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  migrate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create or reuse the PR's Neon branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          CS=$(scripts/neon-pr-branch.sh create ${{ github.event.pull_request.number }})
+          echo "::add-mask::$CS"
+          echo "PR_DATABASE_URL=$CS" >> "$GITHUB_ENV"
+      - name: Migrations up, then down
+        env:
+          DATABASE_URL: ${{ env.PR_DATABASE_URL }}
+        run: |
+          pnpm --filter @marginsheet/schema migrate:up
+          pnpm --filter @marginsheet/schema migrate:down
+
+  isolation:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [dev, staging]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Derive branch connection and hosts
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          CS=$(pnpm exec neonctl connection-string ${{ matrix.target }} --project-id "$NEON_PROJECT_ID" --database-name marginsheet --role-name neondb_owner)
+          echo "::add-mask::$CS"
+          echo "NEON_DATABASE_URL=$CS" >> "$GITHUB_ENV"
+          echo "EXPECTED_NEON_HOST=$(node -e "console.log(new URL(process.argv[1]).hostname)" "$CS")" >> "$GITHUB_ENV"
+          PROD_CS=$(pnpm exec neonctl connection-string main --project-id "$NEON_PROJECT_ID" --database-name marginsheet --role-name neondb_owner)
+          echo "::add-mask::$PROD_CS"
+          echo "PRODUCTION_NEON_HOST=$(node -e "console.log(new URL(process.argv[1]).hostname)" "$PROD_CS")" >> "$GITHUB_ENV"
+      - name: Isolation suite
+        env:
+          ISOLATION_TARGET: ${{ matrix.target }}
+          PLAID_CLIENT_ID: ${{ matrix.target == 'dev' && secrets.DEV_PLAID_CLIENT_ID || secrets.STAGING_PLAID_CLIENT_ID }}
+          PLAID_SECRET: ${{ matrix.target == 'dev' && secrets.DEV_PLAID_SECRET || secrets.STAGING_PLAID_SECRET }}
+          STRIPE_SECRET: ${{ matrix.target == 'dev' && secrets.DEV_STRIPE_SECRET || secrets.STAGING_STRIPE_SECRET }}
+        run: pnpm --filter @marginsheet/api test:isolation

@@ -1,0 +1,8 @@
+{
+  "name": "@marginsheet/schema",
+  "private": true,
+  "scripts": {
+    "migrate:up": "node -e \"console.log('no migrations yet; real migrations arrive with M1')\"",
+    "migrate:down": "node -e \"console.log('no migrations yet; real migrations arrive with M1')\""
+  }
+}

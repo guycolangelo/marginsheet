@@ -1,0 +1,6 @@
+# Known-fake findings only. Every entry must name a planted proof commit;
+# a real secret never gets an entry, it gets rotated.
+
+# Task 0.4 planted failure 3: fake private key proving the gitleaks gate
+# blocks. Reverted same hour; the commit remains in history as the proof.
+345d036c34b90cc34ec7460516d016b9ee71ad59:services/api/planted-key.pem:private-key:2
