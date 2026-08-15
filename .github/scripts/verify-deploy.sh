@@ -7,14 +7,20 @@
 # anyone noticing. This asks the live endpoint what it is running and fails
 # the job if the answer is not the commit we just deployed.
 #
-# Usage: verify-deploy.sh <staging|production> <short-sha>
+# Usage: verify-deploy.sh <dev|staging|production> <short-sha>
 
 set -euo pipefail
 
-target="${1:?usage: verify-deploy.sh <staging|production> <short-sha>}"
-expected="${2:?usage: verify-deploy.sh <staging|production> <short-sha>}"
+target="${1:?usage: verify-deploy.sh <dev|staging|production> <short-sha>}"
+expected="${2:?usage: verify-deploy.sh <dev|staging|production> <short-sha>}"
 
 case "$target" in
+  dev)
+    hosts=(
+      "marginsheet-api-dev.guy-a84.workers.dev|dev"
+      "marginsheet-conversation-dev.guy-a84.workers.dev|dev"
+    )
+    ;;
   staging)
     hosts=(
       "marginsheet-api-staging.guy-a84.workers.dev|staging"
