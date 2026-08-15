@@ -66,6 +66,69 @@ describe("analytical rules", () => {
   });
 });
 
+describe("Net Worth Doctrine", () => {
+  describe("rule 2: never celebrated, in any channel, ever", () => {
+    for (const text of [
+      "Congratulations, your net worth just crossed $500,000.",
+      "Your net worth hit a new milestone this month.",
+      "Great job, net worth is at an all-time high.",
+      "Net worth reached a record high. Nice work.",
+      "You've crossed a threshold and your net-worth is climbing. Well done.",
+      "Proud of where your networth landed this quarter.",
+    ]) {
+      it(`flags: ${text.slice(0, 48)}`, () => {
+        expect(ids(text)).toContain("no-net-worth-celebration");
+      });
+    }
+
+    it("does not fire on neutral net worth reporting, which the Balance Sheet needs", () => {
+      expect(ids("Net worth is $412,300 as of 15 August.")).toEqual([]);
+      expect(ids("Assets $600,000, liabilities $187,700, net worth $412,300.")).toEqual([]);
+    });
+
+    it("does not fire on celebrating Margin, the one number that may be celebrated", () => {
+      expect(ids("Margin was 22% in July, your best month yet.")).toEqual([]);
+      expect(ids("Great job: you kept $2,140 in July.")).toEqual([]);
+    });
+
+    it("does not fire when celebration and net worth are in different sentences", () => {
+      // The violation is praise ATTACHED to net worth. A digest may celebrate
+      // Margin in one sentence and report net worth in another.
+      expect(
+        ids("Margin was 22% in July. Nice work. Net worth is reported below.")
+      ).not.toContain("no-net-worth-celebration");
+    });
+  });
+
+  describe("rule 1: never the lead figure of a composed deliverable", () => {
+    const artifact = ["universal", "composed_artifact"] as const;
+
+    it("flags net worth in the opening sentence", () => {
+      expect(ids("Net worth is $412,300. You kept $2,140 in July.", [...artifact])).toContain(
+        "no-net-worth-lead"
+      );
+    });
+
+    it("flags a net worth heading", () => {
+      expect(ids("# Net worth\n\nYou kept $2,140.", [...artifact])).toContain(
+        "no-net-worth-lead"
+      );
+    });
+
+    it("permits net worth reported after the opening", () => {
+      expect(ids("You kept $2,140 in July. Net worth is $412,300.", [...artifact])).toEqual([]);
+      expect(
+        ids("You kept $2,140 in July.\n\nNet worth is $412,300.", [...artifact])
+      ).toEqual([]);
+    });
+
+    it("does not bind outside composed artifacts", () => {
+      // A schema comment or an internal note may open with the term.
+      expect(ids("Net worth is a computed line on the Balance Sheet.")).toEqual([]);
+    });
+  });
+});
+
 describe("scoped rules", () => {
   it("correction context bans delta, variance, discrepancy", () => {
     expect(ids("a small variance in March", ["correction"])).toContain("no-delta-variance");
