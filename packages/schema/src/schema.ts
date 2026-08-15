@@ -780,3 +780,273 @@ export const questionDispatches = pgTable(
     index("question_dispatches_group_key_idx").on(t.householdId, t.groupKey),
   ]
 );
+
+// ---------------------------------------------------------------------------
+// §5 Conversation state (b): context, instructions, watcher state
+// ---------------------------------------------------------------------------
+
+export const knownContextType = pgEnum("known_context_type", [
+  "goal",
+  "plan",
+  "fact",
+  "worry",
+  "preference",
+  "decision",
+]);
+
+export const knownContextState = pgEnum("known_context_state", [
+  "active",
+  "dormant",
+  "expired",
+]);
+
+export const instructionType = pgEnum("instruction_type", [
+  "threshold",
+  "timing",
+  "routing",
+  "watch_tag",
+]);
+
+export const tagCertainty = pgEnum("tag_certainty", ["confirmed", "maybe"]);
+
+export const decisionOutcome = pgEnum("decision_outcome", [
+  "adopted",
+  "passed",
+  "undecided",
+]);
+
+export const handoffState = pgEnum("handoff_state", ["open", "fulfilled"]);
+
+export const conditionStateValue = pgEnum("condition_state_value", [
+  "fired",
+  "acknowledged",
+  "resolved",
+  "escalated",
+]);
+
+export const calibrationState = pgEnum("calibration_state", ["asking", "silent"]);
+
+export const demotionReason = pgEnum("demotion_reason", ["accuracy", "double_fault"]);
+
+export const insightRoute = pgEnum("insight_route", [
+  "fact_package",
+  "watcher",
+  "elicitation",
+  "wait",
+]);
+
+export const insightSource = pgEnum("insight_source", ["census", "monthly_maintenance"]);
+
+export const receivableState = pgEnum("receivable_state", [
+  "open",
+  "matched",
+  "written_off",
+]);
+
+/**
+ * known_context (data-model-spec §5). What the household said, nothing else.
+ *
+ * NO CONFIDENCE COLUMN, EVER (invariant 3). The absence IS the enforcement,
+ * and a test asserts no column here matches %confidence%.
+ */
+export const knownContext = pgTable(
+  "known_context",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    type: knownContextType("type").notNull(),
+    text: text("text").notNull(),
+    saidByMemberId: uuidRef("said_by_member_id"),
+    saidAt: instant("said_at"),
+    sourceMessageId: uuidRef("source_message_id"),
+    state: knownContextState("state").notNull().default("active"),
+    expiresAt: instant("expires_at"),
+    supersededById: uuidRef("superseded_by_id"),
+    teeth: jsonb("teeth"),
+    householdGoalsId: uuidRef("household_goals_id"),
+    deletedAt: instant("deleted_at"),
+    ...timestamps(),
+  },
+  (t) => [
+    index("known_context_household_state_idx").on(t.householdId, t.state),
+    index("known_context_household_type_idx").on(t.householdId, t.type),
+  ]
+);
+
+/** tombstones (data-model-spec §5). The audit trail for deletions. */
+export const tombstones = pgTable(
+  "tombstones",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    entityTable: text("entity_table").notNull(),
+    entityId: uuidRef("entity_id").notNull(),
+    deletedByMemberId: uuidRef("deleted_by_member_id"),
+    reason: text("reason"),
+    ...timestamps(),
+  },
+  (t) => [index("tombstones_entity_idx").on(t.entityTable, t.entityId)]
+);
+
+/** standing_instructions (data-model-spec §5). Per-member, always. */
+export const standingInstructions = pgTable(
+  "standing_instructions",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    memberId: uuidRef("member_id").notNull(),
+    type: instructionType("type").notNull(),
+    parameters: jsonb("parameters"),
+    statedInMessageId: uuidRef("stated_in_message_id"),
+    active: boolean("active").notNull().default(true),
+    ...timestamps(),
+  },
+  (t) => [index("standing_instructions_member_idx").on(t.memberId, t.active)]
+);
+
+/** tags (data-model-spec §5). The tag exchange's output. */
+export const tags = pgTable(
+  "tags",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    name: text("name").notNull(),
+    createdByMemberId: uuidRef("created_by_member_id"),
+    watch: boolean("watch").notNull().default(false),
+    watchInstructionId: uuidRef("watch_instruction_id"),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("tags_household_name_unique").on(t.householdId, t.name)]
+);
+
+/** tag_members (data-model-spec §5). */
+export const tagMembers = pgTable(
+  "tag_members",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    tagId: uuidRef("tag_id").notNull(),
+    merchantKey: text("merchant_key"),
+    transactionId: uuidRef("transaction_id"),
+    certainty: tagCertainty("certainty").notNull().default("confirmed"),
+    excluded: boolean("excluded").notNull().default(false),
+    ...timestamps(),
+  },
+  (t) => [index("tag_members_tag_idx").on(t.tagId)]
+);
+
+/** decision_journal (data-model-spec §5). Memory, never scorekeeping. */
+export const decisionJournal = pgTable(
+  "decision_journal",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    questionAsAsked: text("question_as_asked"),
+    arithmeticShown: jsonb("arithmetic_shown"),
+    decision: decisionOutcome("decision").notNull().default("undecided"),
+    decidedAt: instant("decided_at"),
+    relatedCommitmentId: uuidRef("related_commitment_id"),
+    ...timestamps(),
+  },
+  (t) => [index("decision_journal_household_idx").on(t.householdId, t.decidedAt)]
+);
+
+/** handoffs (data-model-spec §5). The 3-minute budget lives between these timestamps. */
+export const handoffs = pgTable(
+  "handoffs",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    fromBrain: brain("from_brain").notNull(),
+    toBrain: brain("to_brain").notNull(),
+    questionSummary: text("question_summary"),
+    sourceMessageId: uuidRef("source_message_id"),
+    state: handoffState("state").notNull().default("open"),
+    fulfilledAt: instant("fulfilled_at"),
+    ...timestamps(),
+  },
+  (t) => [index("handoffs_household_state_idx").on(t.householdId, t.state)]
+);
+
+/**
+ * condition_states (data-model-spec §5). The watcher's dedup memory.
+ *
+ * subject_hash is GENERATED so two writers cannot hash the same subject
+ * differently and defeat the unique key.
+ */
+export const conditionStates = pgTable(
+  "condition_states",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    ruleId: text("rule_id").notNull(),
+    subject: jsonb("subject").notNull(),
+    subjectHash: text("subject_hash").generatedAlwaysAs(
+      sql`md5(subject::text)`
+    ),
+    state: conditionStateValue("state").notNull().default("fired"),
+    firstFiredAt: instant("first_fired_at"),
+    lastFiredAt: instant("last_fired_at"),
+    followupSent: boolean("followup_sent").notNull().default(false),
+    fireAheadWindow: jsonb("fire_ahead_window"),
+    ...timestamps(),
+  },
+  (t) => [
+    unique("condition_states_subject_unique").on(t.householdId, t.ruleId, t.subjectHash),
+    index("condition_states_household_state_idx").on(t.householdId, t.state),
+  ]
+);
+
+/** calibration_bands (data-model-spec §5). The graduation loop's ledger. */
+export const calibrationBands = pgTable(
+  "calibration_bands",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    bandLabel: text("band_label").notNull(),
+    guesses: integer("guesses").notNull().default(0),
+    matches: integer("matches").notNull().default(0),
+    trailingWindow: jsonb("trailing_window"),
+    state: calibrationState("state").notNull().default("asking"),
+    graduatedAt: instant("graduated_at"),
+    demotedAt: instant("demoted_at"),
+    demotionReason: demotionReason("demotion_reason"),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("calibration_bands_household_label_unique").on(t.householdId, t.bandLabel),
+  ]
+);
+
+/** insight_ledger (data-model-spec §5). Findings decoupled from delivery. */
+export const insightLedger = pgTable(
+  "insight_ledger",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    findingType: text("finding_type").notNull(),
+    payload: jsonb("payload"),
+    route: insightRoute("route"),
+    surfacedAt: instant("surfaced_at"),
+    source: insightSource("source").notNull(),
+    ...timestamps(),
+  },
+  (t) => [index("insight_ledger_household_route_idx").on(t.householdId, t.route)]
+);
+
+/** receivables (data-model-spec §5). Schema ships now; elicitation rows come later. */
+export const receivables = pgTable(
+  "receivables",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    expectedAmount: money("expected_amount"),
+    sourceTransactionId: uuidRef("source_transaction_id"),
+    description: text("description"),
+    expectedBy: bankDay("expected_by"),
+    state: receivableState("state").notNull().default("open"),
+    matchedDepositId: uuidRef("matched_deposit_id"),
+    ...timestamps(),
+  },
+  (t) => [index("receivables_household_state_idx").on(t.householdId, t.state)]
+);
