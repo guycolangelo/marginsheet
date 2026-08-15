@@ -12,7 +12,7 @@
     "migrate:down": "tsx src/migrate.ts down",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude '**/introspection.test.ts' --passWithNoTests",
-    "test:introspection": "vitest run test/introspection.test.ts"
+    "test:introspection": "vitest run test/introspection.test.ts test/identity.test.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.44",
