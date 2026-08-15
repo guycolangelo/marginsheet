@@ -64,6 +64,13 @@
       "when": 1786828536216,
       "tag": "0008_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786828536217,
+      "tag": "0009_app_role_login",
+      "breakpoints": true
     }
   ]
 }

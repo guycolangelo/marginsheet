@@ -173,12 +173,22 @@ const DISCIPLINE_GAPS: DisciplineGap[] = [
   {
     id: "rls-not-forced",
     gap:
-      "RLS is ENABLED but not FORCED, so the table owner is exempt from every household_isolation policy. A connection holding owner credentials reads across households.",
+      "The application connects to Postgres as neondb_owner, which holds BYPASSRLS and therefore reads across households past every policy. Migration 0009 grants LOGIN to marginsheet_app and forces RLS; what actually closes this is the connection string each Worker uses, which is asserted by the isolation suite.",
     heldBy:
-      "Deployment discipline: the application connects as marginsheet_app and the sync worker as marginsheet_sync, neither of which is the owner. Nothing in the running system holds owner credentials.",
+      "Until the isolation-suite assertion is green in every environment: nothing but deployment configuration. A spike on 15 Aug 2026 found the mitigation recorded in migration 0008 was never actually in place, since Task 0.3 issued every Worker's NEON_DATABASE_URL for neondb_owner.",
     owner: "M3 (identity and auth)",
     becomesStructuralWhen:
-      "The application connects as a real non-owner role in production AND the schema test harness does its data operations as marginsheet_app with the household GUC set, rather than as the owner. RLS constrains DML and not DDL, so migrations themselves are largely unaffected; it is the owner-run test suite that FORCE would filter today. When both identities have diverged for real, add FORCE ROW LEVEL SECURITY to every table carrying household_isolation and delete this entry.",
+      "Every Worker's NEON_DATABASE_URL authenticates as marginsheet_app (or marginsheet_sync for the sync worker), and the isolation suite asserts BOTH that current_user IS marginsheet_app and that the role does NOT hold BYPASSRLS. Asserting only the absence of the owner would pass for any wrong role, including one that does not exist. When that assertion is green in dev, staging, and production, delete this entry.",
+  },
+  {
+    id: "owner-keeps-bypassrls",
+    gap:
+      "neondb_owner retains the BYPASSRLS attribute, so anything holding owner credentials is exempt from household isolation regardless of FORCE.",
+    heldBy:
+      "The rls-not-forced check above: if no runtime component authenticates as the owner, the attribute has no runtime reach. FORCE is enabled but does not help here, because BYPASSRLS supersedes it.",
+    owner: "Nobody, deliberately (ruled 15 Aug 2026)",
+    becomesStructuralWhen:
+      "It does not, and that is the decision rather than an omission. Revoking BYPASSRLS from neondb_owner would make isolation structural instead of configuration-dependent, but it is Neon's default posture and the migration path depends on it. That is a bet against a vendor default to close a gap the connection-string check already closes, and a verifiable check beats an unverified bet. Revisit only if Neon's defaults change or a migration path stops needing it.",
   },
 ];
 
@@ -251,32 +261,42 @@ describe("discipline gaps: held closed by process, not by structure", () => {
     }
   });
 
-  it("rls-not-forced is still open, and the database still reflects it", async () => {
-    // The gap is real as long as no household-scoped table is forced. When
-    // M3 closes it, this assertion flips and the entry is deleted; until
-    // then, it fails loudly if someone forces one table and forgets the rest.
-    const forced = await sql<{ relname: string }[]>`
-      select c.relname
-      from pg_class c
-      join pg_namespace n on n.oid = c.relnamespace
+  it("FORCE is all-or-nothing across policied tables", async () => {
+    // Partial adoption is worse than none: it reads as done while most
+    // tables remain exempt. Migration 0009 forces all of them.
+    const [forced] = await sql<{ n: number }[]>`
+      select count(*)::int as n
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and c.relkind = 'r' and c.relforcerowsecurity
-      order by c.relname
     `;
-    const entry = DISCIPLINE_GAPS.find((g) => g.id === "rls-not-forced");
-    expect(entry, "rls-not-forced entry is missing").toBeTruthy();
+    const [policied] = await sql<{ n: number }[]>`
+      select count(distinct tablename)::int as n from pg_policies
+      where schemaname = 'public' and policyname = 'household_isolation'
+    `;
+    expect(
+      forced.n,
+      `FORCE is set on ${forced.n} of ${policied.n} policied tables. Force all of them or none.`
+    ).toBe(policied.n);
+  });
 
-    if (forced.length > 0) {
-      // Partial adoption is worse than none: it reads as done while most
-      // tables remain exempt.
-      const all = await sql<{ n: number }[]>`
-        select count(distinct tablename)::int as n from pg_policies
-        where schemaname = 'public' and policyname = 'household_isolation'
-      `;
-      expect(
-        forced.length,
-        `FORCE is set on ${forced.length} of ${all[0].n} policied tables. Either force all of them and delete the rls-not-forced entry, or none.`
-      ).toBe(all[0].n);
-    }
+  it("the app role can log in and does NOT hold BYPASSRLS", async () => {
+    // The role the application authenticates as must be subject to every
+    // policy. A LOGIN role that also carried BYPASSRLS would look correct in
+    // a connection string and be exempt in practice.
+    const [app] = await sql<{ rolcanlogin: boolean; rolbypassrls: boolean }[]>`
+      select rolcanlogin, rolbypassrls from pg_roles where rolname = 'marginsheet_app'
+    `;
+    expect(app.rolcanlogin, "marginsheet_app cannot log in").toBe(true);
+    expect(app.rolbypassrls, "marginsheet_app holds BYPASSRLS, which defeats every policy").toBe(false);
+  });
+
+  it("the owner still holds BYPASSRLS, which is the recorded decision", async () => {
+    const [owner] = await sql<{ rolbypassrls: boolean }[]>`
+      select rolbypassrls from pg_roles where rolname = current_user
+    `;
+    // If this ever flips, the owner-keeps-bypassrls entry is stale and the
+    // migration path should be re-verified rather than the entry deleted.
+    expect(owner.rolbypassrls).toBe(true);
   });
 
   it("prints the discipline gaps alongside the invariant open items", () => {
