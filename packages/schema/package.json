@@ -2,7 +2,7 @@
   "name": "@marginsheet/schema",
   "private": true,
   "scripts": {
-    "migrate:up": "node -e \"console.error('planted failure 6: migration up breaks'); process.exit(1)\"",
+    "migrate:up": "node -e \"console.log('no migrations yet; real migrations arrive with M1')\"",
     "migrate:down": "node -e \"console.log('no migrations yet; real migrations arrive with M1')\""
   }
 }
