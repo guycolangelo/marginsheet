@@ -33,6 +33,19 @@ GitHub Actions store: `CLOUDFLARE_API_TOKEN` (scoped API token, not a personal O
 - The only copy lives in the Cloudflare secret store for its environment. Loss means re-linking Plaid Items, not data loss.
 - Rotation requires decrypt-and-re-encrypt of stored tokens. That path is built in M4; until then rotation equals re-linking.
 
+## Database roles (the other half of the token control)
+
+Created in migration `0002_banking_sync`, deliberately not in the later RLS migration: the Plaid token needs a **column** privilege, which is independent of row-level security, and waiting would leave the column readable in the meantime.
+
+| Role | Reads `plaid_items.access_token_ciphertext` | Purpose |
+|---|---|---|
+| `marginsheet_sync` | Yes, exclusively | The Plaid sync worker. The only place `TOKEN_ENCRYPTION_KEY` is used to decrypt. |
+| `marginsheet_app` | **No**, by column GRANT | The API and app role. Cannot read the token on any row; `SELECT *` errors rather than returning it. |
+
+The column grant enumerates permitted columns rather than granting all-minus-one, so a column added later is not silently readable by the app role. The invariant-2 test asserts the block by assuming the app role and attempting the read, not by reading the policy.
+
+Scope, verified empirically 15 Aug 2026: roles created by SQL on a Neon branch are branch-local. A probe branch's role was absent from staging and production and left no residue after deletion, so CI's ephemeral-branch teardown leaks nothing at the project level. Neon's control plane lists these roles per branch, which makes them auditable. The author of the RLS migration attaches row policies to **these** roles; parallel roles are how a policy ends up protecting a role nothing connects as.
+
 ## Incident log
 
 - **15 Aug 2026**: real Twilio account credentials were placed in all four non-production worker stores and in the CI store during the 0.3 paste session, against the same-night deferral ruling. Found by the 0.3 secret-name audit; all twelve entries deleted the same night (eight wrangler, four GitHub). Recommended follow-up: rotate the Twilio auth token in the Twilio console, since it briefly lived in stores whose reachable surface is wider than production's.
