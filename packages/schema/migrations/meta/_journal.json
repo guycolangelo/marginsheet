@@ -36,6 +36,13 @@
       "when": 1786825082161,
       "tag": "0004_projections",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786826350924,
+      "tag": "0005_conversation_a",
+      "breakpoints": true
     }
   ]
 }

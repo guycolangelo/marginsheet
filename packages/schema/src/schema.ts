@@ -13,6 +13,8 @@ import {
   text,
   unique,
   uniqueIndex,
+  uuid,
+  check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import {
@@ -675,4 +677,106 @@ export const householdGoals = pgTable(
     ...timestamps(),
   },
   (t) => [uniqueIndex("household_goals_household_unique").on(t.householdId)]
+);
+
+// ---------------------------------------------------------------------------
+// §5 Conversation state (a): threads, messages, questions
+// ---------------------------------------------------------------------------
+
+export const brain = pgEnum("brain", ["mykeeper", "mycfo"]);
+
+export const messageDirection = pgEnum("message_direction", ["inbound", "outbound"]);
+
+export const channel = pgEnum("channel", ["sms", "email"]);
+
+export const messageStatus = pgEnum("message_status", [
+  "composed",
+  "held_shadow",
+  "sent",
+  "failed",
+  "suppressed_no_gate",
+]);
+
+export const dispatchState = pgEnum("dispatch_state", [
+  "pending",
+  "answered",
+  "clarifying",
+  "returned_to_app",
+  "conflicted",
+]);
+
+/** threads (data-model-spec §5). One per (member, brain). */
+export const threads = pgTable(
+  "threads",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    memberId: uuidRef("member_id").notNull(),
+    brain: brain("brain").notNull(),
+    lastActivityAt: instant("last_activity_at"),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("threads_member_brain_unique").on(t.memberId, t.brain),
+    index("threads_household_idx").on(t.householdId),
+  ]
+);
+
+/** messages (data-model-spec §5). Every inbound and outbound, both channels. */
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    memberId: uuidRef("member_id").notNull(),
+    brain: brain("brain").notNull(),
+    direction: messageDirection("direction").notNull(),
+    channel: channel("channel").notNull(),
+    providerMessageId: text("provider_message_id"),
+    messageClass: text("message_class"),
+    body: text("body"),
+    factPackage: jsonb("fact_package"),
+    factPackageVersion: text("fact_package_version"),
+    gateResult: jsonb("gate_result"),
+    modelUsed: text("model_used"),
+    fallbackFlag: boolean("fallback_flag").notNull().default(false),
+    status: messageStatus("status"),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("messages_provider_message_id_unique").on(t.providerMessageId),
+    index("messages_household_created_idx").on(t.householdId, t.createdAt),
+    index("messages_member_brain_created_idx").on(t.memberId, t.brain, t.createdAt),
+    // Invariant 7. See the constraint comment in the migration.
+    check(
+      "messages_sent_requires_gate",
+      sql`${t.status} is distinct from 'sent' or ${t.gateResult} is not null`
+    ),
+  ]
+);
+
+/** question_dispatches (data-model-spec §5). The conversation ABOUT a queue item. */
+export const questionDispatches = pgTable(
+  "question_dispatches",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    groupKey: text("group_key"),
+    transactionIds: uuid("transaction_ids").array(),
+    questionText: text("question_text"),
+    bestGuess: jsonb("best_guess"),
+    answerSpace: jsonb("answer_space"),
+    sentTo: jsonb("sent_to"),
+    state: dispatchState("state").notNull().default("pending"),
+    answeredByMemberId: uuidRef("answered_by_member_id"),
+    answer: jsonb("answer"),
+    resolvedAt: instant("resolved_at"),
+    clarificationCount: integer("clarification_count").notNull().default(0),
+    conflict: jsonb("conflict"),
+    ...timestamps(),
+  },
+  (t) => [
+    index("question_dispatches_household_state_idx").on(t.householdId, t.state),
+    index("question_dispatches_group_key_idx").on(t.householdId, t.groupKey),
+  ]
 );
