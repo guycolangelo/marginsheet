@@ -32,8 +32,37 @@ jobs:
       - name: Unit tests, golden suite, and the vocabulary lint layer
         run: pnpm --filter @marginsheet/api --filter @marginsheet/conversation --filter @marginsheet/lint --filter @marginsheet/shared test
 
-  staging:
+  # Dev tracks main. No approval gate: it is the always-latest environment,
+  # and leaving it out of the pipeline is what let it drift a commit behind
+  # within minutes of this workflow going live (15 Aug 2026).
+  dev:
     needs: gates
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Deploy api to dev
+        working-directory: services/api
+        run: pnpm exec wrangler deploy --var BUILD_SHA:"${SHA:0:7}"
+
+      - name: Deploy conversation to dev
+        working-directory: services/conversation
+        run: pnpm exec wrangler deploy --var BUILD_SHA:"${SHA:0:7}"
+
+      - name: Verify dev serves this commit
+        run: .github/scripts/verify-deploy.sh dev "${SHA:0:7}"
+
+  staging:
+    needs: dev
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
