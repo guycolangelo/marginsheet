@@ -80,11 +80,11 @@ const INVARIANTS: Invariant[] = [
     proofs: [
       { file: "context.test.ts", test: "no column resembling a confidence score" },
     ],
-    open: {
-      owner: "M2 (fact packages)",
-      owed:
-        "The type-level half: no fact-package type may carry a confidence field, enforced in the typed definitions rather than by schema absence.",
-    },
+    // CLOSED by M2: the type-level half is proven in
+    // packages/fact-packages/test/internal.test.ts. ComposerView strips every
+    // internal field structurally, so a confidence band cannot reach a
+    // composer, and a @ts-expect-error case fails the build if the property
+    // ever becomes reachable.
   },
   {
     n: 4,
@@ -92,11 +92,9 @@ const INVARIANTS: Invariant[] = [
     proofs: [
       { file: "context.test.ts", test: "present, then deleted, then absent" },
     ],
-    open: {
-      owner: "M2 (fact packages)",
-      owed:
-        "The assembler half: a test asserting no fact-package query path reads known_context directly rather than through known_context_composable. Recorded on the view's own comment.",
-    },
+    // CLOSED by M2: the assembler half is proven in
+    // packages/fact-packages/test/canon.test.ts, which asserts statically that
+    // no assembly path names the base table, and proves the check can fail.
   },
   {
     n: 5,
@@ -214,8 +212,8 @@ describe("the invariant manifest", () => {
 describe("open items: invariants proven at the schema layer and owed an application layer", () => {
   const partials = INVARIANTS.filter((i) => i.open);
 
-  it("there are exactly three, and each names its owner", () => {
-    expect(partials.map((i) => i.n)).toEqual([3, 4, 5]);
+  it("the remaining partial is invariant 5, after M2 closed 3 and 4", () => {
+    expect(partials.map((i) => i.n)).toEqual([5]);
     for (const inv of partials) {
       expect(inv.open!.owner, `invariant ${inv.n} has no owner`).toBeTruthy();
       expect(inv.open!.owed.length, `invariant ${inv.n} has no description`).toBeGreaterThan(20);
@@ -236,7 +234,7 @@ describe("open items: invariants proven at the schema layer and owed an applicat
       (i) => `  invariant ${i.n} -> ${i.open!.owner}: ${i.open!.owed}`
     );
     console.log("\nINVARIANT OPEN ITEMS (schema half proven, application half owed):\n" + lines.join("\n") + "\n");
-    expect(lines).toHaveLength(3);
+    expect(lines).toHaveLength(1);
   });
 });
 
