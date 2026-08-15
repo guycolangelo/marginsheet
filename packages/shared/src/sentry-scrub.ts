@@ -61,6 +61,18 @@ function scrubValue(value: unknown, keyHint?: string): unknown {
 
 // Shaped as a Sentry beforeSend: takes the event, returns the scrubbed event.
 // Generic so both services can pass their own Sentry event types through.
+//
+// The user context is dropped outright, not pattern-scrubbed. Sentry's ingest
+// resolves an ip_address from the connecting hop even with sendDefaultPii
+// false (observed 15 Aug 2026 during the 0.6 wiring proof). An IP is personal
+// data under GDPR and CCPA; this product's users are households and their
+// financial lives. Identity in Sentry, when it is ever needed, arrives as a
+// household id set deliberately, never as a network address inferred by a
+// vendor's default.
 export function scrubEvent<T>(event: T): T {
-  return scrubValue(event) as T;
+  const scrubbed = scrubValue(event) as T;
+  if (scrubbed !== null && typeof scrubbed === "object") {
+    delete (scrubbed as Record<string, unknown>).user;
+  }
+  return scrubbed;
 }

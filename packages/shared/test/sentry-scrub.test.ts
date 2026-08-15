@@ -58,6 +58,21 @@ describe("sentry scrubber", () => {
     expect(headers["content-type"]).toBe("application/json");
   });
 
+  it("drops the user context entirely, however it is populated", () => {
+    const withIp = scrubEvent({
+      message: "boom",
+      user: { ip_address: "2a06:98c0:3600::103", id: "hh_123", email: "a@b.co" },
+    });
+    expect("user" in withIp).toBe(false);
+    expect(JSON.stringify(withIp)).not.toContain("2a06:98c0");
+
+    const autoIp = scrubEvent({ message: "boom", user: { ip_address: "{{auto}}" } });
+    expect("user" in autoIp).toBe(false);
+
+    // An event with no user context is untouched.
+    expect(scrubEvent({ message: "boom" })).toEqual({ message: "boom" });
+  });
+
   it("preserves event shape and non-sensitive content", () => {
     const event = {
       message: "boom",
