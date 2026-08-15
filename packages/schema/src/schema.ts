@@ -8,8 +8,10 @@ import {
   integer,
   jsonb,
   pgEnum,
+  foreignKey,
   pgTable,
   text,
+  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -252,6 +254,8 @@ export const plaidItems = pgTable(
   (t) => [
     uniqueIndex("plaid_items_item_id_unique").on(t.itemId),
     index("plaid_items_household_idx").on(t.householdId),
+    // Target for the composite FK that makes invariant 1 structural.
+    unique("plaid_items_household_id_key").on(t.householdId, t.id),
   ]
 );
 
@@ -285,6 +289,15 @@ export const financialAccounts = pgTable(
     uniqueIndex("financial_accounts_plaid_account_id_unique").on(t.plaidAccountId),
     index("financial_accounts_household_idx").on(t.householdId),
     index("financial_accounts_item_idx").on(t.plaidItemId),
+    unique("financial_accounts_household_id_key").on(t.householdId, t.id),
+    // Invariant 1, first link: an account cannot sit under another
+    // household's item. The simple plaid_item_id FK above carries the
+    // RESTRICT-on-delete semantics; this one carries household agreement.
+    foreignKey({
+      name: "financial_accounts_item_same_household_fk",
+      columns: [t.householdId, t.plaidItemId],
+      foreignColumns: [plaidItems.householdId, plaidItems.id],
+    }),
   ]
 );
 
@@ -403,5 +416,176 @@ export const categories = pgTable(
   (t) => [
     index("categories_household_idx").on(t.householdId),
     index("categories_household_pl_line_idx").on(t.householdId, t.plLine),
+  ]
+);
+
+export const transactionDirection = pgEnum("transaction_direction", [
+  "income",
+  "expense",
+  "transfer",
+]);
+
+export const reviewState = pgEnum("review_state", [
+  "auto_filed",
+  "needs_review",
+  "user_reviewed",
+]);
+
+export const queueReason = pgEnum("queue_reason", [
+  "possible_transfer",
+  "possible_deployment",
+  "low_confidence",
+  "first_seen_merchant",
+  "anomaly",
+  "unclassified_inflow",
+  "ambiguous",
+]);
+
+export const confidenceLevel = pgEnum("confidence_level", ["high", "medium", "low"]);
+
+export const reimbursementStatus = pgEnum("reimbursement_status", [
+  "pending",
+  "matched",
+  "written_off",
+]);
+
+export const correctionSource = pgEnum("correction_source", ["user", "llm", "global"]);
+
+export const ruleSource = pgEnum("rule_source", ["manual", "learned"]);
+
+/** transactions (data-model-spec §3). The ledger. */
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    accountId: uuidRef("account_id").notNull(),
+    plaidTransactionId: text("plaid_transaction_id"),
+
+    date: bankDay("date").notNull(),
+    authorizedDate: bankDay("authorized_date"),
+    amount: money("amount").notNull(),
+    isoCurrency: text("iso_currency"),
+
+    merchantName: text("merchant_name"),
+    displayMerchantName: text("display_merchant_name"),
+    normalizedMerchantKey: text("normalized_merchant_key"),
+    originalDescription: text("original_description"),
+
+    direction: transactionDirection("direction").notNull(),
+    categoryId: uuidRef("category_id"),
+    plLine: plLine("pl_line"),
+    accountType: text("account_type"),
+
+    plaidPfcPrimary: text("plaid_pfc_primary"),
+    plaidPfcDetailed: text("plaid_pfc_detailed"),
+    paymentMeta: jsonb("payment_meta"),
+    counterparties: jsonb("counterparties"),
+    destination: jsonb("destination"),
+
+    pending: boolean("pending").notNull().default(false),
+    removed: boolean("removed").notNull().default(false),
+    reviewState: reviewState("review_state").notNull().default("auto_filed"),
+    queueReason: queueReason("queue_reason"),
+    confidence: confidenceLevel("confidence"),
+
+    isTransfer: boolean("is_transfer").notNull().default(false),
+    transferPairId: uuidRef("transfer_pair_id"),
+    isReimbursable: boolean("is_reimbursable").notNull().default(false),
+    reimbursementStatus: reimbursementStatus("reimbursement_status"),
+    reimbursementPairId: uuidRef("reimbursement_pair_id"),
+    refundPairId: uuidRef("refund_pair_id"),
+    possibleDeployment: boolean("possible_deployment").notNull().default(false),
+
+    splitParentId: uuidRef("split_parent_id"),
+    isProvisional: boolean("is_provisional").notNull().default(false),
+    notes: text("notes"),
+    chatTranscript: jsonb("chat_transcript"),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("transactions_plaid_transaction_id_unique").on(t.plaidTransactionId),
+    index("transactions_household_date_idx").on(t.householdId, t.date),
+    index("transactions_account_date_idx").on(t.accountId, t.date),
+    index("transactions_needs_review_idx")
+      .on(t.householdId, t.reviewState)
+      .where(sql`${t.reviewState} = 'needs_review'`),
+    // The three keyed operations: correction matching, recurrence
+    // inheritance, refund matching.
+    index("transactions_merchant_key_idx").on(
+      t.householdId,
+      t.normalizedMerchantKey,
+      t.direction
+    ),
+    // Invariant 1, second link: a transaction cannot point at another
+    // household's account. With the first link this holds transitively
+    // across transaction, account, and item.
+    foreignKey({
+      name: "transactions_account_same_household_fk",
+      columns: [t.householdId, t.accountId],
+      foreignColumns: [financialAccounts.householdId, financialAccounts.id],
+    }),
+  ]
+);
+
+/** merchant_corrections (data-model-spec §3). The learned layer. */
+export const merchantCorrections = pgTable(
+  "merchant_corrections",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    normalizedMerchantKey: text("normalized_merchant_key").notNull(),
+    direction: transactionDirection("direction"),
+    accountType: text("account_type"),
+    categoryId: uuidRef("category_id"),
+    subcategoryId: uuidRef("subcategory_id"),
+    plLine: plLine("pl_line"),
+    isTransfer: boolean("is_transfer").notNull().default(false),
+    bandMin: money("band_min"),
+    bandMax: money("band_max"),
+    correctionCount: integer("correction_count").notNull().default(1),
+    lastCorrectedAt: instant("last_corrected_at"),
+    source: correctionSource("source").notNull().default("user"),
+    ...timestamps(),
+  },
+  (t) => [
+    index("merchant_corrections_key_idx").on(
+      t.householdId,
+      t.normalizedMerchantKey,
+      t.direction,
+      t.accountType
+    ),
+  ]
+);
+
+/** category_rules (data-model-spec §3). */
+export const categoryRules = pgTable(
+  "category_rules",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    name: text("name"),
+    conditions: jsonb("conditions"),
+    actions: jsonb("actions"),
+    accountScope: jsonb("account_scope"),
+    isActive: boolean("is_active").notNull().default(true),
+    source: ruleSource("source").notNull().default("manual"),
+    ...timestamps(),
+  },
+  (t) => [index("category_rules_household_idx").on(t.householdId)]
+);
+
+/** source_renames (data-model-spec §3). */
+export const sourceRenames = pgTable(
+  "source_renames",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    merchantKey: text("merchant_key").notNull(),
+    displayName: text("display_name").notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("source_renames_household_key_unique").on(t.householdId, t.merchantKey),
   ]
 );

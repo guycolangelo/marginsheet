@@ -6,7 +6,8 @@
     "./models": "./src/models.ts",
     "./routing": "./src/routing.ts",
     "./sentry-scrub": "./src/sentry-scrub.ts",
-    "./analytics": "./src/analytics.ts"
+    "./analytics": "./src/analytics.ts",
+    "./merchant": "./src/merchant.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
