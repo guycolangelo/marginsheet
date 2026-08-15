@@ -1,0 +1,19 @@
+// marginsheet-conversation, the brains' service. Phase B builds here; M0 ships
+// the shell so environments, Sentry wiring (0.6), and deploys exist from day one.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "marginsheet-conversation-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "vars": { "ENVIRONMENT": "dev" },
+  "env": {
+    "staging": {
+      "name": "marginsheet-conversation-staging",
+      "vars": { "ENVIRONMENT": "staging" }
+    },
+    "production": {
+      "name": "marginsheet-conversation",
+      "vars": { "ENVIRONMENT": "production" }
+    }
+  }
+}

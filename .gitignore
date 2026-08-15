@@ -5,3 +5,5 @@ dist/
 .env.*
 .dev.vars
 .wrangler/
+.claude/settings.local.json
+*.tsbuildinfo

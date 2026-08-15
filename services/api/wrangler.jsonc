@@ -1,0 +1,19 @@
+// marginsheet-api. Top level is dev; staging and production are named envs.
+// Deploy: wrangler deploy [--env staging|production] --var BUILD_SHA:$(git rev-parse --short HEAD)
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "marginsheet-api-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "vars": { "ENVIRONMENT": "dev" },
+  "env": {
+    "staging": {
+      "name": "marginsheet-api-staging",
+      "vars": { "ENVIRONMENT": "staging" }
+    },
+    "production": {
+      "name": "marginsheet-api",
+      "vars": { "ENVIRONMENT": "production" }
+    }
+  }
+}
