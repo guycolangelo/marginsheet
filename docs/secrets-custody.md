@@ -35,6 +35,7 @@ GitHub Actions store: `CLOUDFLARE_API_TOKEN` (scoped API token, not a personal O
 
 ## Incident log
 
+- **15 Aug 2026**: real Twilio account credentials were placed in all four non-production worker stores and in the CI store during the 0.3 paste session, against the same-night deferral ruling. Found by the 0.3 secret-name audit; all twelve entries deleted the same night (eight wrangler, four GitHub). Recommended follow-up: rotate the Twilio auth token in the Twilio console, since it briefly lived in stores whose reachable surface is wider than production's.
 - **15 Aug 2026**: the `neondb_owner` password for the project's main branch was printed into a build-session transcript by `neonctl projects create` output. Remediation: password reset on all three branches (main, staging, dev) in the Neon dashboard before any DB URL was stored as a secret, making the exposed value dead. Standing rule going forward: Neon connection strings are retrieved only inside a pipe into `wrangler secret put`, never displayed.
 
 ## Rules
