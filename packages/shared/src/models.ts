@@ -7,16 +7,20 @@
 // Doctrine cross-reference: CLAUDE.md's routing table names models by product
 // name. Those names resolve here as:
 //   "Fable 5"   -> FRONTIER
-//   "Sonnet 5"  -> MID_TIER (pinned to claude-sonnet-4-6 by ruling, 15 Aug
-//                  2026; when a Sonnet 5 pin is ruled in, this line changes
-//                  and the chains' golden tests rerun)
+//   "Sonnet 5"  -> MID_TIER. History, recorded because the reasoning matters
+//                  more than the value: pinned to claude-sonnet-4-6 on 15 Aug
+//                  2026 on Guy's assertion that claude-sonnet-5 was not a
+//                  released model, then corrected to claude-sonnet-5 the same
+//                  day when the 0.5 key-validation probe returned HTTP 200
+//                  for it against the live API. The probe existed to settle
+//                  exactly this, and evidence outranked the assertion.
 //   "Haiku 4.5" -> FAST_TIER
 // Each chain below carries its CLAUDE.md line verbatim in `doctrine` so the
 // table and the code cannot drift silently.
 
 export const MODELS = {
   FRONTIER: "claude-fable-5",
-  MID_TIER: "claude-sonnet-4-6",
+  MID_TIER: "claude-sonnet-5",
   FAST_TIER: "claude-haiku-4-5-20251001",
 } as const;
 
