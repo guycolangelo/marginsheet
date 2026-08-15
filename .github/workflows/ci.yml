@@ -18,9 +18,9 @@ jobs:
   typecheck-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -31,9 +31,9 @@ jobs:
   golden:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -43,9 +43,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -55,7 +55,7 @@ jobs:
   gitleaks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
@@ -66,9 +66,9 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -80,12 +80,29 @@ jobs:
           CS=$(scripts/neon-pr-branch.sh create ${{ github.event.pull_request.number }})
           echo "::add-mask::$CS"
           echo "PR_DATABASE_URL=$CS" >> "$GITHUB_ENV"
-      - name: Migrations up, then down
+      # Up, verify by introspection, down, then up again. The second up
+      # proves the down left the branch in a state the migrations can be
+      # replayed onto: a down that "succeeds" but strands an enum or a
+      # function is a down that fails the next deploy, not this job.
+      - name: Migrations up
         env:
           DATABASE_URL: ${{ env.PR_DATABASE_URL }}
-        run: |
-          pnpm --filter @marginsheet/schema migrate:up
-          pnpm --filter @marginsheet/schema migrate:down
+        run: pnpm --filter @marginsheet/schema migrate:up
+
+      - name: Verify the schema by introspecting the branch
+        env:
+          DATABASE_URL: ${{ env.PR_DATABASE_URL }}
+        run: pnpm --filter @marginsheet/schema test:introspection
+
+      - name: Migrations down
+        env:
+          DATABASE_URL: ${{ env.PR_DATABASE_URL }}
+        run: pnpm --filter @marginsheet/schema migrate:down
+
+      - name: Migrations up again, proving down is replayable
+        env:
+          DATABASE_URL: ${{ env.PR_DATABASE_URL }}
+        run: pnpm --filter @marginsheet/schema migrate:up
 
   isolation:
     if: github.event_name == 'pull_request'
@@ -94,9 +111,9 @@ jobs:
       matrix:
         target: [dev, staging]
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
