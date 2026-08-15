@@ -9,12 +9,28 @@
 // layer. Each names the module that owes it, the same way M2 inherited the
 // composable-view test from 1.5b. An invariant that is half-proven with no
 // owner is one that stays half-proven.
+//
+// DISCIPLINE GAPS get the same treatment (ruled 15 Aug 2026). These are not
+// invariants owed a second half; they are properties currently held closed by
+// process rather than by structure. Each names its owner and the condition
+// that would make it structural, and each prints in CI on every run until it
+// does. A gap held by discipline and recorded nowhere is a gap that becomes
+// invisible the moment the person holding it stops thinking about it.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import postgres from "postgres";
 
 const DB_TESTS = join(import.meta.dirname);
+
+// The manifest is mostly file inspection, but the discipline-gap checks read
+// the live catalog: a gap that claims to be open should be verifiable against
+// the database rather than asserted from a list.
+const sql = postgres(process.env.DATABASE_URL ?? "", { max: 1 });
+afterAll(async () => {
+  await sql.end();
+});
 
 interface Proof {
   /** Test file that proves it. */
@@ -143,6 +159,31 @@ const INVARIANTS: Invariant[] = [
   },
 ];
 
+interface DisciplineGap {
+  id: string;
+  /** What is not structurally enforced today. */
+  gap: string;
+  /** What holds it closed in the meantime. */
+  heldBy: string;
+  /** The module that owns closing it. */
+  owner: string;
+  /** The condition under which it becomes structural, stated so it is checkable. */
+  becomesStructuralWhen: string;
+}
+
+const DISCIPLINE_GAPS: DisciplineGap[] = [
+  {
+    id: "rls-not-forced",
+    gap:
+      "RLS is ENABLED but not FORCED, so the table owner is exempt from every household_isolation policy. A connection holding owner credentials reads across households.",
+    heldBy:
+      "Deployment discipline: the application connects as marginsheet_app and the sync worker as marginsheet_sync, neither of which is the owner. Nothing in the running system holds owner credentials.",
+    owner: "M3 (identity and auth)",
+    becomesStructuralWhen:
+      "The application connects as a real non-owner role in production AND the schema test harness does its data operations as marginsheet_app with the household GUC set, rather than as the owner. RLS constrains DML and not DDL, so migrations themselves are largely unaffected; it is the owner-run test suite that FORCE would filter today. When both identities have diverged for real, add FORCE ROW LEVEL SECURITY to every table carrying household_isolation and delete this entry.",
+  },
+];
+
 const files = new Map<string, string>();
 for (const name of readdirSync(DB_TESTS).filter((f) => f.endsWith(".test.ts"))) {
   files.set(name, readFileSync(join(DB_TESTS, name), "utf8"));
@@ -196,5 +237,61 @@ describe("open items: invariants proven at the schema layer and owed an applicat
     );
     console.log("\nINVARIANT OPEN ITEMS (schema half proven, application half owed):\n" + lines.join("\n") + "\n");
     expect(lines).toHaveLength(3);
+  });
+});
+
+describe("discipline gaps: held closed by process, not by structure", () => {
+  it("each names an owner and a checkable condition for becoming structural", () => {
+    expect(DISCIPLINE_GAPS.length).toBeGreaterThan(0);
+    for (const g of DISCIPLINE_GAPS) {
+      expect(g.owner, `${g.id} has no owner`).toBeTruthy();
+      expect(g.heldBy.length, `${g.id} does not say what holds it closed`).toBeGreaterThan(20);
+      expect(
+        g.becomesStructuralWhen.length,
+        `${g.id} does not say when it becomes structural`
+      ).toBeGreaterThan(40);
+    }
+  });
+
+  it("rls-not-forced is still open, and the database still reflects it", async () => {
+    // The gap is real as long as no household-scoped table is forced. When
+    // M3 closes it, this assertion flips and the entry is deleted; until
+    // then, it fails loudly if someone forces one table and forgets the rest.
+    const forced = await sql<{ relname: string }[]>`
+      select c.relname
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r' and c.relforcerowsecurity
+      order by c.relname
+    `;
+    const entry = DISCIPLINE_GAPS.find((g) => g.id === "rls-not-forced");
+    expect(entry, "rls-not-forced entry is missing").toBeTruthy();
+
+    if (forced.length > 0) {
+      // Partial adoption is worse than none: it reads as done while most
+      // tables remain exempt.
+      const all = await sql<{ n: number }[]>`
+        select count(distinct tablename)::int as n from pg_policies
+        where schemaname = 'public' and policyname = 'household_isolation'
+      `;
+      expect(
+        forced.length,
+        `FORCE is set on ${forced.length} of ${all[0].n} policied tables. Either force all of them and delete the rls-not-forced entry, or none.`
+      ).toBe(all[0].n);
+    }
+  });
+
+  it("prints the discipline gaps alongside the invariant open items", () => {
+    const lines = DISCIPLINE_GAPS.map(
+      (g) =>
+        `  ${g.id} -> ${g.owner}\n` +
+        `      gap:      ${g.gap}\n` +
+        `      held by:  ${g.heldBy}\n` +
+        `      closes when: ${g.becomesStructuralWhen}`
+    );
+    console.log(
+      "\nDISCIPLINE GAPS (held closed by process, not structure):\n" + lines.join("\n") + "\n"
+    );
+    expect(lines.length).toBeGreaterThan(0);
   });
 });
