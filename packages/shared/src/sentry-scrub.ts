@@ -98,6 +98,16 @@ export function scrubEvent<T>(event: T): T {
     // this is the second layer, and the reason it exists is written here so
     // nobody removes it as redundant.
     (scrubbed as Record<string, unknown>).user = { ip_address: null };
+
+    // The culture context carries the request's timezone, a location signal
+    // the SDK attaches client-side (so unlike the country-level geography
+    // Sentry derives server-side, this one we can remove). Household
+    // timezone is a modeled field on the household record and is how
+    // scheduled sends compute; it never needs to arrive via error telemetry.
+    const contexts = (scrubbed as Record<string, unknown>).contexts;
+    if (contexts !== null && typeof contexts === "object") {
+      delete (contexts as Record<string, unknown>).culture;
+    }
   }
   return scrubbed;
 }

@@ -107,6 +107,26 @@ describe("sentry scrubber", () => {
     expect(JSON.stringify(autoIp)).not.toContain("{{auto}}");
   });
 
+  it("drops the culture context and leaves sibling contexts intact", () => {
+    const out = scrubEvent({
+      message: "boom",
+      contexts: {
+        culture: { timezone: "America/New_York", locale: "en-US" },
+        runtime: { name: "cloudflare" },
+        trace: { span_id: "a4efaa3d85400a46" },
+      },
+    });
+    const contexts = out.contexts as Record<string, unknown>;
+    expect("culture" in contexts).toBe(false);
+    expect(contexts.runtime).toEqual({ name: "cloudflare" });
+    expect(contexts.trace).toEqual({ span_id: "a4efaa3d85400a46" });
+    expect(JSON.stringify(out)).not.toContain("America/New_York");
+  });
+
+  it("tolerates an event with no contexts at all", () => {
+    expect(() => scrubEvent({ message: "boom" })).not.toThrow();
+  });
+
   it("sets the null user context even when the event carried none", () => {
     const out = scrubEvent({ message: "boom" }) as Record<string, unknown>;
     expect(out.user).toEqual({ ip_address: null });
