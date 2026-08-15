@@ -15,5 +15,9 @@
     "typescript": "^5",
     "vitest": "^3",
     "wrangler": "^4"
+  },
+  "dependencies": {
+    "@marginsheet/shared": "workspace:*",
+    "@sentry/cloudflare": "^10"
   }
 }

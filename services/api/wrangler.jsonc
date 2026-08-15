@@ -1,19 +1,38 @@
 // marginsheet-api. Top level is dev; staging and production are named envs.
 // Deploy: wrangler deploy [--env staging|production] --var BUILD_SHA:$(git rev-parse --short HEAD)
+//
+// nodejs_compat is required by @sentry/cloudflare (with compatibility_date
+// 2024-09-23 or later). Sentry DSNs are client-side identifiers, not secrets:
+// they name a project's ingest endpoint and cannot read anything. They live
+// here in plain config so review can see which project each environment
+// reports to. Vars do not inherit into named environments, so each env
+// repeats the block.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "marginsheet-api-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
-  "vars": { "ENVIRONMENT": "dev" },
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "dev",
+    "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
+  },
   "env": {
     "staging": {
       "name": "marginsheet-api-staging",
-      "vars": { "ENVIRONMENT": "staging" }
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
+      }
     },
     "production": {
       "name": "marginsheet-api",
-      "vars": { "ENVIRONMENT": "production" }
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {
+        "ENVIRONMENT": "production",
+        "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
+      }
     }
   }
 }
