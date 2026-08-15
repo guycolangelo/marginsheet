@@ -89,7 +89,15 @@ function scrubValue(value: unknown, keyHint?: string): unknown {
 export function scrubEvent<T>(event: T): T {
   const scrubbed = scrubValue(event) as T;
   if (scrubbed !== null && typeof scrubbed === "object") {
-    delete (scrubbed as Record<string, unknown>).user;
+    // Explicit null, not delete. Observed 15 Aug 2026: deleting the user
+    // object makes Sentry's ingest infer one from the connecting hop and
+    // derive a geography from it, after beforeSend has already run. An
+    // explicit null ip_address is the documented signal not to infer.
+    // Client-side code cannot fully enforce this on its own, so the
+    // org-level "Prevent Storing of IP Addresses" setting is the authority;
+    // this is the second layer, and the reason it exists is written here so
+    // nobody removes it as redundant.
+    (scrubbed as Record<string, unknown>).user = { ip_address: null };
   }
   return scrubbed;
 }

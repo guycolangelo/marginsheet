@@ -38,6 +38,16 @@ GitHub Actions store: `CLOUDFLARE_API_TOKEN` (scoped API token, not a personal O
 - **15 Aug 2026**: real Twilio account credentials were placed in all four non-production worker stores and in the CI store during the 0.3 paste session, against the same-night deferral ruling. Found by the 0.3 secret-name audit; all twelve entries deleted the same night (eight wrangler, four GitHub). Recommended follow-up: rotate the Twilio auth token in the Twilio console, since it briefly lived in stores whose reachable surface is wider than production's.
 - **15 Aug 2026**: the `neondb_owner` password for the project's main branch was printed into a build-session transcript by `neonctl projects create` output. Remediation: password reset on all three branches (main, staging, dev) in the Neon dashboard before any DB URL was stored as a secret, making the exposed value dead. Standing rule going forward: Neon connection strings are retrieved only inside a pipe into `wrangler secret put`, never displayed.
 
+## Observability privacy controls
+
+Sentry is configured to hold no network identity for households. Three layers, all required, none redundant:
+
+1. **`sendDefaultPii: false`** on both workers' Sentry init.
+2. **The scrubber** (`packages/shared/src/sentry-scrub.ts`, run as `beforeSend` and `beforeBreadcrumb`) redacts `CF-Connecting-IP` and its proxy-convention variants, Cloudflare's per-request geolocation headers, and sets an explicit null `user.ip_address`.
+3. **Sentry org setting "Prevent Storing of IP Addresses"** (Settings, Security and Privacy). This is the authority: Sentry's ingest infers an IP from the connecting hop and derives a geography from it **after** `beforeSend` has run, so client-side code alone cannot suppress it. Verified 15 Aug 2026 by inspecting a live event.
+
+PostHog carries the matching controls in the committed snippet at `apps/web/public/index.html`: autocapture off, session recording off, automatic pageviews off, memory persistence. Named events only, declared in `packages/shared/src/analytics.ts`.
+
 ## Rules
 
 - No secret value ever appears in the repo, CI logs, chat transcripts, or this document.
