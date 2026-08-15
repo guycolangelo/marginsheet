@@ -3,6 +3,7 @@ node_modules/
 dist/
 .env
 .env.*
+!.env.isolation.example
 .dev.vars
 .wrangler/
 .claude/settings.local.json
