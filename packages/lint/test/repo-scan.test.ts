@@ -34,3 +34,23 @@ describe("repo scan: universal rules over source, prompts, and copy", () => {
     expect(findings, `\n${report}`).toEqual([]);
   });
 });
+
+describe("repo scan: prompts tree carries every context, strict", () => {
+  // Prompt files are outbound-adjacent: everything the doctrine bans in any
+  // register is banned here. When real prompts arrive (M10+) and need to
+  // quote banned vocabulary to forbid it, the engine grows a suppression
+  // syntax; until then, strict.
+  it("finds no violations in prompts/", () => {
+    const findings = scanFiles([join(ROOT, "prompts")], [
+      "universal",
+      "analytical",
+      "correction",
+      "follow_up",
+      "decision_commentary",
+    ]);
+    const report = findings
+      .map((f) => `${f.file}:${f.line} [${f.ruleId}] ${JSON.stringify(f.match)}`)
+      .join("\n");
+    expect(findings, `\n${report}`).toEqual([]);
+  });
+});
