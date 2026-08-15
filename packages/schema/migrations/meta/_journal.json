@@ -50,6 +50,13 @@
       "when": 1786827610120,
       "tag": "0006_conversation_b",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786828536215,
+      "tag": "0007_artifacts_llm_billing",
+      "breakpoints": true
     }
   ]
 }

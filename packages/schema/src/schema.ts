@@ -1050,3 +1050,171 @@ export const receivables = pgTable(
   },
   (t) => [index("receivables_household_state_idx").on(t.householdId, t.state)]
 );
+
+// ---------------------------------------------------------------------------
+// §6 Composed artifacts, §7 LLM infrastructure, §8 Billing
+// ---------------------------------------------------------------------------
+
+export const artifactKind = pgEnum("artifact_kind", [
+  "briefing",
+  "monthly_close",
+  "digest",
+  "herald",
+  "year_in_review",
+  "tax_package",
+  "correction",
+]);
+
+export const exportKind = pgEnum("export_kind", ["exit_package", "tax_package"]);
+
+export const llmCallStatus = pgEnum("llm_call_status", [
+  "ok",
+  "parse_failed",
+  "api_error",
+]);
+
+export const llmCacheType = pgEnum("llm_cache_type", [
+  "adjudication",
+  "question",
+  "narrative",
+]);
+
+export const llmCacheStatus = pgEnum("llm_cache_status", [
+  "pending",
+  "complete",
+  "failed",
+]);
+
+export const subscriptionPlan = pgEnum("subscription_plan", ["monthly", "annual"]);
+
+/**
+ * artifacts (data-model-spec §6). Every composed deliverable.
+ *
+ * A sent artifact is never silently revised: corrections are new rows that
+ * reference the original, and the original is immutable.
+ */
+export const artifacts = pgTable(
+  "artifacts",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    kind: artifactKind("kind").notNull(),
+    memberId: uuidRef("member_id"),
+    factPackage: jsonb("fact_package"),
+    body: text("body"),
+    sentMessageId: uuidRef("sent_message_id"),
+    correctsArtifactId: uuidRef("corrects_artifact_id"),
+    correctedByArtifactId: uuidRef("corrected_by_artifact_id"),
+    period: text("period"),
+    ...timestamps(),
+  },
+  (t) => [
+    index("artifacts_household_kind_idx").on(t.householdId, t.kind),
+    index("artifacts_period_idx").on(t.householdId, t.period),
+  ]
+);
+
+/** exports (data-model-spec §6). R2 pointers. */
+export const exports = pgTable(
+  "exports",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    kind: exportKind("kind").notNull(),
+    r2Key: text("r2_key").notNull(),
+    requestedByMemberId: uuidRef("requested_by_member_id"),
+    expiresAt: instant("expires_at"),
+    ...timestamps(),
+  },
+  (t) => [index("exports_household_idx").on(t.householdId)]
+);
+
+/** llm_call_logs (data-model-spec §7). Feeds M21's cost-per-household. */
+export const llmCallLogs = pgTable(
+  "llm_call_logs",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    task: text("task").notNull(),
+    merchantKey: text("merchant_key"),
+    model: text("model"),
+    fallbackUsed: boolean("fallback_used").notNull().default(false),
+    messageId: uuidRef("message_id"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    status: llmCallStatus("status").notNull(),
+    errorSnippet: text("error_snippet"),
+    ...timestamps(),
+  },
+  (t) => [
+    index("llm_call_logs_household_created_idx").on(t.householdId, t.createdAt),
+    index("llm_call_logs_task_idx").on(t.task),
+  ]
+);
+
+/**
+ * llm_cache (data-model-spec §7). Ported exactly, including the claim
+ * protocol: the pattern is the point, not the columns.
+ */
+export const llmCache = pgTable(
+  "llm_cache",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    cacheType: llmCacheType("cache_type").notNull(),
+    patternKey: text("pattern_key").notNull(),
+    result: jsonb("result"),
+    status: llmCacheStatus("status").notNull().default("pending"),
+    claimedAt: instant("claimed_at"),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("llm_cache_pattern_unique").on(t.householdId, t.cacheType, t.patternKey),
+    index("llm_cache_status_claimed_idx").on(t.status, t.claimedAt),
+  ]
+);
+
+/**
+ * global_merchant_facts (data-model-spec §7). INVARIANT 6.
+ *
+ * GLOBAL: no household_id, no member_id, no amounts, no dates describing
+ * household activity, no account details. The safety property is absence.
+ */
+export const globalMerchantFacts = pgTable(
+  "global_merchant_facts",
+  {
+    id: uuidv7Pk(),
+    merchantKey: text("merchant_key").notNull(),
+    categoryName: text("category_name"),
+    direction: transactionDirection("direction"),
+    evidenceCount: integer("evidence_count").notNull().default(0),
+    distinctHouseholds: integer("distinct_households").notNull().default(0),
+    graduatedAt: instant("graduated_at"),
+    blocked: boolean("blocked").notNull().default(false),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("global_merchant_facts_key_unique").on(t.merchantKey, t.direction),
+  ]
+);
+
+/** stripe_subscriptions (data-model-spec §8). */
+export const stripeSubscriptions = pgTable(
+  "stripe_subscriptions",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    stripeSubscriptionId: text("stripe_subscription_id").notNull(),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripePriceId: text("stripe_price_id"),
+    plan: subscriptionPlan("plan"),
+    status: text("status"),
+    currentPeriodEnd: instant("current_period_end"),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("stripe_subscriptions_subscription_unique").on(t.stripeSubscriptionId),
+    index("stripe_subscriptions_household_idx").on(t.householdId),
+  ]
+);
