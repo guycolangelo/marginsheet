@@ -1,0 +1,94 @@
+# Deploy through CI (M0 plan Task 0.7). This ends manual deploys, and with
+# them the drift they cause: a hand-deployed environment silently sat on a
+# stale build for hours on 15 Aug 2026.
+#
+# Staging deploys on every push to main. Production waits on the `production`
+# GitHub Environment, whose required reviewer is Guy: CI executes, a human
+# still decides. Every deploy is followed by a verification step that fails
+# the job unless the live /health response reports the commit that was
+# deployed. A deploy that did not propagate is a failure, not a pass.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - name: Unit tests, golden suite, and the vocabulary lint layer
+        run: pnpm --filter @marginsheet/api --filter @marginsheet/conversation --filter @marginsheet/lint --filter @marginsheet/shared test
+
+  staging:
+    needs: gates
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Deploy api to staging
+        working-directory: services/api
+        run: pnpm exec wrangler deploy --env staging --var BUILD_SHA:"${SHA:0:7}"
+
+      - name: Deploy conversation to staging
+        working-directory: services/conversation
+        run: pnpm exec wrangler deploy --env staging --var BUILD_SHA:"${SHA:0:7}"
+
+      - name: Deploy Pages
+        working-directory: services/api
+        run: |
+          pnpm exec wrangler pages deploy "$GITHUB_WORKSPACE/apps/web/public" \
+            --project-name marginsheet-web --branch main --commit-dirty=true
+
+      - name: Verify staging serves this commit
+        run: .github/scripts/verify-deploy.sh staging "${SHA:0:7}"
+
+  production:
+    needs: staging
+    runs-on: ubuntu-latest
+    # Required reviewer gate. The job pauses here until a human approves in
+    # the Actions UI, and the approval is recorded against the commit.
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Deploy api to production
+        working-directory: services/api
+        run: pnpm exec wrangler deploy --env production --var BUILD_SHA:"${SHA:0:7}"
+
+      - name: Deploy conversation to production
+        working-directory: services/conversation
+        run: pnpm exec wrangler deploy --env production --var BUILD_SHA:"${SHA:0:7}"
+
+      - name: Verify production serves this commit
+        run: .github/scripts/verify-deploy.sh production "${SHA:0:7}"
