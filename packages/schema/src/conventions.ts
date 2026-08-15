@@ -11,7 +11,6 @@ import {
   numeric,
   timestamp,
   uuid,
-  type PgColumnBuilderBase,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -105,7 +104,11 @@ export const householdId = () => uuid("household_id").notNull();
  * the first migration) rather than by application code, so a write path that
  * forgets it cannot produce a stale value.
  */
-export const timestamps = (): Record<string, PgColumnBuilderBase> => ({
+// Return type is inferred rather than widened to Record<string, ...>: a
+// widened type erases the key names, so a table spreading timestamps() cannot
+// then index one in its extras callback (an index on created_at stops
+// typechecking even though it generates correct SQL).
+export const timestamps = () => ({
   createdAt: instant("created_at").notNull().defaultNow(),
   updatedAt: instant("updated_at").notNull().defaultNow(),
 });
