@@ -1,0 +1,6 @@
+{
+  "name": "planted failure 5: fixture with no runner must be blocked by golden",
+  "input": "close for March",
+  "mustContain": ["Kept"],
+  "mustNotContain": ["should"]
+}
