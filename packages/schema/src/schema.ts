@@ -589,3 +589,90 @@ export const sourceRenames = pgTable(
     uniqueIndex("source_renames_household_key_unique").on(t.householdId, t.merchantKey),
   ]
 );
+
+// ---------------------------------------------------------------------------
+// §4 Projections
+// ---------------------------------------------------------------------------
+
+/**
+ * Commitment direction. NOT the same value set as transaction_direction.
+ * A stream is an inflow or an outflow; a transaction is income, expense, or
+ * transfer. Two adjacent columns both named "direction" with different
+ * values is a real trap, so both carry comments naming the other.
+ */
+export const commitmentDirection = pgEnum("commitment_direction", ["inflow", "outflow"]);
+
+export const cadence = pgEnum("cadence", [
+  "weekly",
+  "biweekly",
+  "semimonthly",
+  "monthly",
+  "every_other_month",
+  "quarterly",
+  "semiannual",
+  "annual",
+  "irregular",
+]);
+
+export const commitmentSource = pgEnum("commitment_source", [
+  "plaid_recurring",
+  "census",
+  "liability_detail",
+  "household_stated",
+]);
+
+export const commitmentStatus = pgEnum("commitment_status", ["active", "paused", "ended"]);
+
+export const goalSetWith = pgEnum("goal_set_with", [
+  "onboarding",
+  "conversation",
+  "annual_session",
+]);
+
+/** commitments (projection-spec §6, data-model-spec §4). */
+export const commitments = pgTable(
+  "commitments",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    merchantKey: text("merchant_key").notNull(),
+    direction: commitmentDirection("direction").notNull(),
+    accountId: uuidRef("account_id"),
+    cadence: cadence("cadence").notNull(),
+    expectedAmount: jsonb("expected_amount"),
+    nextExpectedDate: bankDay("next_expected_date"),
+    windowDays: integer("window_days"),
+    categoryId: uuidRef("category_id"),
+    plLine: plLine("pl_line"),
+    source: commitmentSource("source").notNull(),
+    status: commitmentStatus("status").notNull().default("active"),
+    lastMatchedTransactionId: uuidRef("last_matched_transaction_id"),
+    consecutiveMisses: integer("consecutive_misses").notNull().default(0),
+    ...timestamps(),
+  },
+  (t) => [
+    index("commitments_household_status_idx").on(t.householdId, t.status),
+    index("commitments_next_expected_idx").on(t.householdId, t.nextExpectedDate),
+    // The upsert key. NULLS NOT DISTINCT is deliberate; see the comment on
+    // this constraint in the migration.
+    unique("commitments_stream_unique")
+      .on(t.householdId, t.merchantKey, t.direction, t.cadence, t.accountId)
+      .nullsNotDistinct(),
+  ]
+);
+
+/** household_goals (projection-spec §2, data-model-spec §4). One row per household. */
+export const householdGoals = pgTable(
+  "household_goals",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    marginTargetPct: percentage("margin_target_pct"),
+    lifeHappensTarget: jsonb("life_happens_target"),
+    annualPlan: jsonb("annual_plan"),
+    setWith: goalSetWith("set_with"),
+    updatedByMemberId: uuidRef("updated_by_member_id"),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("household_goals_household_unique").on(t.householdId)]
+);

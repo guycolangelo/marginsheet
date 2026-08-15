@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.44",
-    "postgres": "^3"
+    "postgres": "^3",
+    "@marginsheet/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",
