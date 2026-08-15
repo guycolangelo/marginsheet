@@ -1,8 +1,28 @@
 {
   "name": "@marginsheet/schema",
   "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./conventions": "./src/conventions.ts"
+  },
   "scripts": {
-    "migrate:up": "node -e \"console.log('no migrations yet; real migrations arrive with M1')\"",
-    "migrate:down": "node -e \"console.log('no migrations yet; real migrations arrive with M1')\""
+    "generate": "drizzle-kit generate",
+    "migrate:up": "tsx src/migrate.ts up",
+    "migrate:down": "tsx src/migrate.ts down",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --exclude '**/introspection.test.ts' --passWithNoTests",
+    "test:introspection": "vitest run test/introspection.test.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44",
+    "postgres": "^3"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "drizzle-kit": "^0.31",
+    "tsx": "^4",
+    "typescript": "^5",
+    "vitest": "^3"
   }
 }
