@@ -8,3 +8,4 @@ dist/
 .wrangler/
 .claude/settings.local.json
 *.tsbuildinfo
+claude-seo/
