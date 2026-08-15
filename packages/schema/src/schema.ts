@@ -14,9 +14,11 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import {
+  bankDay,
   householdId,
   instant,
   money,
+  percentage,
   timestamps,
   uuidRef,
   uuidv7Pk,
@@ -182,6 +184,183 @@ export const consentRecords = pgTable(
   (t) => [
     index("consent_records_member_kind_idx").on(t.memberId, t.kind),
     index("consent_records_household_idx").on(t.householdId),
+  ]
+);
+
+// ---------------------------------------------------------------------------
+// §2 Banking and sync
+// ---------------------------------------------------------------------------
+
+export const plaidItemStatus = pgEnum("plaid_item_status", [
+  "healthy",
+  "needs_reauth",
+  "error",
+  "disconnected",
+]);
+
+export const syncStatus = pgEnum("sync_status", ["idle", "syncing", "queued", "error"]);
+
+export const cardState = pgEnum("card_state", [
+  "paid_in_full",
+  "revolving",
+  "overdue",
+  "unavailable",
+]);
+
+export const providerSource = pgEnum("provider_source", [
+  "stripe",
+  "plaid",
+  "twilio",
+  "postmark",
+]);
+
+/**
+ * institutions (data-model-spec §2). GLOBAL: no household_id.
+ *
+ * The second convention exception. households omits household_id because its
+ * own id is the scope; this table omits it because a Plaid institution is
+ * shared across every household. 1.7 must not treat either as an oversight.
+ */
+export const institutions = pgTable(
+  "institutions",
+  {
+    id: uuidv7Pk(),
+    plaidInstitutionId: text("plaid_institution_id").notNull(),
+    name: text("name").notNull(),
+    logoUrl: text("logo_url"),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex("institutions_plaid_id_unique").on(t.plaidInstitutionId)]
+);
+
+/** plaid_items (data-model-spec §2). Holds the encrypted access token. */
+export const plaidItems = pgTable(
+  "plaid_items",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    institutionId: uuidRef("institution_id").references(() => institutions.id),
+    itemId: text("item_id").notNull(),
+    accessTokenCiphertext: text("access_token_ciphertext"),
+    status: plaidItemStatus("status").notNull().default("healthy"),
+    lastSuccessfulSync: instant("last_successful_sync"),
+    syncCursor: text("sync_cursor"),
+    syncStatus: syncStatus("sync_status").notNull().default("idle"),
+    lastSyncedAt: instant("last_synced_at"),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("plaid_items_item_id_unique").on(t.itemId),
+    index("plaid_items_household_idx").on(t.householdId),
+  ]
+);
+
+/** financial_accounts (data-model-spec §2). Ported in full. */
+export const financialAccounts = pgTable(
+  "financial_accounts",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    plaidItemId: uuidRef("plaid_item_id")
+      .notNull()
+      .references(() => plaidItems.id, { onDelete: "restrict" }),
+    plaidAccountId: text("plaid_account_id").notNull(),
+    name: text("name"),
+    officialName: text("official_name"),
+    mask: text("mask"),
+    type: text("type"),
+    subtype: text("subtype"),
+    currentBalance: money("current_balance"),
+    availableBalance: money("available_balance"),
+    creditLimit: money("credit_limit"),
+    isoCurrency: text("iso_currency"),
+    inPayoffPool: boolean("in_payoff_pool").notNull().default(false),
+    classificationConfirmedAt: instant("classification_confirmed_at"),
+    cardState: cardState("card_state"),
+    carriedBalance: money("carried_balance"),
+    isActive: boolean("is_active").notNull().default(true),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("financial_accounts_plaid_account_id_unique").on(t.plaidAccountId),
+    index("financial_accounts_household_idx").on(t.householdId),
+    index("financial_accounts_item_idx").on(t.plaidItemId),
+  ]
+);
+
+/** account_balance_snapshots (data-model-spec §2). One per account per day. */
+export const accountBalanceSnapshots = pgTable(
+  "account_balance_snapshots",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    accountId: uuidRef("account_id")
+      .notNull()
+      .references(() => financialAccounts.id, { onDelete: "cascade" }),
+    date: bankDay("date").notNull(),
+    currentBalance: money("current_balance"),
+    availableBalance: money("available_balance"),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("account_balance_snapshots_account_date_unique").on(t.accountId, t.date),
+    index("account_balance_snapshots_household_date_idx").on(t.householdId, t.date),
+  ]
+);
+
+/** liability_details (data-model-spec §2). Feeds commitments and cost-of-capital. */
+export const liabilityDetails = pgTable(
+  "liability_details",
+  {
+    id: uuidv7Pk(),
+    householdId: householdId(),
+    accountId: uuidRef("account_id")
+      .notNull()
+      .references(() => financialAccounts.id, { onDelete: "cascade" }),
+    lastStatementBalance: money("last_statement_balance"),
+    lastStatementDate: bankDay("last_statement_date"),
+    minimumPayment: money("minimum_payment"),
+    nextPaymentDueDate: bankDay("next_payment_due_date"),
+    lastPaymentDate: bankDay("last_payment_date"),
+    lastPaymentAmount: money("last_payment_amount"),
+    purchaseApr: percentage("purchase_apr"),
+    cashApr: percentage("cash_apr"),
+    balanceTransferApr: percentage("balance_transfer_apr"),
+    specialApr: percentage("special_apr"),
+    specialAprExpiry: bankDay("special_apr_expiry"),
+    isOverdue: boolean("is_overdue").notNull().default(false),
+    fetchedAt: instant("fetched_at"),
+    ...timestamps(),
+  },
+  (t) => [
+    index("liability_details_account_idx").on(t.accountId),
+    index("liability_details_household_idx").on(t.householdId),
+  ]
+);
+
+/**
+ * provider_events (data-model-spec §2). The idempotency ledger.
+ *
+ * Global-ish: household_id is nullable because some callbacks (a Stripe
+ * event for an unknown customer, a Plaid webhook before item attribution)
+ * arrive before the household is known. The ledger must still record them,
+ * because recording is what makes the retry safe.
+ */
+export const providerEvents = pgTable(
+  "provider_events",
+  {
+    id: uuidv7Pk(),
+    householdId: uuidRef("household_id"),
+    source: providerSource("source").notNull(),
+    eventId: text("event_id").notNull(),
+    eventType: text("event_type"),
+    payload: jsonb("payload"),
+    processedAt: instant("processed_at"),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex("provider_events_source_event_id_unique").on(t.source, t.eventId),
+    index("provider_events_source_type_idx").on(t.source, t.eventType),
   ]
 );
 

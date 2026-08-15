@@ -15,6 +15,13 @@
       "when": 1786820979135,
       "tag": "0001_identity_membership",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786821767025,
+      "tag": "0002_banking_sync",
+      "breakpoints": true
     }
   ]
 }
