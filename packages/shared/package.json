@@ -1,0 +1,19 @@
+{
+  "name": "@marginsheet/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./models": "./src/models.ts",
+    "./routing": "./src/routing.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:smoke": "vitest run test/model-smoke.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
+}
