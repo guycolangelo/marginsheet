@@ -88,6 +88,9 @@ importers:
       '@sentry/cloudflare':
         specifier: ^10
         version: 10.70.0(@cloudflare/workers-types@5.20260815.1)(wrangler@4.123.0(@cloudflare/workers-types@5.20260815.1))
+      postgres:
+        specifier: ^3
+        version: 3.4.9
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^5
@@ -95,9 +98,6 @@ importers:
       '@types/node':
         specifier: ^22
         version: 22.20.1
-      postgres:
-        specifier: ^3
-        version: 3.4.9
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -116,6 +116,9 @@ importers:
       '@sentry/cloudflare':
         specifier: ^10
         version: 10.70.0(@cloudflare/workers-types@5.20260815.1)(wrangler@4.123.0(@cloudflare/workers-types@5.20260815.1))
+      postgres:
+        specifier: ^3
+        version: 3.4.9
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^5

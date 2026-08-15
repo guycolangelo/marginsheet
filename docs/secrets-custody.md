@@ -46,8 +46,19 @@ The column grant enumerates permitted columns rather than granting all-minus-one
 
 Scope, verified empirically 15 Aug 2026: roles created by SQL on a Neon branch are branch-local. A probe branch's role was absent from staging and production and left no residue after deletion, so CI's ephemeral-branch teardown leaks nothing at the project level. Neon's control plane lists these roles per branch, which makes them auditable. The author of the RLS migration attaches row policies to **these** roles; parallel roles are how a policy ends up protecting a role nothing connects as.
 
+## The /debug/db-identity endpoint (deliberate, in production)
+
+Both Workers expose `GET /debug/db-identity`, which returns exactly two values: the database role the Worker authenticates as, and whether that role holds `BYPASSRLS`. It exists in **production as well as dev and staging**, deliberately (ruled 15 Aug 2026).
+
+**Why it exists.** Wrangler secrets are write-only, so CI cannot read `NEON_DATABASE_URL` to confirm which role a Worker connects as. Asking the Worker is the only way to check the deployed reality rather than a config file. Checking dev and staging and trusting production by inference is precisely the reasoning that produced the finding this endpoint prevents: every Worker was connecting as `neondb_owner`, which holds `BYPASSRLS` and reads past every `household_isolation` policy, and nothing caught it because nothing asked.
+
+**What it must never return:** a connection string, a host, a password, a database name, or anything else credential-shaped. A role name is not a secret; it is the thing being audited. Adding a field that identifies the connection rather than the role turns an audit endpoint into a disclosure.
+
+**This is not a debug leftover.** It is the enforcement half of the `rls-not-forced` entry in the invariant manifest, and the isolation suite asserts against it. Removing the endpoint removes the check.
+
 ## Incident log
 
+- **15 Aug 2026**: every Worker environment's `NEON_DATABASE_URL` was issued for `neondb_owner`, a role holding `BYPASSRLS`, so the application would have read past every household isolation policy. Found by the M3 spike into whether Neon permits `BYPASSRLS`, which also proved migration 0008's stated reasoning wrong (`FORCE` never filtered the owner, because `BYPASSRLS` supersedes it). No data was exposed: no application code queried the database yet. Remediation: migration 0009 granted `LOGIN` to `marginsheet_app`, all six Worker connection strings were reissued for that role, and `/debug/db-identity` plus an isolation-suite assertion now verify the deployed reality rather than the configuration.
 - **15 Aug 2026**: real Twilio account credentials were placed in all four non-production worker stores and in the CI store during the 0.3 paste session, against the same-night deferral ruling. Found by the 0.3 secret-name audit; all twelve entries deleted the same night (eight wrangler, four GitHub). Recommended follow-up: rotate the Twilio auth token in the Twilio console, since it briefly lived in stores whose reachable surface is wider than production's.
 - **15 Aug 2026**: the `neondb_owner` password for the project's main branch was printed into a build-session transcript by `neonctl projects create` output. Remediation: password reset on all three branches (main, staging, dev) in the Neon dashboard before any DB URL was stored as a secret, making the exposed value dead. Standing rule going forward: Neon connection strings are retrieved only inside a pipe into `wrangler secret put`, never displayed.
 

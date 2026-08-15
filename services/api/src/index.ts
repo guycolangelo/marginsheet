@@ -2,11 +2,13 @@
 
 import * as Sentry from "@sentry/cloudflare";
 import { scrubEvent } from "@marginsheet/shared/sentry-scrub";
+import { readDbIdentity } from "./db-identity.js";
 
 interface Env {
   ENVIRONMENT: "dev" | "staging" | "production";
   BUILD_SHA?: string;
   SENTRY_DSN?: string;
+  NEON_DATABASE_URL?: string;
 }
 
 const handler = {
@@ -18,6 +20,13 @@ const handler = {
         environment: env.ENVIRONMENT,
         build: env.BUILD_SHA ?? "unknown",
       });
+    }
+    if (url.pathname === "/debug/db-identity") {
+      if (!env.NEON_DATABASE_URL) {
+        return Response.json({ error: "NEON_DATABASE_URL is not configured" }, { status: 503 });
+      }
+      // Only the role name and the BYPASSRLS flag leave this handler.
+      return Response.json(await readDbIdentity(env.NEON_DATABASE_URL));
     }
     if (url.pathname === "/debug/sentry") {
       throw new Error(`sentry wiring proof: marginsheet-api ${env.ENVIRONMENT}`);
