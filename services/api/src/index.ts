@@ -23,7 +23,17 @@ const handler = {
     }
     if (url.pathname === "/debug/db-identity") {
       if (!env.NEON_DATABASE_URL) {
-        return Response.json({ error: "NEON_DATABASE_URL is not configured" }, { status: 503 });
+        return Response.json(
+          {
+            error: "NEON_DATABASE_URL is not usable",
+            // Distinguishes an absent binding from one bound to an empty
+            // string. On 15 Aug 2026 all six secrets held "" because a broken
+            // pipe stored nothing and wrangler accepted it silently; the
+            // original check reported both cases identically and cost hours.
+            present: env.NEON_DATABASE_URL !== undefined,
+          },
+          { status: 503 }
+        );
       }
       // Only the role name and the BYPASSRLS flag leave this handler.
       return Response.json(await readDbIdentity(env.NEON_DATABASE_URL));

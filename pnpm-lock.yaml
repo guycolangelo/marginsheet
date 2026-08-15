@@ -11,6 +11,12 @@ importers:
       neonctl:
         specifier: ^2
         version: 2.47.0(hono@4.13.2)
+      postgres:
+        specifier: ^3
+        version: 3.4.9
+      tsx:
+        specifier: ^4
+        version: 4.23.12
 
   packages/fact-packages:
     dependencies:
