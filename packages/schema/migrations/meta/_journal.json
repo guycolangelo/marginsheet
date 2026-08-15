@@ -43,6 +43,13 @@
       "when": 1786826350924,
       "tag": "0005_conversation_a",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786827610120,
+      "tag": "0006_conversation_b",
+      "breakpoints": true
     }
   ]
 }
