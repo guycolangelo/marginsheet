@@ -58,6 +58,38 @@ describe("sentry scrubber", () => {
     expect(headers["content-type"]).toBe("application/json");
   });
 
+  it("redacts network identity and geolocation headers", () => {
+    const out = scrubEvent({
+      request: {
+        headers: {
+          "CF-Connecting-IP": "203.0.113.47",
+          "cf-connecting-ipv6": "2001:db8::1",
+          "X-Forwarded-For": "203.0.113.47, 198.51.100.2",
+          "True-Client-IP": "203.0.113.47",
+          "Cf-Ipcountry": "US",
+          "CF-IPCity": "Tampa",
+          "Cf-Ray": "a2b9c188ba5ff456",
+          Accept: "*/*",
+        },
+      },
+    });
+    const headers = out.request.headers as Record<string, string>;
+    for (const key of [
+      "CF-Connecting-IP",
+      "cf-connecting-ipv6",
+      "X-Forwarded-For",
+      "True-Client-IP",
+      "Cf-Ipcountry",
+      "CF-IPCity",
+    ]) {
+      expect(headers[key], key).toBe("[scrubbed]");
+    }
+    // Diagnostics that carry no identity survive.
+    expect(headers["Cf-Ray"]).toBe("a2b9c188ba5ff456");
+    expect(headers.Accept).toBe("*/*");
+    expect(JSON.stringify(out)).not.toContain("203.0.113.47");
+  });
+
   it("drops the user context entirely, however it is populated", () => {
     const withIp = scrubEvent({
       message: "boom",

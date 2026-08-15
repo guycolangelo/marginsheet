@@ -33,6 +33,23 @@ const SENSITIVE_KEYS = new Set([
   "token",
   "access_token",
   "refresh_token",
+  // Network identity. On Cloudflare, CF-Connecting-IP is the household's real
+  // address, not the edge's; the others are the same value under different
+  // proxy conventions. Found in a captured request-headers panel during the
+  // 0.6 wiring proof, 15 Aug 2026. An IP is personal data under GDPR and
+  // CCPA, and this product's requests come from households.
+  "cf-connecting-ip",
+  "cf-connecting-ipv6",
+  "x-forwarded-for",
+  "x-real-ip",
+  "true-client-ip",
+  "forwarded",
+  // Coarse geolocation Cloudflare adds per request. Not needed to debug a
+  // worker, and it is a location signal attached to a household's traffic.
+  "cf-ipcountry",
+  "cf-ipcity",
+  "cf-region",
+  "cf-postal-code",
 ]);
 
 function scrubString(value: string): string {
