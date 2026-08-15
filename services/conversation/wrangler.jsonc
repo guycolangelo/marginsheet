@@ -1,19 +1,36 @@
 // marginsheet-conversation, the brains' service. Phase B builds here; M0 ships
 // the shell so environments, Sentry wiring (0.6), and deploys exist from day one.
+//
+// nodejs_compat is required by @sentry/cloudflare (with compatibility_date
+// 2024-09-23 or later). The DSN is a client-side identifier, not a secret;
+// see the note in services/api/wrangler.jsonc. Vars do not inherit into
+// named environments, so each env repeats the block.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "marginsheet-conversation-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
-  "vars": { "ENVIRONMENT": "dev" },
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "dev",
+    "SENTRY_DSN": "https://10db9ad1ac7e0cb011ffd14a678b0ccc@o4511912456617984.ingest.us.sentry.io/4511915843715072"
+  },
   "env": {
     "staging": {
       "name": "marginsheet-conversation-staging",
-      "vars": { "ENVIRONMENT": "staging" }
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "SENTRY_DSN": "https://10db9ad1ac7e0cb011ffd14a678b0ccc@o4511912456617984.ingest.us.sentry.io/4511915843715072"
+      }
     },
     "production": {
       "name": "marginsheet-conversation",
-      "vars": { "ENVIRONMENT": "production" }
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {
+        "ENVIRONMENT": "production",
+        "SENTRY_DSN": "https://10db9ad1ac7e0cb011ffd14a678b0ccc@o4511912456617984.ingest.us.sentry.io/4511915843715072"
+      }
     }
   }
 }
