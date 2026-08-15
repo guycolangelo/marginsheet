@@ -1,0 +1,30 @@
+# Key-validation smoke (Task 0.5). Manually triggered only; never on PR or
+# push. One count_tokens call per pinned model. The optional probe_model input
+# reports any candidate ID's live status without failing the run.
+name: model-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe_model:
+        description: "Optional candidate model ID to probe (reported, never fails the run)"
+        required: false
+        type: string
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Smoke each pinned model
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RUN_MODEL_SMOKE: "1"
+          PROBE_MODEL: ${{ inputs.probe_model }}
+        run: pnpm --filter @marginsheet/shared test:smoke
