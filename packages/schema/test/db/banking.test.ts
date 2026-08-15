@@ -54,8 +54,13 @@ describe("invariant 2: the token column is unreadable by the app role", () => {
   });
 
   it("marginsheet_app can still do its job on the other columns", async () => {
-    const { itemId } = await seedItem();
+    const { itemId, household } = await seedItem();
 
+    // Since migration 0008 the app role is also filtered by RLS, so this
+    // read must scope itself the way a real request does. Without the GUC it
+    // correctly sees zero rows, which is the fail-closed behavior rather
+    // than a regression.
+    await sql`select set_config('marginsheet.household_id', ${household}, false)`;
     await sql`set role marginsheet_app`;
     try {
       const rows = await sql<{ status: string }[]>`
@@ -66,6 +71,7 @@ describe("invariant 2: the token column is unreadable by the app role", () => {
       expect(rows[0].status).toBe("healthy");
     } finally {
       await sql`reset role`;
+      await sql`select set_config('marginsheet.household_id', '', false)`;
     }
 
     await sql`delete from plaid_items where id = ${itemId}`;
