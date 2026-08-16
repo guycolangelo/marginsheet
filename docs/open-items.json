@@ -51,8 +51,15 @@
   {
     "id": "invitation-token-format-constraint",
     "item": "invitations.token has no CHECK constraint requiring the ms_invite_ prefix, so 3.5 could mint an unprefixed token and the domain separation would be advisory for that kind. A migration would make it structural.",
-    "owner": "build",
-    "owed_to": "3.5",
+    "owner": "3.5",
+    "owed_to": "a migration adding the CHECK, shipped with invitation issuance",
+    "raised": "2026-08-16"
+  },
+  {
+    "id": "journey-copy-review",
+    "item": "Trademark placement is a copy-review item rather than lint (ruled 16 Aug 2026), because the unit of first use is a journey and a linter cannot see one. That makes it depend on a journey copy review, which is not scheduled anywhere yet. The sign-in journey is the first that needs one.",
+    "owner": "Guy (Design)",
+    "owed_to": "M8, with the sign-in surfaces",
     "raised": "2026-08-16"
   }
 ]
