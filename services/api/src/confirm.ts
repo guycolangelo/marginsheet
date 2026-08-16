@@ -32,24 +32,93 @@
 // it would become a replay.
 
 import type { Auth } from "./auth.js";
+import { MAGIC_LINK_MINUTES } from "./auth.js";
+import { confirmPage, incompleteLinkPage, signedInPage, spentLinkPage } from "./confirm-page.js";
 
 export type ConfirmOutcome =
   | { status: "signed_in" }
   | { status: "already_signed_in" }
   | { status: "refused"; reason: "used_or_expired" };
 
+// The page's URL carries a live credential, so it is kept out of Referer
+// headers and out of any shared cache. Neither is recoverable after the fact.
+const PAGE_HEADERS = {
+  "content-type": "text/html; charset=utf-8",
+  "referrer-policy": "no-referrer",
+  "cache-control": "no-store",
+  "x-content-type-options": "nosniff",
+};
+
+/**
+ * GET /auth/confirm: renders the page and spends NOTHING.
+ *
+ * This handler is the whole point of task 3.2a's rework. It did not exist on
+ * 16 Aug 2026: /auth/confirm was mounted for POST only, so a real magic-link
+ * email delivered a link that answered "Not found" while eleven tests covering
+ * the POST action were green. The action had been built and the page it was
+ * supposed to complete never had been.
+ *
+ * It deliberately does not look the token up. Validating here would mean
+ * reporting on a token this request is not spending, and the page has nothing
+ * useful to say about it: whether it still works is decided at the moment the
+ * action fires, not at the moment the page loads.
+ */
+export function confirmLandingPage(request: Request): Response {
+  const token = new URL(request.url).searchParams.get("token") ?? "";
+
+  if (!token) {
+    // 400, not 404. The route exists and the request reached it; what arrived
+    // was incomplete. A 404 here would send someone hunting for a broken link
+    // when the link was fine and their mail client truncated it.
+    return new Response(incompleteLinkPage(), { status: 400, headers: PAGE_HEADERS });
+  }
+
+  return new Response(confirmPage(token, MAGIC_LINK_MINUTES), { status: 200, headers: PAGE_HEADERS });
+}
+
+/**
+ * The token arrives as JSON from a programmatic caller or as a form encoding
+ * from the page's button. Both are read, because the page uses a plain HTML
+ * form: a first sign-in is the worst moment to require JavaScript.
+ */
+async function readToken(request: Request): Promise<string> {
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    try {
+      const form = await request.formData();
+      const value = form.get("token");
+      return typeof value === "string" ? value : "";
+    } catch {
+      return "";
+    }
+  }
+
+  try {
+    const body = (await request.json()) as { token?: unknown };
+    return typeof body.token === "string" ? body.token : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * A browser submitting the form wants a page; a fetch() caller wants JSON. The
+ * four-row outcome table below is identical either way, and only the rendering
+ * differs. Existing callers send JSON and no Accept header, so they keep the
+ * JSON they were written against.
+ */
+function wantsHtml(request: Request): boolean {
+  return (request.headers.get("accept") ?? "").includes("text/html");
+}
+
 export async function confirmSignIn(
   auth: Auth,
   request: Request,
   baseUrl: string
 ): Promise<Response> {
-  let token = "";
-  try {
-    const body = (await request.json()) as { token?: unknown };
-    token = typeof body.token === "string" ? body.token : "";
-  } catch {
-    token = "";
-  }
+  const html = wantsHtml(request);
+  const token = await readToken(request);
 
   if (token) {
     const verified = await auth.handler(
@@ -63,7 +132,9 @@ export async function confirmSignIn(
     const setCookie = verified.headers.get("set-cookie");
     if (setCookie) {
       // Spent successfully. The session cookie is passed straight through.
-      const res = Response.json({ status: "signed_in" } satisfies ConfirmOutcome);
+      const res = html
+        ? new Response(signedInPage(), { status: 200, headers: PAGE_HEADERS })
+        : Response.json({ status: "signed_in" } satisfies ConfirmOutcome);
       res.headers.append("set-cookie", setCookie);
       return res;
     }
@@ -73,12 +144,16 @@ export async function confirmSignIn(
   // in, this is the double click, not an attack.
   const existing = await auth.api.getSession({ headers: request.headers });
   if (existing?.session) {
-    return Response.json({ status: "already_signed_in" } satisfies ConfirmOutcome);
+    return html
+      ? new Response(signedInPage(), { status: 200, headers: PAGE_HEADERS })
+      : Response.json({ status: "already_signed_in" } satisfies ConfirmOutcome);
   }
 
   // Row 3 and row 4. No session is minted and nothing is reissued.
-  return Response.json(
-    { status: "refused", reason: "used_or_expired" } satisfies ConfirmOutcome,
-    { status: 401 }
-  );
+  return html
+    ? new Response(spentLinkPage(), { status: 401, headers: PAGE_HEADERS })
+    : Response.json(
+        { status: "refused", reason: "used_or_expired" } satisfies ConfirmOutcome,
+        { status: 401 }
+      );
 }
