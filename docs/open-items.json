@@ -64,9 +64,9 @@
   },
   {
     "id": "edge-rate-limit-rule",
-    "item": "The per-source magic-link rate limiting rule declared in config/edge-rate-limits.json must exist on the marginsheet.com zone. The edge-rules CI job fails until it does, which is intended: without it, spray across many addresses from one source is unlimited. Creating it needs Cloudflare dashboard access, and reading it needs Zone -> Firewall Services -> Read on the marginsheet-ci token.",
+    "item": "The per-source magic-link edge rule is deployed at the free plan's fixed shape: 10 requests per 10 seconds, ip.src only, no cf.colo.id, mitigation timeout not exposed. That is a burst brake rather than a sustained-rate control, so the per-email limit and the global ceiling in our own code are load-bearing rather than secondary. Revisit on any plan upgrade: 60 second period, cf.colo.id as a second characteristic, 600 second mitigation.",
     "owner": "Guy",
-    "owed_to": "before 3.2e merges",
+    "owed_to": "a Cloudflare plan upgrade",
     "raised": "2026-08-16"
   }
 ]

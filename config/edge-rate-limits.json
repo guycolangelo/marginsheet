@@ -18,10 +18,38 @@
     "declared here is absent or altered, so drift is a red build rather than a",
     "discovery.",
     "",
+    "THESE VALUES ARE THE FREE TIER'S FIXED SHAPE, NOT A CHOICE (16 Aug 2026).",
+    "The rule was designed as 10 requests per 60 seconds keyed on ip.src plus",
+    "cf.colo.id, with a 10 minute mitigation. Cloudflare's free plan does not",
+    "offer any of that: the period is fixed at 10 seconds and not adjustable,",
+    "the characteristics dropdown is inert and allows IP only, and the",
+    "mitigation timeout is not exposed. What is declared below is what the",
+    "platform permits, deployed at those values with a block action.",
+    "",
+    "WHAT A PAID PLAN WOULD CHANGE, so whoever upgrades knows to revisit this:",
+    "  period              10 -> 60 seconds",
+    "  characteristics     add cf.colo.id as a second characteristic, so the",
+    "                      counter is per data centre and a distributed source",
+    "                      cannot spread its budget across colos",
+    "  mitigation_timeout  becomes settable; 600 seconds was the intent",
+    "",
+    "WHAT THIS COSTS TODAY, stated rather than implied. Ten requests per ten",
+    "seconds is a burst brake, not a sustained-rate control: a patient attacker",
+    "stays under it indefinitely. That makes the two limits in our own code",
+    "load-bearing rather than secondary. The global ceiling in particular is now",
+    "the binding cost control, since production allows 500 sends an hour and",
+    "this rule alone would permit far more. Recorded so nobody reads the",
+    "presence of an edge rule as covering the spray case fully.",
+    "",
+    "mitigation_timeout is deliberately absent from the comparison below: the",
+    "free plan does not expose it, so there is no setting that could drift. It",
+    "returns to the declaration on upgrade, along with the values above.",
+    "",
     "zone_id is not a secret; it appears in every wrangler deploy log."
   ],
   "zone_id": "90a1a8b7fce11846693807ce47ba5377",
   "zone_name": "marginsheet.com",
+  "plan_at_declaration": "free",
   "rules": [
     {
       "description": "magic-link sends, per source",
@@ -29,10 +57,9 @@
       "expression": "(http.host eq \"api.marginsheet.com\" and http.request.uri.path eq \"/api/auth/sign-in/magic-link\")",
       "action": "block",
       "ratelimit": {
-        "characteristics": ["ip.src", "cf.colo.id"],
-        "period": 60,
-        "requests_per_period": 10,
-        "mitigation_timeout": 600
+        "characteristics": ["ip.src"],
+        "period": 10,
+        "requests_per_period": 10
       }
     }
   ]
