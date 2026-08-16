@@ -229,3 +229,54 @@ Three signals do exist, and only the first is trustworthy:
 ### The test this owes
 
 A label chosen by a heuristic needs its failure case exercised, not its happy path. The suite has to prove the neutral label is what appears when detection is unavailable, when it is inconclusive, and when it throws, because a heuristic that silently resolves to a confident wrong answer is the failure this ruling exists to prevent. Asked the standing question: if platform detection broke completely, the button must read "Sign in with your passkey" and nothing must go quiet.
+
+---
+
+## 10. Passkey registration placement, and the skip path (amends `identity-onboarding-spec.md` §1 and the signup spine; ruled 16 August 2026)
+
+Recorded, not built. Pairs with amendment 9: that one governs the label, this one governs where the prompt sits and what happens when a household says no.
+
+### The ruling
+
+**The registration prompt lands in the signup spine right after identity is created, before the card step.** A household may skip it, or dismiss the browser dialog, and **that is a supported end state rather than an error.** They use magic links. Settings offers passkey registration later.
+
+### This resolves a conflict already in the spec
+
+§1 currently says the passkey is created **as** the signup: "Passkey-first registration (pre-auth, Better Auth 1.6+): the passkey is created *as* the signup, before any session exists." That is superseded. Identity is created first, and the passkey prompt follows it.
+
+The spec was already inconsistent with itself on this point, which is worth naming so the resolution is not read as a change of mind:
+
+- The abandonment table's Step 1 row describes "Auth identity, empty household, no subscription" recovered by "magic link back in." That state cannot exist under pre-auth passkey-first, because there would be no identity without a passkey.
+- The §1 tightening ("a magic link is accepted only when no passkey exists") describes members holding an account with no passkey at all. Pre-auth passkey-first would make that population empty.
+
+The build had already moved this way. M3's sub-tasks were resequenced on 15 Aug so passkey work (3.1a) runs after magic link (3.2), on the reasoning that passkey registration requires a signed-in caller and a session minted through `internalAdapter` is a session the product never issues. This amendment makes the spec say what the build already does.
+
+### Consequence 1: the skip is recorded, never inferred
+
+**A household who declined and a household who never reached the step are different states, and only the first is left alone.** Absence of a passkey cannot distinguish them, so the decline is a fact that gets written down.
+
+**And it cannot be inferred from the browser dialog either**, which is the part an implementer will get wrong. `navigator.credentials.create()` rejects with `NotAllowedError` for a user cancelling **and** for a timeout, and WebAuthn makes those deliberately indistinguishable so a site cannot learn what happened at the authenticator. So a household who walked away from their desk and a household who chose "not now" arrive as the identical rejection.
+
+Recording the decline from that rejection would file a timeout as a decision, and the household would never be asked again because they made a coffee. **The recorded decline comes from an explicit affordance the household clicks**, and a dismissed dialog with no such click leaves the state untouched and re-promptable.
+
+One rejection is distinguishable and worth handling separately: `InvalidStateError` means this authenticator already holds a credential for this account. That is "already registered", not a decline.
+
+**Owed:** a persisted field, per member, carrying when the prompt was declined. Null means the household has not answered and may be prompted when they reach the step; a timestamp means leave them alone. Registration itself needs no field, since a `passkey` row is the record. Append-only migration rules apply, and this is owed to whichever of M3 or M7 opens the spine step first.
+
+Note the field is a member-level fact about **the prompt**, not a device-level fact about credentials. A member who declined at signup and later registers a passkey on one device has not answered anything about a second device, and nothing should re-derive the decline per device.
+
+### Consequence 2: no passkey is never a degraded account
+
+**Nothing in the product may treat "no passkey" as a degraded account.** No warning banner, no nag, no reduced capability, no security score, no prompt that returns on its own. The one place the distinction is allowed to matter is the §1 tightening, and it is already correct there: a phone change requires a passkey when one exists and accepts a magic-link session when none does.
+
+That third case was added deliberately and named by Guy as the one that matters, precisely so "refuse magic-link phone changes" could not quietly become "lock out every member without a passkey." The doctrine and the control already agree; this records that no other surface may reopen the question.
+
+It also follows from "nothing chases the household." A prompt that comes back after a no is chasing, whatever it is labelled.
+
+### The commercial reason the skip must be one action (M7)
+
+The prompt sits immediately before the card step, so anything that stalls here costs a subscription rather than a passkey. A household stuck at a dialog they did not want has not reached `trialing` and appears in the abandonment table's Step 1 row. The skip being a single, obvious action is what keeps a security nicety from becoming a funnel loss.
+
+### The test this owes
+
+The supported end state proven as supported: a household that skips completes signup, reaches the card step, holds no passkey, signs in by magic link afterwards, and changes their phone successfully on a magic-link session. Plus the negative that gives it meaning: a household that declined is not prompted again, while one that never reached the step still is.
