@@ -5,6 +5,7 @@ import { scrubEvent } from "@marginsheet/shared/sentry-scrub";
 import { readDbIdentity, readSchemaHealth } from "@marginsheet/shared/db";
 import { createAuth } from "./auth.js";
 import { postmarkSender } from "./email.js";
+import { confirmSignIn } from "./confirm.js";
 
 interface Env {
   ENVIRONMENT: "dev" | "staging" | "production";
@@ -61,6 +62,21 @@ const handler = {
         },
         { status: database.ok ? 200 : 503 }
       );
+    }
+
+    // The confirm action. The emailed link points at a page; that page calls
+    // this. Nothing is spent by opening the link.
+    if (url.pathname === "/auth/confirm" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.BETTER_AUTH_SECRET || !env.BETTER_AUTH_URL) {
+        return Response.json({ error: "auth is not configured" }, { status: 503 });
+      }
+      const auth = createAuth({
+        NEON_DATABASE_URL: env.NEON_DATABASE_URL,
+        ENVIRONMENT: env.ENVIRONMENT,
+        BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL: env.BETTER_AUTH_URL,
+      });
+      return confirmSignIn(auth, request, env.BETTER_AUTH_URL);
     }
 
     // Better Auth owns everything under /api/auth. This is the only place a

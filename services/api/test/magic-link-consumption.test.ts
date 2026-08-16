@@ -142,3 +142,70 @@ describe.skipIf(!configured)("the double-click table", () => {
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 });
+
+describe.skipIf(!configured)("row 2: the double click, through /auth/confirm", () => {
+  /** Calls the confirm action the way the landing page does. */
+  async function confirm(token: string, cookie?: string) {
+    const auth = createAuth(env, new RecordingSender());
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (cookie) headers.cookie = cookie;
+    const { confirmSignIn } = await import("../src/confirm.js");
+    return confirmSignIn(
+      auth,
+      new Request(`${env.BETTER_AUTH_URL}/auth/confirm`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ token }),
+      }),
+      env.BETTER_AUTH_URL
+    );
+  }
+
+  it("first action signs the member in", async () => {
+    const { token } = await requestLink();
+    const res = await confirm(token);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: "signed_in" });
+    expect(res.headers.get("set-cookie"), "no session cookie was issued").toBeTruthy();
+  });
+
+  it("ROW 2: the second action lands the same member signed in, not an error", async () => {
+    const { token } = await requestLink();
+    const first = await confirm(token);
+    const cookie = first.headers.get("set-cookie")!.split(";")[0];
+
+    // The same member, clicking again with the session they just received.
+    const second = await confirm(token, cookie);
+    expect(second.status, "the member's own double click was refused").toBe(200);
+    expect(await second.json()).toEqual({ status: "already_signed_in" });
+
+    // And no second session was minted: they are in the one they had.
+    expect(second.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("ROW 3 still holds: the same spent token from a stranger is refused", async () => {
+    // The row that must not soften. Row 2 must not have opened it.
+    const { token } = await requestLink();
+    await confirm(token);
+
+    const stranger = await confirm(token);
+    expect(stranger.status, "a spent token was honoured for a stranger").toBe(401);
+    expect(await stranger.json()).toEqual({ status: "refused", reason: "used_or_expired" });
+    expect(stranger.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("ROW 4 still holds: an expired token is refused even for a signed-in member", async () => {
+    // A signed-in member gets "already signed in", never a fresh session from
+    // a dead token. Nothing is reissued.
+    const { token: live } = await requestLink();
+    const signedIn = await confirm(live);
+    const cookie = signedIn.headers.get("set-cookie")!.split(";")[0];
+
+    const { token: stale } = await requestLink();
+    await owner`update verification set expires_at = now() - interval '1 minute'`;
+
+    const res = await confirm(stale, cookie);
+    expect(await res.json()).toEqual({ status: "already_signed_in" });
+    expect(res.headers.get("set-cookie"), "a dead token minted a session").toBeNull();
+  });
+});
