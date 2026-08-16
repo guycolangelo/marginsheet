@@ -17,7 +17,7 @@ Deferral ruling (Guy, 15 Aug 2026): production/live credentials land with the mo
 | `PLAID_CLIENT_ID`, `PLAID_SECRET` | api | sandbox, set 0.3 | **deferred to M4** |
 | `STRIPE_SECRET` | api | test mode, set 0.3 | **deferred to M7** |
 | `STRIPE_WEBHOOK_SECRET` | api | **deferred to M7**: minted with the webhook endpoint, test and live | **deferred to M7** |
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | api + conversation | **deferred to M3** (unset 15 Aug ruling; the isolation Twilio check skips while absent and re-arms when set) | **deferred to M3** |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | api + conversation | **deferred to M3** (unset 15 Aug ruling; the isolation Twilio check skips while absent and re-arms when set) | **deferred to M3**; exercised live 15 Aug 2026 by the decoupling probe, prompted into one process on Guy's machine and stored nowhere |
 | `TWILIO_VERIFY_SERVICE_SID` | api | **deferred to M3** (inert without real credentials) | **deferred to M3** |
 | `POSTMARK_TOKEN` | conversation | sandbox server token, set 0.3 | **deferred to M3** |
 | `ANTHROPIC_API_KEY` | conversation | non-production key, set 0.3 (0.5's smoke call needs it) | **deferred to the first production deploy that calls a model** |
@@ -116,6 +116,18 @@ Nothing bad reached production: the deploy was correct and verification passed. 
 The next gap will not be this one. It will have this shape: **a control that reports on a proxy for the thing it is trusted to guarantee.** The test is not "is this check correct?" but "if the thing it guards were completely broken, would this check go red?" For `/health`, the honest answer had always been no, and it was written down nowhere because nobody had asked the question in those words.
 
 The corollary, which cost the most time here: **a fix is not a fix until something fails without it.** Failure 2's remediation was recorded, believed, and never observed. The observation is the remediation. The rest is intent.
+
+## The Verify decoupling probe
+
+`scripts/verify-decoupling-probe.sh` sends a real OTP through the production Twilio Verify service and checks it, to prove that an approved phone verification returns a verdict and nothing session-shaped. Phone is a security primitive under identity-onboarding-spec §§1 and 7, and a Verify response carrying a token would silently make it an authentication factor.
+
+**Custody.** The three Twilio values are prompted into the running process, never echoed, never written to disk, never placed in shell history, and never exported beyond curl. Per the deferral ledger these are live production credentials, so the probe runs on Guy's machine only, never in dev and never in CI. That constraint is why it is a script he runs rather than a CI job.
+
+**Result, 15 August 2026.** HTTP 201 `status=pending`, then HTTP 200 `status=approved valid=True`, with no token, session, JWT, or credential-shaped field in the response. The decoupling holds.
+
+**Known constraint (15 Aug 2026): the account is on trial.** The first attempt returned error 21608, since trial accounts deliver only to verified caller IDs. The founder number was added to the allowlist and the probe passed. Upgrade scheduled Wednesday 19 August 2026 with the A2P brand retry. Blocking condition to watch is the first non-founder phone, not the date.
+
+**It can fail.** The first version of this probe was an inline one-liner using `read -p`, which is bash syntax that means "read from a coprocess" in zsh. Every variable stayed unset, Twilio answered 404, and the assertion scanned that error body and reported success. The script now asserts each HTTP status and payload before the next step runs, and the decoupling verdict is unreachable unless the check returned `approved`. Negative controls: empty credentials, malformed SIDs, and a live 401 all exit non-zero without printing a verdict.
 
 ## Observability privacy controls
 
