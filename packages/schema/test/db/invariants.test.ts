@@ -169,23 +169,26 @@ interface DisciplineGap {
   becomesStructuralWhen: string;
 }
 
+// Two entries were deleted on 15 Aug 2026 because the condition each named
+// for becoming structural was met. Both closures are recorded in
+// docs/secrets-custody.md under "Incident: the schema that was never there".
+//
+//   rls-not-forced: closed. All six Workers now authenticate as
+//   marginsheet_app, and the db-identity CI job BLOCKS merges on the positive
+//   assertion (current_user IS marginsheet_app AND bypassrls is false) in
+//   dev, staging and production.
+//
+//   long-lived-branches-unmigrated: closed. deploy.yml migrates each
+//   environment's own Neon branch before deploying code to it, a failed
+//   migration fails the deploy, and deploy verification fails unless the live
+//   /health reports a migration count matching the deployed commit.
 const DISCIPLINE_GAPS: DisciplineGap[] = [
-  {
-    id: "rls-not-forced",
-    gap:
-      "The application connects to Postgres as neondb_owner, which holds BYPASSRLS and therefore reads across households past every policy. Migration 0009 grants LOGIN to marginsheet_app and forces RLS; what actually closes this is the connection string each Worker uses, which is asserted by the isolation suite.",
-    heldBy:
-      "Until the isolation-suite assertion is green in every environment: nothing but deployment configuration. A spike on 15 Aug 2026 found the mitigation recorded in migration 0008 was never actually in place, since Task 0.3 issued every Worker's NEON_DATABASE_URL for neondb_owner.",
-    owner: "M3 (identity and auth)",
-    becomesStructuralWhen:
-      "Every Worker's NEON_DATABASE_URL authenticates as marginsheet_app (or marginsheet_sync for the sync worker), and the isolation suite asserts BOTH that current_user IS marginsheet_app and that the role does NOT hold BYPASSRLS. Asserting only the absence of the owner would pass for any wrong role, including one that does not exist. When that assertion is green in dev, staging, and production, delete this entry.",
-  },
   {
     id: "owner-keeps-bypassrls",
     gap:
       "neondb_owner retains the BYPASSRLS attribute, so anything holding owner credentials is exempt from household isolation regardless of FORCE.",
     heldBy:
-      "The rls-not-forced check above: if no runtime component authenticates as the owner, the attribute has no runtime reach. FORCE is enabled but does not help here, because BYPASSRLS supersedes it.",
+      "The db-identity CI job, which blocks merges unless all six deployed Workers authenticate as marginsheet_app and hold no BYPASSRLS. If no runtime component authenticates as the owner, the attribute has no runtime reach. FORCE is enabled but does not help here, because BYPASSRLS supersedes it. This gap was formerly held closed by the rls-not-forced entry, which closed on 15 Aug 2026 when that check became blocking.",
     owner: "Nobody, deliberately (ruled 15 Aug 2026)",
     becomesStructuralWhen:
       "It does not, and that is the decision rather than an omission. Revoking BYPASSRLS from neondb_owner would make isolation structural instead of configuration-dependent, but it is Neon's default posture and the migration path depends on it. That is a bet against a vendor default to close a gap the connection-string check already closes, and a verifiable check beats an unverified bet. Revisit only if Neon's defaults change or a migration path stops needing it.",

@@ -3,12 +3,13 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./analytics": "./src/analytics.ts",
+    "./commitments": "./src/commitments.ts",
+    "./db": "./src/db.ts",
+    "./merchant": "./src/merchant.ts",
     "./models": "./src/models.ts",
     "./routing": "./src/routing.ts",
-    "./sentry-scrub": "./src/sentry-scrub.ts",
-    "./analytics": "./src/analytics.ts",
-    "./merchant": "./src/merchant.ts",
-    "./commitments": "./src/commitments.ts"
+    "./sentry-scrub": "./src/sentry-scrub.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -19,5 +20,8 @@
     "@types/node": "^22",
     "typescript": "^5",
     "vitest": "^3"
+  },
+  "dependencies": {
+    "postgres": "^3"
   }
 }

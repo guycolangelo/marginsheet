@@ -13,7 +13,7 @@ Deferral ruling (Guy, 15 Aug 2026): production/live credentials land with the mo
 
 | Secret | Service | dev / staging | production |
 |---|---|---|---|
-| `NEON_DATABASE_URL` | api + conversation | set 0.3 (branch-matched: dev, staging) | set 0.3 (main branch) |
+| `NEON_DATABASE_URL` | api + conversation | reissued 15 Aug 2026 for `marginsheet_app` (branch-matched: dev, staging) | reissued 15 Aug 2026 for `marginsheet_app` (main branch) |
 | `PLAID_CLIENT_ID`, `PLAID_SECRET` | api | sandbox, set 0.3 | **deferred to M4** |
 | `STRIPE_SECRET` | api | test mode, set 0.3 | **deferred to M7** |
 | `STRIPE_WEBHOOK_SECRET` | api | **deferred to M7**: minted with the webhook endpoint, test and live | **deferred to M7** |
@@ -54,13 +54,60 @@ Both Workers expose `GET /debug/db-identity`, which returns exactly two values: 
 
 **What it must never return:** a connection string, a host, a password, a database name, or anything else credential-shaped. A role name is not a secret; it is the thing being audited. Adding a field that identifies the connection rather than the role turns an audit endpoint into a disclosure.
 
-**This is not a debug leftover.** It is the enforcement half of the `rls-not-forced` entry in the invariant manifest, and the isolation suite asserts against it. Removing the endpoint removes the check.
+**This is not a debug leftover.** It is the enforcement half of the `rls-not-forced` entry in the invariant manifest, and the `db-identity` CI job blocks merges on it. Removing the endpoint removes the check.
+
+**It is asserted by a blocking job, not by the isolation suite.** The isolation suite derives its own `NEON_DATABASE_URL` from `neonctl` as `neondb_owner` at job time, so it validates a credential no Worker uses and never notices what the Workers actually hold.
 
 ## Incident log
 
-- **15 Aug 2026**: every Worker environment's `NEON_DATABASE_URL` was issued for `neondb_owner`, a role holding `BYPASSRLS`, so the application would have read past every household isolation policy. Found by the M3 spike into whether Neon permits `BYPASSRLS`, which also proved migration 0008's stated reasoning wrong (`FORCE` never filtered the owner, because `BYPASSRLS` supersedes it). No data was exposed: no application code queried the database yet. Remediation: migration 0009 granted `LOGIN` to `marginsheet_app`, all six Worker connection strings were reissued for that role, and `/debug/db-identity` plus an isolation-suite assertion now verify the deployed reality rather than the configuration.
+- **15 Aug 2026**: three compounding database failures, each hiding the next: every Worker connected as a `BYPASSRLS` role, all six connection-string secrets then held the empty string, and no migration had ever been applied to any long-lived branch. Written up in full under "Incident: the schema that was never there" below, because the analysis of why every control missed it is worth more than the fix.
 - **15 Aug 2026**: real Twilio account credentials were placed in all four non-production worker stores and in the CI store during the 0.3 paste session, against the same-night deferral ruling. Found by the 0.3 secret-name audit; all twelve entries deleted the same night (eight wrangler, four GitHub). Recommended follow-up: rotate the Twilio auth token in the Twilio console, since it briefly lived in stores whose reachable surface is wider than production's.
 - **15 Aug 2026**: the `neondb_owner` password for the project's main branch was printed into a build-session transcript by `neonctl projects create` output. Remediation: password reset on all three branches (main, staging, dev) in the Neon dashboard before any DB URL was stored as a secret, making the exposed value dead. Standing rule going forward: Neon connection strings are retrieved only inside a pipe into `wrangler secret put`, never displayed.
+
+## Incident: the schema that was never there (15 August 2026)
+
+Three failures, each one hiding the next. Found while debugging a 503 from a newly built endpoint. No data was exposed and none could have been, because there was no data and no schema. That is the only reason this is an engineering write-up rather than a breach notice.
+
+### What happened, innermost first
+
+**Failure 1: no migration had ever been applied to any long-lived branch.** `main`, `staging` and `dev` each held zero user tables, in both the `marginsheet` and `neondb` databases. Neither `marginsheet_app` nor `marginsheet_sync` existed anywhere. All ten M1 migrations were real, correct, and proven, but only ever against the ephemeral per-PR branch that `ci.yml` creates and `neon-pr-cleanup.yml` then destroys. `deploy.yml` had no migration step at any stage, so nothing had ever run them anywhere that persists. Ten PRs merged green and M1 was accepted on that evidence.
+
+**Failure 2: the application connected as a `BYPASSRLS` role.** Task 0.3 issued every Worker's `NEON_DATABASE_URL` for `neondb_owner`. That role holds `BYPASSRLS`, which supersedes even `FORCE ROW LEVEL SECURITY`, so the application would have read past every `household_isolation` policy. Migration 0008 recorded a mitigation ("the application connects as `marginsheet_app`") that was never in place. Found by the M3 spike, which also disproved 0008's stated reasoning about `FORCE`.
+
+**Failure 3: the fix for failure 2 stored six empty strings.** The corrective reissue piped `scripts/app-db-url.mts` into `wrangler secret put`. `tsx` and `postgres` were declared only in `packages/schema`, while the helper's usage line says to run it from the repo root, so `pnpm exec` failed. The pipe delivered nothing. `wrangler secret put` stored the empty result and reported success, six times. And because of failure 1, `marginsheet_app` did not exist to be reissued for anyway, so the helper could not have succeeded even with a working pipe.
+
+The nesting is the point. Failure 3 was caused by the fix for failure 2, and both were made unfixable by failure 1, which nobody had looked for because every report said the schema was live.
+
+### Why every control missed it
+
+| Control | Why it passed |
+|---|---|
+| `/health` | Returned `{service, environment, build}`. It proved the Worker had booted and the edge served the right commit. It never touched a database, so an empty one and a correct one were indistinguishable. |
+| Deploy verification | Asserted the live `build` matched the deployed commit. Entirely true, and entirely about code. |
+| The `migrate` CI job | Ran up, down, and up again against the ephemeral PR branch. It proved the migrations were correct. It never claimed any environment had run them, and nobody noticed it wasn't claiming that. |
+| The isolation suite | Derives its own `NEON_DATABASE_URL` from `neonctl` as `neondb_owner` at job time, then asks it `select 1`. `select 1` succeeds against an empty database. It validates the credential CI can derive, never the credential a Worker holds. |
+| The M1 invariant suite | 146 tests, all real, all green, all against the ephemeral branch that was destroyed minutes later. |
+| The incident log | Recorded failure 2's remediation as complete on all six Workers. It was complete on none. A document asserting a fix is not evidence of a fix. |
+
+The common shape: **every control observed something adjacent to the thing that mattered.** Each was individually correct and honestly written. Not one of them asked a deployed Worker whether it could query a real table, because that question belonged to no module's scope.
+
+### What changed
+
+- `/health` runs a real query against a real table (`households`), reports `database.ok` and the connected database's applied migration count, and answers 503 when the database half fails. `select 1` was rejected deliberately: an empty database answers it happily.
+- Deploy verification fails unless `database.ok` is true **and** the reported migration count equals the number of migration files in the commit being deployed. Schema drift is now a named, failing condition rather than a silent one.
+- `deploy.yml` migrates each environment's own Neon branch before deploying code to it, and a failed migration fails the deploy.
+- `db-identity` is a blocking CI job asserting the positive on all six Workers: `current_user` **is** `marginsheet_app` and it does **not** hold `BYPASSRLS`. Asserting only "not `neondb_owner`" would pass for any wrong role, including one that does not exist and including an empty credential that never connected.
+- `scripts/put-app-db-url.sh` captures instead of piping, and refuses to store anything that is not a `marginsheet_app` connection string. A pipe carries a failure as an empty payload, which is indistinguishable from a successful empty result unless something checks.
+- `tsx` and `postgres` are declared at the repo root, so the helper runs where it is documented to run.
+- Migration 0010 grants `SELECT` on `schema_migrations` to the application roles, and nothing more. A role that could write that table could forge the schema version the deploy check trusts.
+- `packages/schema/test/db/health.test.ts` proves the health check goes red: against an empty database, against an unreachable one, and it asserts the error is scrubbed of anything connection-shaped.
+- The `/debug/db-identity` and health helpers moved into `packages/shared/src/db.ts`. Both services had byte-identical private copies, which is how a third service inherits a stale one.
+
+### The shape to watch for
+
+The next gap will not be this one. It will have this shape: **a control that reports on a proxy for the thing it is trusted to guarantee.** The test is not "is this check correct?" but "if the thing it guards were completely broken, would this check go red?" For `/health`, the honest answer had always been no, and it was written down nowhere because nobody had asked the question in those words.
+
+The corollary, which cost the most time here: **a fix is not a fix until something fails without it.** Failure 2's remediation was recorded, believed, and never observed. The observation is the remediation. The rest is intent.
 
 ## Observability privacy controls
 

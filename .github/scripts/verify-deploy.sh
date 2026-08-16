@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Post-deploy verification (M0 plan Task 0.7).
+# Post-deploy verification (M0 plan Task 0.7, extended 15 Aug 2026).
 #
 # A wrangler deploy that returns success is not proof the edge serves the new
 # code: on 15 Aug 2026 a hand-deployed worker reported an old build for
@@ -7,12 +7,27 @@
 # anyone noticing. This asks the live endpoint what it is running and fails
 # the job if the answer is not the commit we just deployed.
 #
-# Usage: verify-deploy.sh <dev|staging|production> <short-sha>
+# EXTENDED 15 Aug 2026. Serving the right commit was never enough. /health
+# reported only {service, environment, build}, so it returned green for ten
+# merged PRs against Neon branches holding zero tables, and stayed green for
+# hours while all six Workers held an empty connection string. The endpoint now
+# runs a real query against a real table and reports its applied migration
+# count, and this script fails the deploy unless:
+#
+#   database.ok         is true                      (it can query at all)
+#   database.migrations equals the migration files    (schema matches code)
+#                       in the commit being deployed
+#
+# The second check is the one that matters. Code deployed against a schema it
+# does not match is worse than a failed deploy, because it runs.
+#
+# Usage: verify-deploy.sh <dev|staging|production> <short-sha> <expected-migrations>
 
 set -euo pipefail
 
-target="${1:?usage: verify-deploy.sh <dev|staging|production> <short-sha>}"
-expected="${2:?usage: verify-deploy.sh <dev|staging|production> <short-sha>}"
+target="${1:?usage: verify-deploy.sh <env> <short-sha> <expected-migrations>}"
+expected="${2:?usage: verify-deploy.sh <env> <short-sha> <expected-migrations>}"
+want_migrations="${3:?usage: verify-deploy.sh <env> <short-sha> <expected-migrations>}"
 
 case "$target" in
   dev)
@@ -39,10 +54,28 @@ case "$target" in
     ;;
 esac
 
+# Read a dotted field out of the JSON body. Returns empty on any failure, so a
+# malformed body reads as a mismatch rather than crashing the script.
+field() {
+  printf '%s' "$1" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(''); raise SystemExit
+for k in sys.argv[1].split('.'):
+    if not isinstance(d, dict) or k not in d:
+        print(''); raise SystemExit
+    d = d[k]
+print('' if d is None else (str(d).lower() if isinstance(d, bool) else d))
+" "$2" 2>/dev/null || echo ""
+}
+
 # Cloudflare propagation is not instant. Poll rather than sleep-and-hope, so a
 # slow rollout does not read as a failure and a genuine failure still fails.
-attempts=20
-delay=6
+# Overridable so the failure path is testable without waiting two minutes.
+attempts=${VERIFY_ATTEMPTS:-20}
+delay=${VERIFY_DELAY:-6}
 
 for entry in "${hosts[@]}"; do
   host="${entry%%|*}"
@@ -50,24 +83,36 @@ for entry in "${hosts[@]}"; do
   echo "verifying https://$host/health"
 
   for ((i = 1; i <= attempts; i++)); do
-    body="$(curl -fsS --max-time 10 "https://$host/health" || echo '{}')"
-    got_build="$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("build",""))' 2>/dev/null || echo "")"
-    got_env="$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("environment",""))' 2>/dev/null || echo "")"
+    # Deliberately NOT curl -f: /health answers 503 when the database half
+    # fails, and that body carries the reason. Discarding it would leave the
+    # most useful failure message unread.
+    body="$(curl -sS --max-time 15 "https://$host/health" || echo '{}')"
 
-    if [[ "$got_build" == "$expected" && "$got_env" == "$want_env" ]]; then
-      echo "  ok: build=$got_build environment=$got_env"
+    got_build="$(field "$body" build)"
+    got_env="$(field "$body" environment)"
+    got_ok="$(field "$body" database.ok)"
+    got_migrations="$(field "$body" database.migrations)"
+
+    if [[ "$got_build" == "$expected" && "$got_env" == "$want_env" \
+       && "$got_ok" == "true" && "$got_migrations" == "$want_migrations" ]]; then
+      echo "  ok: build=$got_build environment=$got_env database.ok=true migrations=$got_migrations"
       break
     fi
 
     if (( i == attempts )); then
       echo "  FAIL after $attempts attempts" >&2
-      echo "  expected build=$expected environment=$want_env" >&2
-      echo "  got      build=${got_build:-<none>} environment=${got_env:-<none>}" >&2
+      echo "  expected build=$expected environment=$want_env database.ok=true migrations=$want_migrations" >&2
+      echo "  got      build=${got_build:-<none>} environment=${got_env:-<none>} database.ok=${got_ok:-<none>} migrations=${got_migrations:-<none>}" >&2
       echo "  response: $body" >&2
+      if [[ "$got_build" == "$expected" && "$got_ok" != "true" ]]; then
+        echo "  The right code is deployed but it cannot query its database." >&2
+      elif [[ -n "$got_migrations" && "$got_migrations" != "$want_migrations" ]]; then
+        echo "  Schema drift: this commit carries $want_migrations migrations, the database has $got_migrations." >&2
+      fi
       exit 1
     fi
     sleep "$delay"
   done
 done
 
-echo "all $target endpoints serve $expected"
+echo "all $target endpoints serve $expected against a schema of $want_migrations migrations"
