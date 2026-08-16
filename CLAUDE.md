@@ -36,6 +36,7 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 - **One module at a time. Never stacked.** Tests green before the next module opens.
 - **Every task plan is drafted for Guy's approval before execution.** No unapproved scope.
 - **Verify against the database directly, never against reports.** Reports lie, data doesn't.
+- **"If the thing this guards were completely broken, would this go red?"** Ask it of every control before trusting it. A control that observes something adjacent to what it is trusted to guarantee will pass honestly and forever while the guarantee is absent. Five have now failed this question in one day: `/health` returned green against three databases holding zero tables; six connection-string secrets held the empty string while every environment reported healthy; the isolation suite validated a credential no Worker uses; the production environment carried no reviewer while the workflow said it did; and a live Twilio probe reported DECOUPLING: HOLDS by scanning a 404 error body. Each was correctly written. None could go red. A control that cannot fail is documentation.
 - Each spec's invariants section seeds that module's test suite. An invariant without a test is not done.
 - Golden tests and the lint layer block merges in CI. No prompt version ships failing either.
 - The advice gate is live before the first real message ever sends, and it never fails open.
