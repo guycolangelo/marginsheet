@@ -20,18 +20,40 @@ describe("session.auth_method", () => {
     `;
     expect(col).toBeTruthy();
     expect(col.is_nullable).toBe("YES");
-    expect(col.udt_name).toBe("auth_method");
+    // text, not an enum: Better Auth's adapter binds a text parameter and an
+    // enum column would reject it. The CHECK below does the constraining.
+    expect(col.udt_name).toBe("text");
   });
 
-  it("admits exactly the two credential classes", async () => {
-    const rows = await sql<{ label: string }[]>`
-      select e.enumlabel as label from pg_enum e
-        join pg_type t on t.oid = e.enumtypid
-       where t.typname = 'auth_method'
-       order by e.enumsortorder
+  it("admits exactly the two credential classes, by CHECK constraint", async () => {
+    const [c] = await sql<{ def: string }[]>`
+      select pg_get_constraintdef(oid) as def from pg_constraint
+       where conname = 'session_auth_method_known'
     `;
-    // A third value would be a third class nobody wrote a rule for.
-    expect(rows.map((r) => r.label)).toEqual(["passkey", "magic_link"]);
+    expect(c, "the CHECK constraint is missing").toBeTruthy();
+    expect(c.def).toContain("'passkey'");
+    expect(c.def).toContain("'magic_link'");
+  });
+
+  it("NEGATIVE CONTROL: rejects a third credential class", async () => {
+    // A third value would be a class nobody wrote a rule for, and the guard
+    // would silently treat it as the weakest.
+    const [u] = await sql<{ id: string }[]>`
+      insert into "user" (id, name, email, email_verified)
+      values (${`ck_${crypto.randomUUID()}`}, 'Check Probe', ${`ck_${crypto.randomUUID()}@probe.test`}, false)
+      returning id
+    `;
+    const sid = `sess_${crypto.randomUUID()}`;
+    try {
+      await expect(
+        sql`
+          insert into "session" (id, expires_at, token, updated_at, user_id, auth_method)
+          values (${sid}, now() + interval '1 day', ${sid}, now(), ${u.id}, 'sms_code')
+        `
+      ).rejects.toThrow(/session_auth_method_known/);
+    } finally {
+      await sql`delete from "user" where id = ${u.id}`;
+    }
   });
 
   it("carries the reason a client-supplied value would void the control", async () => {

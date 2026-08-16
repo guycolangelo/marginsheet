@@ -4,7 +4,10 @@
 // These deliberately do NOT follow packages/schema's conventions. They use
 // text ids and timestamps without time zone because that is what Better Auth's
 // adapter expects, and a schema that disagrees with its adapter is a runtime
-// failure wearing a house style. Migration 0011 matches this file exactly.
+// failure wearing a house style. Migration 0011 matches this file exactly,
+// and 0014 adds session.auth_method as TEXT for the same reason: the adapter
+// generates text, and a Postgres enum column would reject the text parameter
+// it binds. The two permitted values are held by a CHECK constraint instead.
 import { relations } from "drizzle-orm";
 import {
   pgTable,
@@ -43,6 +46,7 @@ export const session = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    auth_method: text("auth_method"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );
