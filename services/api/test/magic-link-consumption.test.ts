@@ -8,11 +8,14 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { canRotate, rotateAppRole, assertNotSkippedInCI } from "./helpers/app-role.js";
 import { createAuth, type AuthEnv } from "../src/auth.js";
 import { RecordingSender } from "../src/email.js";
 
 const OWNER_URL = process.env.DATABASE_URL;
-const configured = Boolean(OWNER_URL) && process.env.AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE === "1";
+// Gated on WHERE these tests point, not on permission to rotate. See
+// helpers/app-role.ts: the target is the question that matters.
+const configured = canRotate();
 
 let env: AuthEnv;
 let owner: ReturnType<typeof postgres>;
@@ -21,18 +24,14 @@ let app: ReturnType<typeof postgres>;
 beforeAll(async () => {
   if (!configured) return;
   owner = postgres(OWNER_URL!, { max: 1 });
-  const password = `probe_${crypto.randomUUID().replace(/-/g, "")}`;
-  await owner.unsafe(`ALTER ROLE marginsheet_app LOGIN PASSWORD '${password}'`);
-  const u = new URL(OWNER_URL!);
-  u.username = "marginsheet_app";
-  u.password = password;
+  const appUrl = await rotateAppRole(owner, OWNER_URL!, "probe");
   env = {
-    NEON_DATABASE_URL: u.toString(),
+    NEON_DATABASE_URL: appUrl,
     ENVIRONMENT: "dev",
     BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long!",
     BETTER_AUTH_URL: "http://localhost:8787",
   };
-  app = postgres(u.toString(), { max: 1 });
+  app = postgres(appUrl, { max: 1 });
 });
 
 afterAll(async () => {
@@ -71,6 +70,12 @@ async function present(token: string, cookie?: string): Promise<Response> {
 }
 
 const accepted = (r: Response) => Boolean(r.headers.get("set-cookie"));
+
+// A skipped suite reports green. In CI the workflow sets both variables,
+// so a skip there means the harness broke and this is unguarded.
+it("is actually running, and did not skip itself in CI", () => {
+  assertNotSkippedInCI(expect, "the magic-link consumption suite");
+});
 
 describe.skipIf(!configured)("opening the link consumes nothing", () => {
   it("a token survives being fetched, because only the confirm action spends it", async () => {
