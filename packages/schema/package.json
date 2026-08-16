@@ -20,6 +20,7 @@
     "@marginsheet/shared": "workspace:*"
   },
   "devDependencies": {
+    "@marginsheet/shared": "workspace:*",
     "@types/node": "^22",
     "drizzle-kit": "^0.31",
     "tsx": "^4",

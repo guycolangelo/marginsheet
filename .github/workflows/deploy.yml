@@ -1,12 +1,31 @@
-# Deploy through CI (M0 plan Task 0.7). This ends manual deploys, and with
-# them the drift they cause: a hand-deployed environment silently sat on a
-# stale build for hours on 15 Aug 2026.
+# Deploy through CI (M0 plan Task 0.7, extended 15 Aug 2026). This ends manual
+# deploys, and with them the drift they cause: a hand-deployed environment
+# silently sat on a stale build for hours on 15 Aug 2026.
 #
 # Staging deploys on every push to main. Production waits on the `production`
 # GitHub Environment, whose required reviewer is Guy: CI executes, a human
 # still decides. Every deploy is followed by a verification step that fails
 # the job unless the live /health response reports the commit that was
 # deployed. A deploy that did not propagate is a failure, not a pass.
+#
+# EXTENDED 15 Aug 2026, after a systems failure. This workflow deployed code to
+# three environments for ten merged PRs while not one of their Neon branches
+# held a single table. Nothing lied; nothing was asked. The pipeline had no
+# migration step at any stage, and /health proved only that a Worker had
+# booted, so "green deploy" never implied "migrated database" and no one
+# noticed the difference.
+#
+# Every environment now MIGRATES BEFORE IT DEPLOYS, and a failed migration
+# fails the deploy. Verification then asserts the live /health reports
+# database.ok and a migration count matching the migration files in this
+# commit. Code deployed against a schema it does not match is worse than a
+# failed deploy, because it runs.
+#
+# ORDERING NOTE: migrations run before the new code, so the previous code
+# briefly serves against the new schema. That is the safe direction for
+# additive migrations and it is why every migration ships expand-first. A
+# migration that breaks the currently-deployed code must be split across two
+# deploys, never squeezed into one.
 name: deploy
 
 on:
@@ -16,6 +35,9 @@ on:
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  NEON_PROJECT_ID: fancy-paper-35797264
 
 jobs:
   gates:
@@ -50,6 +72,23 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      - name: Count the migrations this commit carries
+        run: echo "WANT_MIGRATIONS=$(ls packages/schema/migrations/*.sql | grep -v '\.down\.sql$' | wc -l | tr -d ' ')" >> "$GITHUB_ENV"
+
+      - name: Derive the dev branch connection
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          CS=$(pnpm exec neonctl connection-string dev --project-id "$NEON_PROJECT_ID" --database-name marginsheet --role-name neondb_owner)
+          echo "::add-mask::$CS"
+          echo "ENV_DATABASE_URL=$CS" >> "$GITHUB_ENV"
+
+      # Before the code, and failing the deploy if it fails.
+      - name: Migrate dev
+        env:
+          DATABASE_URL: ${{ env.ENV_DATABASE_URL }}
+        run: pnpm --filter @marginsheet/schema migrate:up
+
       - name: Deploy api to dev
         working-directory: services/api
         run: pnpm exec wrangler deploy --var BUILD_SHA:"${SHA:0:7}"
@@ -58,8 +97,8 @@ jobs:
         working-directory: services/conversation
         run: pnpm exec wrangler deploy --var BUILD_SHA:"${SHA:0:7}"
 
-      - name: Verify dev serves this commit
-        run: .github/scripts/verify-deploy.sh dev "${SHA:0:7}"
+      - name: Verify dev serves this commit against this schema
+        run: .github/scripts/verify-deploy.sh dev "${SHA:0:7}" "$WANT_MIGRATIONS"
 
   staging:
     needs: dev
@@ -76,6 +115,22 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      - name: Count the migrations this commit carries
+        run: echo "WANT_MIGRATIONS=$(ls packages/schema/migrations/*.sql | grep -v '\.down\.sql$' | wc -l | tr -d ' ')" >> "$GITHUB_ENV"
+
+      - name: Derive the staging branch connection
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          CS=$(pnpm exec neonctl connection-string staging --project-id "$NEON_PROJECT_ID" --database-name marginsheet --role-name neondb_owner)
+          echo "::add-mask::$CS"
+          echo "ENV_DATABASE_URL=$CS" >> "$GITHUB_ENV"
+
+      - name: Migrate staging
+        env:
+          DATABASE_URL: ${{ env.ENV_DATABASE_URL }}
+        run: pnpm --filter @marginsheet/schema migrate:up
+
       - name: Deploy api to staging
         working-directory: services/api
         run: pnpm exec wrangler deploy --env staging --var BUILD_SHA:"${SHA:0:7}"
@@ -90,14 +145,15 @@ jobs:
           pnpm exec wrangler pages deploy "$GITHUB_WORKSPACE/apps/web/public" \
             --project-name marginsheet-web --branch main --commit-dirty=true
 
-      - name: Verify staging serves this commit
-        run: .github/scripts/verify-deploy.sh staging "${SHA:0:7}"
+      - name: Verify staging serves this commit against this schema
+        run: .github/scripts/verify-deploy.sh staging "${SHA:0:7}" "$WANT_MIGRATIONS"
 
   production:
     needs: staging
     runs-on: ubuntu-latest
     # Required reviewer gate. The job pauses here until a human approves in
-    # the Actions UI, and the approval is recorded against the commit.
+    # the Actions UI, and the approval is recorded against the commit. The
+    # production migration runs AFTER that approval, never before it.
     environment: production
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -111,6 +167,25 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      - name: Count the migrations this commit carries
+        run: echo "WANT_MIGRATIONS=$(ls packages/schema/migrations/*.sql | grep -v '\.down\.sql$' | wc -l | tr -d ' ')" >> "$GITHUB_ENV"
+
+      # Production is the `main` Neon branch. The environment names and the
+      # branch names deliberately do not match, so this is spelled out rather
+      # than derived.
+      - name: Derive the production branch connection
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          CS=$(pnpm exec neonctl connection-string main --project-id "$NEON_PROJECT_ID" --database-name marginsheet --role-name neondb_owner)
+          echo "::add-mask::$CS"
+          echo "ENV_DATABASE_URL=$CS" >> "$GITHUB_ENV"
+
+      - name: Migrate production
+        env:
+          DATABASE_URL: ${{ env.ENV_DATABASE_URL }}
+        run: pnpm --filter @marginsheet/schema migrate:up
+
       - name: Deploy api to production
         working-directory: services/api
         run: pnpm exec wrangler deploy --env production --var BUILD_SHA:"${SHA:0:7}"
@@ -119,5 +194,5 @@ jobs:
         working-directory: services/conversation
         run: pnpm exec wrangler deploy --env production --var BUILD_SHA:"${SHA:0:7}"
 
-      - name: Verify production serves this commit
-        run: .github/scripts/verify-deploy.sh production "${SHA:0:7}"
+      - name: Verify production serves this commit against this schema
+        run: .github/scripts/verify-deploy.sh production "${SHA:0:7}" "$WANT_MIGRATIONS"
