@@ -210,6 +210,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # pnpm before setup-node, matching every other job here: setup-node
+      # resolves the packageManager field and fails without it, even though
+      # this script needs nothing but node.
+      - uses: pnpm/action-setup@v4.2.0
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
