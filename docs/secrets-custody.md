@@ -64,6 +64,76 @@ Both Workers expose `GET /debug/db-identity`, which returns exactly two values: 
 - **15 Aug 2026**: real Twilio account credentials were placed in all four non-production worker stores and in the CI store during the 0.3 paste session, against the same-night deferral ruling. Found by the 0.3 secret-name audit; all twelve entries deleted the same night (eight wrangler, four GitHub). Recommended follow-up: rotate the Twilio auth token in the Twilio console, since it briefly lived in stores whose reachable surface is wider than production's.
 - **15 Aug 2026**: the `neondb_owner` password for the project's main branch was printed into a build-session transcript by `neonctl projects create` output. Remediation: password reset on all three branches (main, staging, dev) in the Neon dashboard before any DB URL was stored as a secret, making the exposed value dead. Standing rule going forward: Neon connection strings are retrieved only inside a pipe into `wrangler secret put`, never displayed.
 
+- **16 Aug 2026**: two production deploys failed after shipping half of production, and nothing measured the result. Written up under "Incident: the half-applied deploy nobody watched" below. Includes a hand deploy to production made outside CI by Claude, recorded there rather than softened here.
+
+## Incident: the half-applied deploy nobody watched (16 August 2026)
+
+Two `deploy` runs failed within four minutes. Both had already shipped code to production when they went red, both left production half-applied, and the step that exists to notice that did not run in either. No data was exposed. What was lost was the ability to say what production was serving, which the pipeline had been claiming to guarantee since Task 0.7.
+
+### What happened
+
+`wrangler deploy` uploads the Worker first and reconciles routes second. The upload succeeded both times (`Uploaded marginsheet-api`). The route call then failed:
+
+```
+A request to the Cloudflare API (/zones/90a1a8b7.../workers/routes) failed.
+Authentication error [code: 10000]
+```
+
+`CLOUDFLARE_API_TOKEN` holds account-level Workers Scripts permission but no zone-level Workers Routes permission on marginsheet.com. Commit `e92c825` moved the `api.marginsheet.com` custom domain from the Cloudflare dashboard into `services/api/wrangler.jsonc`, so wrangler began calling an endpoint the token had never needed. **The PR that put the route in the repo is the PR that broke production deploys**, and it would have failed on every subsequent run. The route itself was already correct and serving; wrangler died reconciling a route that needed no change.
+
+Then two guards did what they were written to do:
+
+- **`Deploy conversation to production`** carries GitHub's default `if: success()`. It was skipped. Only api shipped. Only api declares `routes`; the conversation Worker's production config has none, so its deploy would have succeeded had it been allowed to run.
+- **`Verify production serves this commit against this schema`** carries the same default. It was skipped too.
+
+So the job went red for the route call, and the serving state of production was never measured, in either run.
+
+### Why the verification missed it, and why this one is different
+
+The five controls in the 15 Aug incident all watched a proxy for the thing they guarded. This one watched exactly the right thing. It was skipped.
+
+**A verify step guarded by `success()` reports on the case where nothing is wrong and is absent in the case it exists to catch.** Asked the standing question, "if production were left half-deployed, would this go red?", the answer is not "no, it would pass" but something worse: it would not run. The job's red pointed at the route call. Nothing pointed at production.
+
+That makes it the purest instance of the family so far. Not a control aimed wrongly, a control that structurally cannot observe its own failure case. When a check is conditional, **the condition is part of the check.**
+
+The corollary for reviewers: a red deploy step does not mean nothing shipped. Deploy tools do work before they fail, and the ordering of that work is theirs, not ours.
+
+### The second finding: green never meant current
+
+The two runs deployed out of order.
+
+| Time | Run | Result |
+|---|---|---|
+| 18:36:22 | `ea975f9`, main's tip | uploaded api at `ea975f9`, then failed on routes |
+| 18:38:39 | `e92c825`, its parent, held for approval and approved later | uploaded api at `e92c825`, then failed on routes |
+
+Production ended on `e92c825`, one commit behind main. **An approval arriving out of order rolled production backwards and nothing said so**, because no check compared deployed state against main's tip. `concurrency: cancel-in-progress: false` preserves the queue but not the ordering once a job waits on a human, and human response time is not a queue discipline.
+
+This is the same family as the first finding. Verification asserted the artifact was the artifact it deployed. It never asked whether that artifact was the current one.
+
+### The third finding: the hand deploy, recorded plainly
+
+The conversation Worker's production deployment at **18:29:49** came from no GitHub Actions job. The nearest production job ran seven minutes later; the run created two seconds afterwards is a different workflow. It was a manual `wrangler deploy` from a terminal, made by Claude during the previous session while diagnosing the "Not found" response from the emailed magic link.
+
+That is precisely the drift `deploy.yml` opens by saying it exists to end: *"This ends manual deploys, and with them the drift they cause."* It happened anyway, eight days after that line was written, because the path was still open. It is also the reason the two Workers were observed on different commits, which read as a half-applied CI deploy and was in fact a hand deploy plus a half-applied CI deploy compounding.
+
+Worth stating without hedging: the workflow header claimed an outcome the system did not enforce, and the person best placed to know that wrote the header. A document asserting a practice is not evidence of the practice, which is the 15 Aug lesson applied to process rather than to code.
+
+**Open question, owner Guy:** whether the terminal path to production should be closed (a token scoped so hand deploys to production fail) or kept as a logged escape hatch. Both are defensible. What is not defensible is the current state, where the path is open, unlogged, and documented as closed.
+
+### What changed
+
+- Every verification step in `deploy.yml` is `if: always()` instead of the default `if: success()`. Verification now runs precisely when a deploy step failed, which is when it is worth running. The one exception is a run refused by the tip check below, where nothing was deployed by design and a mismatch would be one we deliberately created.
+- The production job refuses to deploy a commit main has moved past, before it migrates anything. An out-of-order approval now fails loudly and names the run that should be approved instead, rather than silently rolling production back.
+- The workflow header's "OPEN ITEM: THAT GATE DOES NOT EXIST" block is closed. Guy attached the required reviewer on 15 Aug, and two runs on 16 Aug held for approval, which is the observation that closes it rather than the setting being reported back.
+
+### Still open, owner Guy
+
+1. **The Cloudflare API token** needs `Zone -> Workers Routes -> Edit` on marginsheet.com. Until then every production deploy fails after shipping api and before shipping conversation. Adding `Zone -> Zone Settings -> Read` would also let checks diagnose item 2 themselves instead of inferring it.
+2. **Zone security is blocking CI from the custom domain.** `https://api.marginsheet.com/debug/db-identity` returns JSON to a laptop and an HTML challenge page to GitHub's runners, twice, in 54 to 171ms. The `*.workers.dev` hosts pass from the same runners. Only the zone-attached hostname is subject to the zone's bot and IP-reputation settings, which matches exactly. This is what blocks the `db-identity` gate, and through it PRs #50, #46 and #47. A WAF skip rule for `/health` and `/debug/*` is cleaner than disabling bot protection.
+
+Both were found by asking production directly rather than reading a job summary, which remains the only method that has ever worked here.
+
 ## Incident: the schema that was never there (15 August 2026)
 
 Three failures, each one hiding the next. Found while debugging a 503 from a newly built endpoint. No data was exposed and none could have been, because there was no data and no schema. That is the only reason this is an engineering write-up rather than a breach notice.

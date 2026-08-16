@@ -2,22 +2,19 @@
 # deploys, and with them the drift they cause: a hand-deployed environment
 # silently sat on a stale build for hours on 15 Aug 2026.
 #
-# Staging deploys on every push to main. Production is SUPPOSED to wait on the
-# `production` GitHub Environment, whose required reviewer is Guy: CI executes,
-# a human still decides.
+# Staging deploys on every push to main. Production waits on the `production`
+# GitHub Environment, whose required reviewer is Guy: CI executes, a human
+# still decides.
 #
-# !!! OPEN ITEM, 15 Aug 2026: THAT GATE DOES NOT EXIST. The `production`
-# environment is configured with `protection_rules: []`, so this job has never
-# paused for anyone. The first run of this workflow after the migrate step
-# landed took production from queued to deployed in 37 seconds with no
-# approval, and every production deploy since Task 0.7 went out the same way.
-# The `environment: production` line below is real and the environment exists;
-# it simply carries no rules. Fixing it is a repo settings change on Guy's
-# desk: Settings, Environments, production, Required reviewers.
-# Until it is set, `environment: production` documents an intention rather than
-# enforcing a control, which is the exact shape of the 15 Aug incident. Every deploy is followed by a verification step that fails
-# the job unless the live /health response reports the commit that was
-# deployed. A deploy that did not propagate is a failure, not a pass.
+# CLOSED 16 Aug 2026: that gate now exists. It was raised as an open item on
+# 15 Aug, when the environment carried `protection_rules: []` and had never
+# paused for anyone, and Guy attached the required reviewer the same day. Two
+# runs on 16 Aug held for approval and were released by hand, which is the
+# observation that closes it rather than the setting being reported back.
+#
+# Every deploy is followed by a verification step that fails the job unless the
+# live /health response reports the commit that was deployed. A deploy that did
+# not propagate is a failure, not a pass.
 #
 # EXTENDED 15 Aug 2026, after a systems failure. This workflow deployed code to
 # three environments for ten merged PRs while not one of their Neon branches
@@ -31,6 +28,30 @@
 # database.ok and a migration count matching the migration files in this
 # commit. Code deployed against a schema it does not match is worse than a
 # failed deploy, because it runs.
+#
+# WHAT GREEN MEANS, rewritten 16 Aug 2026 after the sixth control of this
+# family failed the "would this go red?" test.
+#
+# Green used to mean "no step errored". It now means "both Workers serve
+# main's tip against a matching schema, and something looked."
+#
+# Two changes carry that. First, every verification step is `if: always()`
+# instead of GitHub's default `if: success()`. A verify step guarded by
+# success() reports on the case where nothing is wrong and is ABSENT in the
+# case it exists to catch, which is the purest example of this failure shape
+# yet: not a control pointed at the wrong thing, a control that structurally
+# cannot observe its own failure case. On 16 Aug 2026 `wrangler deploy`
+# uploaded the api Worker and then failed reconciling the zone route, so the
+# step went red AFTER shipping code. The next step deployed conversation and
+# was skipped by success(); the verification step was skipped by success()
+# too. Production sat half-applied, twice, and the job's red pointed at the
+# route call while the serving state was never measured.
+#
+# A red deploy step does not mean nothing shipped. Verification has to run
+# precisely when a step failed, or it is documentation.
+#
+# Second, production refuses to deploy a commit main has moved past. See the
+# step of that name below.
 #
 # ORDERING NOTE: migrations run before the new code, so the previous code
 # briefly serves against the new schema. That is the safe direction for
@@ -108,7 +129,9 @@ jobs:
         working-directory: services/conversation
         run: pnpm exec wrangler deploy --var BUILD_SHA:"${SHA:0:7}"
 
+      # always(), not success(). See the WHAT GREEN MEANS note at the top.
       - name: Verify dev serves this commit against this schema
+        if: always()
         run: .github/scripts/verify-deploy.sh dev "${SHA:0:7}" "$WANT_MIGRATIONS"
 
   staging:
@@ -156,7 +179,9 @@ jobs:
           pnpm exec wrangler pages deploy "$GITHUB_WORKSPACE/apps/web/public" \
             --project-name marginsheet-web --branch main --commit-dirty=true
 
+      # always(), not success(). See the WHAT GREEN MEANS note at the top.
       - name: Verify staging serves this commit against this schema
+        if: always()
         run: .github/scripts/verify-deploy.sh staging "${SHA:0:7}" "$WANT_MIGRATIONS"
 
   production:
@@ -171,6 +196,34 @@ jobs:
       SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v5
+
+      # Refuse to deploy a commit that main has already moved past.
+      #
+      # Every step in this job runs AFTER the required-reviewer approval, and
+      # an approval arrives whenever a human gets to it. On 16 Aug 2026 two
+      # runs were in flight: ea975f9 (main's tip) deployed api at 18:36:22,
+      # then e92c825 (its parent, held for approval and approved later)
+      # deployed api at 18:38:39. Production went backwards one commit and
+      # nothing said so, because no check compared what was deployed against
+      # what main held. "Green" meant "no step errored", never "current".
+      #
+      # This runs first so a stale run costs one step instead of a migration.
+      # If it fails, approve the newest run rather than re-running this one.
+      # Dev and staging carry no equivalent: they have no approval gate, so
+      # they cannot be delayed past a newer commit by a human.
+      - name: Refuse to deploy a commit main has moved past
+        id: tip
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin main
+          TIP=$(git rev-parse FETCH_HEAD)
+          if [ "$TIP" != "$SHA" ]; then
+            echo "::error::Refusing to deploy ${SHA:0:7} to production: main is now ${TIP:0:7}."
+            echo "Deploying this commit would roll production back. Approve the run for ${TIP:0:7} instead."
+            exit 1
+          fi
+          echo "main's tip is ${TIP:0:7}, which is this commit."
+
       - uses: pnpm/action-setup@v4.2.0
       - uses: actions/setup-node@v5
         with:
@@ -205,5 +258,15 @@ jobs:
         working-directory: services/conversation
         run: pnpm exec wrangler deploy --env production --var BUILD_SHA:"${SHA:0:7}"
 
+      # always(), not success(). See the WHAT GREEN MEANS note at the top. This
+      # is the step whose absence on 16 Aug 2026 let a half-applied production
+      # deploy go unobserved twice in four minutes.
+      #
+      # The one exception is a run the tip check refused. Nothing was deployed,
+      # by design, and production is correctly serving a commit that is not
+      # this one. Verifying there would report a mismatch we deliberately
+      # created, which trains people to ignore the step. Every other failure
+      # path, including a deploy that shipped half of production, still runs it.
       - name: Verify production serves this commit against this schema
+        if: always() && steps.tip.outcome == 'success'
         run: .github/scripts/verify-deploy.sh production "${SHA:0:7}" "$WANT_MIGRATIONS"
