@@ -126,3 +126,57 @@ describe("the Postmark sender", () => {
     }
   });
 });
+
+describe("Postmark failures name themselves without naming the household", () => {
+  async function failWith(body: unknown, status = 422) {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify(body), { status })) as typeof fetch;
+    try {
+      const sender = postmarkSender("token", "no-reply@marginsheet.test");
+      return await sender
+        .send({ to: "someone@private.test", subject: "s", text: "t" })
+        .then(() => "")
+        .catch((e: Error) => e.message);
+    } finally {
+      globalThis.fetch = original;
+    }
+  }
+
+  it("includes Postmark's ErrorCode and message", async () => {
+    // The whole point: a bare status code is a family of causes.
+    const msg = await failWith({ ErrorCode: 400, Message: "Sender signature not confirmed" });
+    expect(msg).toContain("HTTP 422");
+    expect(msg).toContain("ErrorCode 400");
+    expect(msg).toContain("Sender signature not confirmed");
+  });
+
+  it("strips the recipient even when Postmark puts it in the message", async () => {
+    // Postmark's inactive-recipient errors embed the address, so keeping it
+    // out takes removal rather than omission.
+    const msg = await failWith({
+      ErrorCode: 406,
+      Message: "You tried to send to a recipient that has been marked as inactive: someone@private.test",
+    });
+    expect(msg).toContain("ErrorCode 406");
+    expect(msg).not.toContain("someone@private.test");
+    expect(msg).not.toContain("someone");
+    expect(msg).toContain("[recipient]");
+  });
+
+  it("falls back plainly when the body cannot be parsed", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () => new Response("not json", { status: 500 })) as typeof fetch;
+    try {
+      const sender = postmarkSender("token", "no-reply@marginsheet.test");
+      const msg = await sender
+        .send({ to: "someone@private.test", subject: "s", text: "t" })
+        .then(() => "")
+        .catch((e: Error) => e.message);
+      expect(msg).toContain("HTTP 500");
+      expect(msg).toContain("no parseable body");
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});

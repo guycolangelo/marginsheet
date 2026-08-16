@@ -27,6 +27,20 @@ export class RecordingSender implements EmailSender {
   }
 }
 
+// Postmark's Message can EMBED the recipient (the inactive-recipient errors
+// do), so keeping the address out takes active removal rather than simply not
+// adding it. "We did not include it" and "it is not there" are different
+// claims, and only the second one is true after this runs.
+function withoutRecipient(text: string, recipient: string): string {
+  if (!recipient) return text;
+  const local = recipient.split("@")[0];
+  return text
+    .split(recipient)
+    .join("[recipient]")
+    .split(local)
+    .join("[recipient]");
+}
+
 export function postmarkSender(token: string, from: string): EmailSender {
   return {
     async send(message) {
@@ -47,10 +61,25 @@ export function postmarkSender(token: string, from: string): EmailSender {
       });
 
       if (!res.ok) {
-        // The address is deliberately not included. A failed send is an
-        // operational fact; who it was for is not something to scatter into
-        // logs and error trackers.
-        throw new Error(`Postmark rejected the send: HTTP ${res.status}`);
+        // Postmark's ErrorCode and Message are operational detail about OUR
+        // account, not household data, so they are included (ruled 16 Aug
+        // 2026). A bare status code sent us hunting when the answer was one
+        // string away: a live 422 in production said only "HTTP 422", which
+        // is a family of causes rather than one.
+        //
+        // The recipient is still kept out. A failed send is an operational
+        // fact; who it was for is not something to scatter into logs and
+        // error trackers.
+        let detail = " (no parseable body)";
+        try {
+          const body = (await res.json()) as { ErrorCode?: number; Message?: string };
+          const code = body.ErrorCode ?? "unknown";
+          const text = withoutRecipient(body.Message ?? "", message.to);
+          detail = ` (ErrorCode ${code}: ${text})`;
+        } catch {
+          // Leave the fallback. A body we cannot parse is not worth guessing at.
+        }
+        throw new Error(`Postmark rejected the send: HTTP ${res.status}${detail}`);
       }
     },
   };
