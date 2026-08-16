@@ -61,5 +61,12 @@
     "owner": "Guy (Design)",
     "owed_to": "M8, with the sign-in surfaces",
     "raised": "2026-08-16"
+  },
+  {
+    "id": "edge-rate-limit-rule",
+    "item": "The per-source magic-link rate limiting rule declared in config/edge-rate-limits.json must exist on the marginsheet.com zone. The edge-rules CI job fails until it does, which is intended: without it, spray across many addresses from one source is unlimited. Creating it needs Cloudflare dashboard access, and reading it needs Zone -> Firewall Services -> Read on the marginsheet-ci token.",
+    "owner": "Guy",
+    "owed_to": "before 3.2e merges",
+    "raised": "2026-08-16"
   }
 ]

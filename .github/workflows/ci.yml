@@ -206,6 +206,27 @@ jobs:
   # practice that is documented and unenforced is the shape this build keeps
   # finding: the reviewer that did not exist, the comment warning against
   # rotating a long-lived branch, the verify step that could not run.
+  # The per-source half of the magic-link send limits lives at the Cloudflare
+  # edge, so the client IP never reaches our code and MarginSheet takes no
+  # custody of network identity. That is correct and it creates drift: a
+  # control living only in a dashboard is invisible to review. This reads the
+  # live ruleset and fails if a rule declared in the repo is absent or altered.
+  #
+  # It keeps "cannot read" distinct from "absent". A checker that cannot see
+  # the thing it guards must report neither answer.
+  edge-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - name: The edge rate limiting rules match the repo
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node .github/scripts/verify-edge-rules.mjs
+
   open-items:
     runs-on: ubuntu-latest
     steps:

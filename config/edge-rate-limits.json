@@ -1,0 +1,39 @@
+{
+  "_doc": [
+    "Cloudflare edge rate limiting rules, declared here so they are reviewable",
+    "in the repo rather than living only in a dashboard (M3 task 3.2e).",
+    "",
+    "WHY THE EDGE AND NOT OUR CODE. Per-source limiting needs the client IP.",
+    "Cloudflare already handles it as a matter of routing on every request",
+    "whether or not we act on it, so a rule here leaves CUSTODY of network",
+    "identity where it already sits. Keying our own counters on an IP, or on a",
+    "hash or any other derivative, moves custody to MarginSheet and is refused:",
+    "the bright line is the value, not its reversibility. Ruled by Guy,",
+    "16 Aug 2026. See the network identity doctrine in CLAUDE.md.",
+    "",
+    "WHY IT IS WRITTEN DOWN HERE. A control living only in the Cloudflare",
+    "dashboard is exactly what broke production deploys on 16 Aug 2026: the",
+    "api.marginsheet.com route existed only in the UI until a PR moved it into",
+    "the repo. The edge-rules CI job reads the live ruleset and fails if a rule",
+    "declared here is absent or altered, so drift is a red build rather than a",
+    "discovery.",
+    "",
+    "zone_id is not a secret; it appears in every wrangler deploy log."
+  ],
+  "zone_id": "90a1a8b7fce11846693807ce47ba5377",
+  "zone_name": "marginsheet.com",
+  "rules": [
+    {
+      "description": "magic-link sends, per source",
+      "why": "Spray across many addresses from one source. Per-email limiting caps how often ONE address is mailed and does nothing about an attacker walking a list, which is the attack this covers.",
+      "expression": "(http.host eq \"api.marginsheet.com\" and http.request.uri.path eq \"/api/auth/sign-in/magic-link\")",
+      "action": "block",
+      "ratelimit": {
+        "characteristics": ["ip.src", "cf.colo.id"],
+        "period": 60,
+        "requests_per_period": 10,
+        "mitigation_timeout": 600
+      }
+    }
+  ]
+}

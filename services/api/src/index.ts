@@ -6,6 +6,11 @@ import { readDbIdentity, readSchemaHealth } from "@marginsheet/shared/db";
 import { createAuth } from "./auth.js";
 import { postmarkSender } from "./email.js";
 import { confirmSignIn, confirmLandingPage } from "./confirm.js";
+import { limitsFor, recordSendIfPermitted } from "./send-limits.js";
+// Bundled at build time: Workers have no filesystem. Still config in the
+// repo, still reviewable, and the environment picks its row at runtime.
+import rateLimitConfig from "../../../config/rate-limits.json";
+import postgres from "postgres";
 
 export interface Env {
   ENVIRONMENT: "dev" | "staging" | "production";
@@ -88,6 +93,53 @@ const handler = {
         BETTER_AUTH_URL: env.BETTER_AUTH_URL,
       });
       return confirmSignIn(auth, request, env.BETTER_AUTH_URL);
+    }
+
+    // The magic-link SEND is rate limited before Better Auth sees it (3.2e).
+    //
+    // Per email, so one address cannot be mailbox-bombed, and a global ceiling
+    // as a cost backstop, because a runaway loop of our own making is at least
+    // as likely as an attacker and spends the same Postmark budget. Per-SOURCE
+    // limiting is not here and never will be: it lives at the Cloudflare edge
+    // so the client IP never reaches this Worker. See config/edge-rate-limits
+    // .json and the network identity doctrine.
+    //
+    // The refusal is a 429 and says nothing about whether the address is
+    // registered, because it cannot: the limit counts attempts, and an
+    // unrecognised address is limited identically to a known one.
+    if (url.pathname === "/api/auth/sign-in/magic-link" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL) {
+        return Response.json({ error: "auth is not configured" }, { status: 503 });
+      }
+
+      // clone(), because Better Auth still needs to read this body.
+      const submitted = (await request
+        .clone()
+        .json()
+        .catch(() => ({}))) as { email?: unknown };
+      const subject =
+        typeof submitted.email === "string" ? submitted.email.trim().toLowerCase() : "";
+
+      const sql = postgres(env.NEON_DATABASE_URL, { max: 1, idle_timeout: 5, connect_timeout: 10 });
+      let decision;
+      try {
+        decision = await recordSendIfPermitted(
+          sql,
+          subject,
+          limitsFor(env.ENVIRONMENT, rateLimitConfig)
+        );
+      } finally {
+        await sql.end();
+      }
+
+      if (!decision.allowed) {
+        // Fails closed, including when the ledger itself is unreachable. A
+        // limiter that cannot count must not grant permission.
+        return Response.json(
+          { error: "too many sign-in requests", retry: "in a few minutes" },
+          { status: 429 }
+        );
+      }
     }
 
     // Better Auth owns everything under /api/auth. This is the only place a

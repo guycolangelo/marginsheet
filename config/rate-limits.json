@@ -1,0 +1,39 @@
+{
+  "_doc": [
+    "Send limits for the auth flows (M3 task 3.2e). CONFIG, NOT CONSTANTS: these",
+    "live here so a limit can be read, reviewed and changed per environment",
+    "without a code change, and so the value a reviewer sees is the value that",
+    "runs. The limiter reads this file; nothing hardcodes a number.",
+    "",
+    "TWO LIMITS, TWO DIFFERENT JOBS. per_email stops one address being",
+    "mailbox-bombed. global is a cost backstop: a runaway loop of our own making",
+    "is at least as likely as an attacker and spends the same Postmark budget.",
+    "",
+    "PER-SOURCE LIMITING IS NOT HERE, deliberately. Spray across many addresses",
+    "from one source is handled at the Cloudflare edge, defined in",
+    "config/edge-rate-limits.json and verified by the edge-rules CI job. The IP",
+    "never reaches this Worker. See the network identity doctrine in CLAUDE.md.",
+    "",
+    "Windows are seconds. per_email's window is deliberately at least as long as",
+    "a sign-in link lives (15 minutes), so a household cannot outrun their own",
+    "unexpired link by asking for more."
+  ],
+  "dev": {
+    "magic_link": {
+      "per_email": { "max": 10, "window_seconds": 900 },
+      "global": { "max": 2000, "window_seconds": 3600 }
+    }
+  },
+  "staging": {
+    "magic_link": {
+      "per_email": { "max": 10, "window_seconds": 900 },
+      "global": { "max": 2000, "window_seconds": 3600 }
+    }
+  },
+  "production": {
+    "magic_link": {
+      "per_email": { "max": 3, "window_seconds": 900 },
+      "global": { "max": 500, "window_seconds": 3600 }
+    }
+  }
+}
