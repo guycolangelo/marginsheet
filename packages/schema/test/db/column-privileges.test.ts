@@ -45,8 +45,8 @@ const DENIALS: Denial[] = [
     table: "plaid_items",
     column: "access_token_ciphertext",
     role: "marginsheet_app",
-    denied: ["SELECT"],
-    why: "Invariant 2: the token is unreadable by any RLS role; only the sync worker decrypts (migration 0002). NOTE: INSERT and UPDATE are NOT denied here, because 0002 granted them at table level. That is recorded as an open question rather than quietly asserted as intended.",
+    denied: ["SELECT", "INSERT", "UPDATE"],
+    why: "Invariant 2: the token is unreadable by any RLS role; only the sync worker decrypts (0002). INSERT and UPDATE closed by 0013, which revoked the table-level grants that had been masking the column control since 0002. The app role has no legitimate reason to write a token: only the sync worker mints or rotates one.",
   },
 ];
 
@@ -105,5 +105,33 @@ describe("NEGATIVE CONTROL: the check detects a table grant masking a column den
       .catch((e) => {
         if (!(e instanceof Error) || e.message !== "rollback the probe") throw e;
       });
+  });
+});
+
+describe("the app role can still do its legitimate work on plaid_items", () => {
+  // A denial that broke the surrounding writes would be a control that
+  // removed the feature, which is the mistake 0012's header warns about.
+  it("holds INSERT and UPDATE on the operational columns", async () => {
+    for (const col of ["household_id", "item_id", "status", "sync_cursor"]) {
+      const [ins] = await sql`select has_column_privilege('marginsheet_app','plaid_items',${col},'INSERT') as p`;
+      expect(ins.p, `app role lost INSERT on plaid_items.${col}`).toBe(true);
+    }
+    for (const col of ["status", "sync_cursor", "sync_status", "last_synced_at"]) {
+      const [upd] = await sql`select has_column_privilege('marginsheet_app','plaid_items',${col},'UPDATE') as p`;
+      expect(upd.p, `app role lost UPDATE on plaid_items.${col}`).toBe(true);
+    }
+  });
+
+  it("marginsheet_sync can still write the token, or nothing could mint one", async () => {
+    const [r] = await sql`select has_column_privilege('marginsheet_sync','plaid_items','access_token_ciphertext','UPDATE') as p`;
+    expect(r.p).toBe(true);
+  });
+
+  it("the token column is nullable, which is what lets the app create a row at all", async () => {
+    const [c] = await sql<{ is_nullable: string }[]>`
+      select is_nullable from information_schema.columns
+       where table_name='plaid_items' and column_name='access_token_ciphertext'
+    `;
+    expect(c.is_nullable).toBe("YES");
   });
 });

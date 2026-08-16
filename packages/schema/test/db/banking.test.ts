@@ -30,6 +30,85 @@ async function seedItem(): Promise<{ itemId: string; household: string }> {
   return { itemId: row.id, household };
 }
 
+describe("invariant 2, write half: the token column is unwritable by the app role", () => {
+  // Closed by 0013. From 0002 until then, marginsheet_app could not READ the
+  // token but could OVERWRITE it, because 0002 granted INSERT and UPDATE at
+  // TABLE level and a table grant covers every column. The read control held
+  // by luck rather than by design.
+  //
+  // This attempts the write rather than asking about privileges, because
+  // asking about the grant is what failed to notice the gap for eleven
+  // migrations.
+  it("marginsheet_app cannot overwrite the ciphertext on an existing row", async () => {
+    const { itemId } = await seedItem();
+
+    await sql`set role marginsheet_app`;
+    try {
+      await expect(
+        sql`update plaid_items set access_token_ciphertext = 'tampered' where id = ${itemId}`
+      ).rejects.toThrow(/permission denied/i);
+    } finally {
+      await sql`reset role`;
+    }
+
+    // And the value is untouched, so the refusal was a refusal and not a
+    // silently-ignored write.
+    const [row] = await sql<{ access_token_ciphertext: string }[]>`
+      select access_token_ciphertext from plaid_items where id = ${itemId}
+    `;
+    expect(row.access_token_ciphertext).toBe("ciphertext-under-test");
+
+    await sql`delete from plaid_items where id = ${itemId}`;
+  });
+
+  it("marginsheet_app cannot name the column on INSERT either", async () => {
+    const [hh] = await sql<{ id: string }[]>`
+      insert into households (name) values ('write probe') returning id
+    `;
+    await sql`set role marginsheet_app`;
+    try {
+      await expect(
+        sql`
+          insert into plaid_items (household_id, item_id, access_token_ciphertext)
+          values (${hh.id}, ${"item_" + uuid()}, 'smuggled')
+        `
+      ).rejects.toThrow(/permission denied/i);
+    } finally {
+      await sql`reset role`;
+    }
+    await sql`delete from households where id = ${hh.id}`;
+  });
+
+  it("but CAN create an item without naming the token, or the pipeline is dead", async () => {
+    // The control must narrow the write, not remove the feature. The column is
+    // nullable precisely so this insert works and the sync worker fills it in.
+    const [hh] = await sql<{ id: string }[]>`
+      insert into households (name) values ('write probe ok') returning id
+    `;
+    // The household context the application sets on every request. Without
+    // it household_isolation refuses the write, which is the policy working:
+    // the first run of this test failed exactly there, on RLS rather than on
+    // privileges, and that is the correct order of defences.
+    await sql`select set_config('marginsheet.household_id', ${hh.id}, false)`;
+    await sql`set role marginsheet_app`;
+    let created: string | undefined;
+    try {
+      const [row] = await sql<{ id: string }[]>`
+        insert into plaid_items (household_id, item_id)
+        values (${hh.id}, ${"item_" + uuid()})
+        returning id
+      `;
+      created = row.id;
+      expect(created).toBeTruthy();
+    } finally {
+      await sql`reset role`;
+    }
+    await sql`select set_config('marginsheet.household_id', '', false)`;
+    if (created) await sql`delete from plaid_items where id = ${created}`;
+    await sql`delete from households where id = ${hh.id}`;
+  });
+});
+
 describe("invariant 2: the token column is unreadable by the app role", () => {
   it("marginsheet_app cannot select the ciphertext, and cannot reach it via SELECT *", async () => {
     const { itemId } = await seedItem();
