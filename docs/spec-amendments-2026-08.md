@@ -177,3 +177,55 @@ This was found the direct way on 16 August 2026: a live sign-in to an outside ad
 **The gate to watch is the first non-`@marginsheet.com` recipient, not the approval date.** Founder testing is unaffected. Any invitation, magic link, or composed artifact addressed outside the domain fails closed until approval clears, which is the correct direction, but it means the beta cohort cannot onboard through email while this holds.
 
 Tracked alongside the Twilio trial-account constraint, which has the same shape: a sandbox limit that is invisible until a real recipient is outside it.
+
+---
+
+## 9. The passkey button labels itself (amends `app-ui-spec.md`, sign-in surfaces; ruled 16 August 2026)
+
+Recorded now so Module 8 inherits it rather than rediscovering it. Nothing is built here. M3 owns the passkey endpoints; M8 owns the screen that calls them.
+
+### The ruling
+
+**The passkey button label is detected from the platform authenticator, never hardcoded.** Four states:
+
+| State | Label |
+|---|---|
+| Platform authenticator reports Windows | Windows Hello |
+| Platform authenticator reports macOS | Touch ID |
+| Platform authenticator reports an Apple device with Face ID | Face ID |
+| Detection unavailable or inconclusive | **Sign in with your passkey** |
+
+**The fourth state is the default, not the error case.** The label is a heuristic and it fails to neutral, never to a guess. Guy's reasoning, recorded because it governs every future edit to this logic: telling a Windows household to use Face ID is worse than telling them nothing. A wrong label makes the product look like it is describing somebody else's device, on the one screen where a household is deciding whether this thing is competent.
+
+This is the same rule the codebase already applies to credential provenance. `authMethodForPath()` returns `null` for an unrecognised path, with the comment "unknown provenance is the weakest class, never the strongest". Same shape, different surface: an unknown answer resolves downward.
+
+### The mechanism, so the implementer does not guess
+
+`PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()` returns whether a platform authenticator with user verification **exists**. It does not report **which one**. There is no API that names the modality, and there is not going to be one, because that is a fingerprinting surface the standard deliberately withholds.
+
+So the label comes from platform inference, and inference is where this gets decided:
+
+- **Windows**: reliable. Windows Hello is the platform authenticator on Windows.
+- **macOS**: reliable enough. Macs carry Touch ID, not Face ID.
+- **iOS and iPadOS**: **not reliable, and this is the case that matters.** The user agent does not carry the device model, and the range covers both Face ID and Touch ID devices. Current iPhones are mostly Face ID and the SE line is Touch ID, and nothing in the request distinguishes them. Per the ruling this lands on the neutral label rather than on a coin flip.
+- **Android and everything else**: neutral. There is no single platform brand name to use.
+
+Newer browsers expose `PublicKeyCredential.getClientCapabilities()`, which reports capabilities as a map rather than a single boolean. Prefer it where available and treat its absence as one more route to the neutral label.
+
+### Suppressing the button, and the constraint that shapes it
+
+**The ruling:** the passkey button is suppressed or relabelled when no credential is registered for this device, so a first-time household does not tap it into an empty browser prompt.
+
+**The constraint, flagged rather than worked around:** a site cannot detect whether a credential exists on a device. WebAuthn withholds it on purpose, for the same fingerprinting reason as the modality. So "no credential is registered for this device" is not directly observable and the implementer will go looking for an API that does not exist.
+
+Three signals do exist, and only the first is trustworthy:
+
+1. **Conditional mediation** (`navigator.credentials.get({ mediation: "conditional" })`, gated on `isConditionalMediationAvailable()`). Passkeys surface inside the autofill affordance and appear **only if the platform holds one**. An empty prompt is structurally impossible, which satisfies the ruling without needing detection at all. This is the mechanism to build on.
+2. **A local hint** written after a successful passkey registration or sign-in on this device. Advisory only: cleared storage, a new browser profile, or a private window all make it wrong. Never let it suppress the magic-link path.
+3. **Server knowledge that the account holds a passkey.** Real, but it answers a different question. It is per account, not per device, and at the sign-in screen the household has not identified itself yet.
+
+**The design that follows:** magic link is the surface that always works and is never hidden behind a detection result. The passkey affordance is surfaced through conditional mediation, and it is promoted to a labelled button only when a positive signal exists. That ordering also matches §1's construction, where a member with no passkey is on the weaker path by design and never an excluded one.
+
+### The test this owes
+
+A label chosen by a heuristic needs its failure case exercised, not its happy path. The suite has to prove the neutral label is what appears when detection is unavailable, when it is inconclusive, and when it throws, because a heuristic that silently resolves to a confident wrong answer is the failure this ruling exists to prevent. Asked the standing question: if platform detection broke completely, the button must read "Sign in with your passkey" and nothing must go quiet.
