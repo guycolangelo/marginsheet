@@ -117,6 +117,7 @@ jobs:
 
       # Before the code, and failing the deploy if it fails.
       - name: Migrate dev
+        id: migrate
         env:
           DATABASE_URL: ${{ env.ENV_DATABASE_URL }}
         run: pnpm --filter @marginsheet/schema migrate:up
@@ -125,7 +126,11 @@ jobs:
         working-directory: services/api
         run: pnpm exec wrangler deploy --var BUILD_SHA:"${SHA:0:7}"
 
+      # Gated on the migration, not on the api deploy. See the production
+      # job for the reasoning: a failed api deploy skipping this step is
+      # what created a half-applied environment on 16 Aug 2026.
       - name: Deploy conversation to dev
+        if: always() && steps.migrate.outcome == 'success'
         working-directory: services/conversation
         run: pnpm exec wrangler deploy --var BUILD_SHA:"${SHA:0:7}"
 
@@ -161,6 +166,7 @@ jobs:
           echo "ENV_DATABASE_URL=$CS" >> "$GITHUB_ENV"
 
       - name: Migrate staging
+        id: migrate
         env:
           DATABASE_URL: ${{ env.ENV_DATABASE_URL }}
         run: pnpm --filter @marginsheet/schema migrate:up
@@ -169,7 +175,11 @@ jobs:
         working-directory: services/api
         run: pnpm exec wrangler deploy --env staging --var BUILD_SHA:"${SHA:0:7}"
 
+      # Gated on the migration, not on the api deploy. See the production
+      # job for the reasoning: a failed api deploy skipping this step is
+      # what created a half-applied environment on 16 Aug 2026.
       - name: Deploy conversation to staging
+        if: always() && steps.migrate.outcome == 'success'
         working-directory: services/conversation
         run: pnpm exec wrangler deploy --env staging --var BUILD_SHA:"${SHA:0:7}"
 
@@ -246,6 +256,7 @@ jobs:
           echo "ENV_DATABASE_URL=$CS" >> "$GITHUB_ENV"
 
       - name: Migrate production
+        id: migrate
         env:
           DATABASE_URL: ${{ env.ENV_DATABASE_URL }}
         run: pnpm --filter @marginsheet/schema migrate:up
@@ -254,7 +265,15 @@ jobs:
         working-directory: services/api
         run: pnpm exec wrangler deploy --env production --var BUILD_SHA:"${SHA:0:7}"
 
+      # Gated on the MIGRATION, not on the api deploy. Both Workers run against
+      # the same schema, so a failed migration must stop both. A failed api
+      # deploy must not stop this one: on 16 Aug 2026 api uploaded and then
+      # failed reconciling its route, and success() skipped this step, so the
+      # skip is what created the half-applied production rather than protecting
+      # it. Two independent Workers, two independent outcomes, one verification
+      # that reports whatever actually happened.
       - name: Deploy conversation to production
+        if: always() && steps.migrate.outcome == 'success'
         working-directory: services/conversation
         run: pnpm exec wrangler deploy --env production --var BUILD_SHA:"${SHA:0:7}"
 
