@@ -13,6 +13,23 @@
 -- future control needing one of them is a ruling with a named purpose, never
 -- a default that accumulated.
 --
+-- THIS IS A CORRECTED RULING (Guy, 15 August 2026).
+--
+-- The original ruling named a mechanism: configure it off, and revoke the
+-- column privileges if configuration could not. The mechanism was tested
+-- before it was built on, and it was wrong. Guy's correction, recorded in his
+-- words: the ruling "specified a mechanism when it should have specified the
+-- outcome." The outcome is what governs here. The values are never stored.
+--
+-- A WARNING FOR ANYONE READING "revoke column privileges" ELSEWHERE IN THIS
+-- REPO. It is not a general-purpose privacy tool. It works in 0011 for
+-- account.password because nothing needs to write that column, so a failed
+-- write costs nothing. It does NOT work for a column the application writes
+-- on every request: the revoke does not store a null, it fails the statement.
+-- Applied here it would have removed AUTHENTICATION rather than the DATA.
+-- Before reaching for it, ask whether the write is one the product needs to
+-- succeed. If it is, the answer is a trigger.
+--
 -- WHY A TRIGGER AND NOT REVOKED COLUMN PRIVILEGES.
 --
 -- The ruling said to configure it off, and to revoke the column privileges if
