@@ -65,16 +65,61 @@ const noRulesYet = status === 404;
 
 if (!noRulesYet && (status === 401 || status === 403)) {
   const detail = (payload?.errors ?? []).map((e) => `${e.code}: ${e.message}`).join("; ");
+
+  // "Authentication error" is the same string whether the token is invalid,
+  // valid but unscoped to this zone, or scoped to the zone but not to
+  // rulesets. Those are three different fixes and one of them is not a
+  // permission at all, so the check narrows it rather than guessing. Added
+  // 16 Aug 2026 after two rounds of adding the wrong permission.
+  const probe = async (path) => {
+    try {
+      const res = await fetch(`https://api.cloudflare.com/client/v4/${path}`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+      });
+      return { ok: res.ok, status: res.status, body: await res.json() };
+    } catch (error) {
+      return { ok: false, status: 0, body: { errors: [{ message: error.message }] } };
+    }
+  };
+
+  const identity = await probe("user/tokens/verify");
+  const zone = await probe(`zones/${config.zone_id}`);
+
+  const diagnosis = !identity.ok
+    ? [
+        "THE TOKEN ITSELF IS NOT VALID OR NOT ACTIVE.",
+        "This is not a missing permission. The CLOUDFLARE_API_TOKEN secret in",
+        "GitHub is stale, revoked, or belongs to a different token than the one",
+        "that was edited. Editing a token's permissions in Cloudflare keeps its",
+        "value; creating a new one does not, and the GitHub secret must be",
+        "updated to match.",
+      ]
+    : !zone.ok
+      ? [
+          `THE TOKEN IS VALID BUT CANNOT SEE ZONE ${config.zone_id}.`,
+          "Its zone resources do not include marginsheet.com, so no permission",
+          "added to it will help until the zone is in its resource scope.",
+        ]
+      : [
+          "THE TOKEN IS VALID AND CAN SEE THE ZONE, BUT NOT ITS RULESETS.",
+          "So this is a permission scope on the Rulesets API specifically.",
+          'Cloudflare has moved this: try "Zone -> Zone WAF -> Read" alongside',
+          '"Firewall Services", and if the dashboard offers an explicit',
+          '"Rulesets" or "Config Rules" group, that is the one. Edit rather than',
+          "Read may also be required, since Cloudflare treats a phase entrypoint",
+          "read as a management call on some plans.",
+        ];
+
   fail(
     `The Cloudflare API refused this token (HTTP ${status}).`,
     detail ? `  ${detail}` : "",
     "",
     "NOTHING WAS VERIFIED. This is not a passing check and not a drift report.",
     "",
-    "Reading rate limiting rules uses the Rulesets API, which needs a zone-scoped",
-    'permission beyond Zone Settings. Add "Zone -> Firewall Services -> Read" for',
-    "marginsheet.com to the marginsheet-ci token. If Cloudflare has renamed that",
-    "group, the error above names what it actually wants."
+    `  token verify: HTTP ${identity.status}${identity.ok ? " ok" : " refused"}`,
+    `  zone read:    HTTP ${zone.status}${zone.ok ? " ok" : " refused"}`,
+    "",
+    ...diagnosis
   );
 }
 
