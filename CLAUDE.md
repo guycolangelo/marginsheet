@@ -27,6 +27,7 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 | M6b projections/goals/cash flow | `projection-spec.md` |
 | M8 app | `app-ui-spec.md` |
 | M9 migration | `migration-spec.md` |
+| Amendments, Aug 2026 | `docs/spec-amendments-2026-08.md` (year-end projection, goal priority, Dashboard, Cash Flow, budgeting scope) |
 | M10–M21 conversation service | conversation-service-spec + conversational spec |
 
 ---
