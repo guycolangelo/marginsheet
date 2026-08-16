@@ -4,3 +4,4 @@
 -- passkey session from a magic-link one, so it must fail closed rather than
 -- fall back to allowing the change.
 ALTER TABLE "session" DROP COLUMN IF EXISTS "auth_method";
+DROP TYPE IF EXISTS auth_method;
