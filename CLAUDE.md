@@ -74,6 +74,37 @@ Cloudflare Workers + Pages · Neon Postgres (single DB, branching in CI) · Dura
 - The app is the inspection room, not the workroom. Nothing chases the household.
 - Corrections: fix the books first, own it in one flat sentence, never silently revise a sent artifact.
 
+## THE SINGLE ASSISTANT RULING (locked 15 August 2026)
+
+Supersedes the two-staff model everywhere it appears.
+
+**MyKeeper is the household's only named assistant.** One name, one phone number, one contact card, one email identity. A household never chooses who to contact, because there is only one door.
+
+Behind that name the two brains remain architecturally separate:
+- The bookkeeping brain: retrospective, transaction-level, structured.
+- The advisory brain: prospective, aggregate-level, forward-looking.
+
+They keep separate system prompts, separate jurisdictions, separate golden tests, and **the advice gate stays enforced on advisory output exactly as specified**. MyKeeper routes to the right brain, sometimes both, and answers as one.
+
+**MyCFO becomes an INTERNAL DESIGNATION ONLY.** It may appear in fact packages, routing config, instrumentation, and the QA harness. It must never appear in any household-facing surface, message, email, or marketing. "MyCFO" is a banned string in composed output, enforced by `packages/lint` alongside the other banned constructions.
+
+Consequences:
+1. The conversational spec's two registers become two MODES of one voice. That is a canon revision, not a rename, and it is **owed to Guy**.
+2. Handoffs stay in the architecture and become invisible. The three-minute fulfillment budget still applies; the brains no longer name each other to the household.
+3. One A2P campaign, one number, one Postmark sender identity instead of two.
+4. Intro flow: one introduction, not two staggered ones.
+5. Any fact-package class existing only to carry cross-brain attribution is reviewed and **reported**, never silently deleted.
+
+## THE ARTICLE-AS-ANSWER PATTERN (locked 15 August 2026)
+
+Names a permitted mechanic. It tightens nothing and loosens nothing.
+
+When a household asks a strategy question (debt payoff order is the canonical case), the permitted answer is: name the common approaches evenly with their real rationale, point to a published Method article, and state that the choice is theirs. Once the household names their choice, serve the data sorted the way that choice implies.
+
+"Here are your cards ranked by rate, highest first" is a fact and passes. "Here's where to start" is a recommendation and fails. **The sorted list does the work; the framing sentence must not.**
+
+This requires a named reference source in the fact package that the composer may point to, distinct from prose it generates.
+
 ## NET WORTH DOCTRINE (locked August 2026)
 
 MarginSheet's promise is control, and the opportunity to create wealth. It never promises wealth outcomes. The causal chain in all copy and all product language is: control, then opportunity, then wealth. Only the first is promised.
