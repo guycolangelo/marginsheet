@@ -5,10 +5,10 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --exclude '**/isolation.test.ts' --exclude '**/db-identity.test.ts' --exclude '**/auth-adapter.test.ts' --passWithNoTests",
+    "test": "vitest run --exclude '**/isolation.test.ts' --exclude '**/db-identity.test.ts' --exclude '**/auth-adapter.test.ts' --exclude '**/real-sign-in.test.ts' --passWithNoTests",
     "test:isolation": "vitest run test/isolation.test.ts",
     "test:db-identity": "vitest run test/db-identity.test.ts",
-    "test:auth-adapter": "vitest run test/auth-adapter.test.ts"
+    "test:auth-adapter": "vitest run test/auth-adapter.test.ts test/real-sign-in.test.ts"
   },
   "devDependencies": {
     "@better-auth/cli": "^1.4.21",
