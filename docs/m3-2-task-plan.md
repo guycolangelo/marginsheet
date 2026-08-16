@@ -51,7 +51,7 @@ So the layer 1 proof cannot silently degrade into a tautology. The thing that wo
 
 ### What has to exist first
 
-A session must know which credential class established it. Better Auth's session does not record that. So the session gains an `auth_method` field (`passkey` or `magic_link`), written by the server at sign-in and never accepted from a client. Migration 0014, and the column is server-authoritative or the whole control is advisory.
+A session must know which credential class established it. Better Auth's session does not record that. So the session gains an `auth_method` field (`passkey` or `magic_link`), written by the server at sign-in and never accepted from a client. Migration 0014. **RULED: server-written only, and the column comment must state that a client-supplied value would make the entire tightening advisory.** The control is only as strong as the provenance of that one field.
 
 ### The three cases, because two would be a trap
 
@@ -63,9 +63,9 @@ A session must know which credential class established it. Better Auth's session
 
 You asked for the first two: the refusal is the control, the success proves it is not blocking everything. The third is the one I want to add, because without it "refuse magic-link phone changes" passes both of your cases while **locking out every member who has no passkey**, which §1 explicitly does not do. That member is the weaker path by construction, not an excluded one.
 
-### A scope boundary I need ruled
+### Scope boundary, RULED 15 Aug 2026 (Guy)
 
-The phone-change *mechanics* are 3.3 (uniqueness, no channel write path, verification). The *authorization* is this task. My proposal: 3.2 ships the credential-class guard and a minimal phone-change endpoint to attach it to, so the test exercises a real endpoint rather than a stand-in, and 3.3 adds the three rules around it. The alternative is a stand-in sensitive action here, which tests the guard against something the product does not have.
+**Build the minimal real endpoint here, not a stand-in.** Guy's reasoning: a control tested against a stand-in is a control nobody has exercised, and the endpoint is small. M8 ships the screen that calls it, per the M3 endpoints ruling. The phone-change *mechanics* (uniqueness, no channel write path, verification) remain 3.3; the *authorization* is this task.
 
 ---
 
@@ -118,7 +118,9 @@ That also makes the double click harmless:
 
 The third row is the one that must not be softened into the second. A consumed token presented by anyone other than the member who consumed it is refused, always. Convenience for the double click stops exactly where it would become a replay.
 
-This costs one click. I think it is worth it and I want it ruled rather than assumed, because it is a visible change to the sign-in experience.
+**RULED 15 Aug 2026 (Guy): approved.** The emailed link consumes nothing; an explicit action on the page does. His reasoning, recorded because it governs the copy as much as the mechanism: one extra click is the right trade against a member's first experience being a dead link, and **"your link expired" on a first sign-in is the kind of failure that ends the relationship before it starts.**
+
+**The page's action must read as confirmation, not as an obstacle.** That is a copy requirement, not a UI preference. A page that looks like a challenge tells the member the product does not trust them; a page that looks like a confirmation tells them the product is finishing what they asked for.
 
 ---
 
@@ -130,11 +132,12 @@ This costs one click. I think it is worth it and I want it ruled rather than ass
 - **3.2d** `realSignIn()` and its contract test; the layer 1 HTTP proof with the trigger-disabled measurement and the user-agent tripwire; the asymmetry written into the 0012 migration header and the custody doc as ruled.
 - **3.2e** Rate limiting on magic-link sends, per email and per IP, as config rather than constants (M3 owns this per the ruling; the per-phone limits land with OTP in 3.3).
 
-## Rulings needed
+## Rulings, all answered 15 August 2026
 
-1. **The phone-change boundary** (§2 above): minimal endpoint here, or a stand-in.
-2. **Lifetimes**: 15 minutes for sign-in, 10 for recovery halves.
-3. **The landing-page consumption model**, which costs one click and defeats email scanners.
+1. **Phone-change boundary: minimal real endpoint here.** A control tested against a stand-in is a control nobody has exercised.
+2. **Lifetimes: approved as proposed.** Sign-in 15 minutes, recovery halves 10 minutes, invitations 14 days.
+3. **Landing-page consumption: approved**, with the action reading as confirmation rather than obstacle.
+4. **The third tightening case approved**, and named by Guy as the one that matters: no passkey plus magic-link session must SUCCEED.
 
 ## The verification test, applied
 
