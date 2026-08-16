@@ -48,6 +48,28 @@ Passkey registration and login. Then the question you asked me to answer plainly
 
 **Email also gone:** slow, support-mediated identity proof. **Slow is a feature, not an apology**, and it is never to be written about as friction to be reduced. This is an OWED PROCESS, not code, and it is NOT built in M3. It is carried as a named open item with an owner.
 
+## SEQUENCE CHANGE, 15 August 2026 (approved by Guy)
+
+**3.2 now runs before 3.1.** The order below is written as originally approved; the executed order is:
+
+| Order | Task |
+|---|---|
+| 1 | **3.2** magic link sign-in, which is the first path that issues a real session |
+| 2 | **3.1a** passkey registration and login |
+| 3 | **3.1c** the layer 1 HTTP proof |
+| 4 | **3.1b** the recovery path, which needs both of the above to exist |
+| 5 | 3.3, 3.4, 3.5, 3.6 unchanged |
+
+**Why, and the reason is not the one that surfaced it.** 3.1a stalled because Better Auth signs its session cookies and passkey registration requires a signed-in caller, so a test minting a session through `internalAdapter` was rejected before reaching any WebAuthn code.
+
+The harness problem is real but it is not the justification. Guy's ruling, recorded because it governs how this kind of test gets written from here on: **a test that mints a session through `internalAdapter` is testing a session the product never issues.** Driving passkey registration against a session that came from a real sign-in over a real endpoint is more faithful, not merely more convenient. The blocker pushed the work toward the more honest test.
+
+The layer 1 proof moves for the same reason rather than a related one: it needs a real request context with real headers, which only a real sign-in produces.
+
+**The condition attached to this change.** When 3.2 lands, confirm that a real signed cookie from a real magic-link sign-in genuinely exercises the WebAuthn path end to end. If registration turns out to need something else the harness still cannot produce, that is a **named gap with an owner and a manual verification**, not another workaround. Two reorderings to dodge the same wall would mean the wall is the finding.
+
+---
+
 ## Task 3.2, magic link, and the passkey tightening
 
 Magic link as the second factor of identity, never the first when a passkey exists.
