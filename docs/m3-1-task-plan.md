@@ -89,11 +89,17 @@ One thing to note: Better Auth's default IP header is `x-forwarded-for`, and Clo
 
 Registration and login via `@better-auth/passkey`, plus listing and revoking a member's passkeys (needed by recovery, and by the 3.2 tightening that requires a passkey for phone changes).
 
-**The risk:** WebAuthn assertions are produced by an authenticator, which is hardware or a browser. Testing registration and login in CI needs a **software authenticator** that can generate real attestation and assertion objects, not a mock of our own code. If that proves harder than expected I will bring you the finding rather than substituting a mock that tests nothing, since a passkey test that stubs the authenticator asserts only that our own function was called.
+**RESOLVED, 15 Aug 2026: the software authenticator works and is not a mock.** `services/api/test/helpers/authenticator.ts` generates a real P-256 keypair, encodes a real COSE public key, builds real authenticator data with a hand-written CBOR encoder, and signs real ECDSA assertions that `@simplewebauthn/server` verifies inside Better Auth. It carries `forgeBadSignature()` so the negative control can prove the server checks. No gap was needed. It is built on `Uint8Array` and `DataView` rather than `Buffer`, because `@cloudflare/workers-types` declares both a global `Buffer` and the `node:buffer` module and its `toString()` takes no encoding argument.
+
+What remained was never a WebAuthn problem: see the sequence change above.
+
+**The original risk, kept for the record:** WebAuthn assertions are produced by an authenticator, which is hardware or a browser. Testing registration and login in CI needs a **software authenticator** that can generate real attestation and assertion objects, not a mock of our own code. If that proves harder than expected I will bring you the finding rather than substituting a mock that tests nothing, since a passkey test that stubs the authenticator asserts only that our own function was called.
 
 ---
 
 ## Sub-tasks
+
+**Resequenced 15 August 2026: 3.2 runs before all of these.** See docs/m3-task-plan.md for the ordering and the reasoning. In short, passkey registration requires a signed-in caller, and a session minted through `internalAdapter` is a session the product never issues. Both 3.1a and 3.1c now run against a session produced by a real magic-link sign-in over a real endpoint.
 
 - **3.1a** Passkey registration, login, list, revoke, with a software authenticator in CI.
 - **3.1b** The recovery path: recovery-specific tokens, both halves, the single-purpose grant, the end-to-end test with every credential removed, and the six controls above.
