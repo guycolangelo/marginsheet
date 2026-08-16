@@ -66,6 +66,44 @@ Both Workers expose `GET /debug/db-identity`, which returns exactly two values: 
 
 - **16 Aug 2026**: two production deploys failed after shipping half of production, and nothing measured the result. Written up under "Incident: the half-applied deploy nobody watched" below. Includes a hand deploy to production made outside CI by Claude, recorded there rather than softened here.
 
+- **16 Aug 2026**: the role-rotating test suites were run locally against the shared dev branch, rotating `marginsheet_app`'s password and leaving both dev Workers unable to authenticate until the secret was reissued. Staging and production untouched. Written up under "Incident: the guard that asked the wrong question" below, because the shape of the guard is worth more than the fix.
+
+## Incident: the guard that asked the wrong question (16 August 2026)
+
+Dev's two Workers lost their database for roughly twenty minutes. No household data was touched and no other environment was affected. The interesting part is not the outage, it is that a guard existed, was working exactly as written, and did not apply.
+
+### What happened
+
+The four role-rotating test suites do `ALTER ROLE marginsheet_app LOGIN PASSWORD '<random>'` in `beforeAll`, because the role's password is write-only in the secret store and setting a new one is the only way to connect as it. On the ephemeral `pr-<n>` branch CI uses, that role is branch-local and the branch is destroyed minutes later. On dev it is the credential both deployed Workers hold.
+
+They were run with `DATABASE_URL` pointed at dev. The Workers kept the old password, `/health` went 503 with `authentication failed`, and `db-identity` went red.
+
+### Why the guard did not stop it
+
+The guard was `AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE=1`. **It gated the action and not the target.** It asked "am I allowed to rotate the role", and the answer to that was legitimately yes. The question that decided the damage was "am I allowed to rotate it *here*", and nothing asked it. Setting a permission flag feels like answering a question about yourself; the blast radius is a property of the place you are pointed, which the flag never mentioned.
+
+`ci.yml` also carried a prominent comment directly above the step: "Never point this at a long-lived branch: the Workers holding the previous password would lose their database until the secret was reissued." Accurate, prominent, and it stopped nothing. **A document asserting a practice is not evidence of the practice**, which is the 15 Aug lesson applied to a warning rather than to a mitigation.
+
+### What caught it
+
+Nothing anyone did deliberately. `db-identity` went red on an unrelated pull request and reported `status=500 ... first-line="<!DOCTYPE html>"`, which is only legible because that check had been taught to say what answered it earlier the same day. The previous message would have read `Unexpected token '<'`, which was the same string it produced for a Cloudflare challenge, a WAF block and a disabled hostname.
+
+### What changed
+
+- **The gate names the target.** `NEON_TEST_BRANCH` must match `pr-<n>`, and CI derives it from the same pull request number that created the branch, so the declaration and the connection string cannot drift.
+- **An allowlist, not a blocklist** (ruled by Guy). Resolving the endpoint host and refusing dev, staging and main was the alternative and was rejected: a blocklist is wrong by default the moment a new long-lived branch exists, and the branch nobody remembered to add is the one that gets rotated. Refusing everything that is not `pr-<n>` fails closed on the unanticipated case. Same reasoning as the enumerated column grants in 0002 and 0011.
+- **The refusal moved to the operation.** Four files held four copies of the `ALTER ROLE` and four copies of the gate. A control remembered in four places will be correct in three. `services/api/test/helpers/app-role.ts` now owns it and throws before the connection is used, so a caller with wrong skip logic still cannot rotate.
+- **The guard has its own test**, which attempts the forbidden rotation against a recording stand-in and asserts that a refused call issues **no SQL at all**. "It threw" and "it threw before touching the database" are different claims. It runs without a database, deliberately: a guard that can only be tested against the thing it protects is a guard nobody runs. It also asserts the permitted case, since a guard that refuses everything passes every negative test while being useless.
+- **The suites fail rather than skip in CI.** A skipped suite reports green, which is how a rotating suite quietly stops running.
+
+### Residual risk, stated rather than implied
+
+The guard trusts the caller's declaration of where they are pointed. `NEON_TEST_BRANCH=pr-1` with `DATABASE_URL` aimed at dev would still rotate dev. That is a deliberate false statement about the target rather than the accident this prevents, which was setting a permission flag that never mentioned a target at all. Verifying the declaration against Neon's branch endpoint would close it and is not built.
+
+### The shape to carry forward
+
+**Any destructive operation guarded by "am I allowed to do this" rather than "am I allowed to do this here" has this hole.** The permission is about the operator; the damage is about the target. Recorded in CLAUDE.md alongside the other verification rules, because the next instance will not be a database role.
+
 ## Incident: the half-applied deploy nobody watched (16 August 2026)
 
 Two `deploy` runs failed within four minutes. Both had already shipped code to production when they went red, both left production half-applied, and the step that exists to notice that did not run in either. No data was exposed. What was lost was the ability to say what production was serving, which the pipeline had been claiming to guarantee since Task 0.7.

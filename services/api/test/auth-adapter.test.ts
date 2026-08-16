@@ -24,28 +24,31 @@
 // caught it both times within seconds. Against staging or production it would
 // be an outage.
 //
-// So it refuses to run unless AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE is set, which
-// CI sets ONLY on the ephemeral per-PR branch that gets destroyed minutes
-// later. Locally, set it only when DATABASE_URL points at a branch you are
-// willing to break, and reissue with scripts/put-app-db-url.sh afterwards.
+// So it refuses to run unless NEON_TEST_BRANCH names an ephemeral pr-<n>
+// branch. That replaced a flag which granted permission to rotate without ever
+// naming a place, and on 16 Aug 2026 the flag was set by hand against dev and
+// dev's Workers lost their database. The refusal now lives in
+// helpers/app-role.ts, at the operation rather than in each caller.
 //
 // Requires DATABASE_URL (owner). Skips loudly if absent rather than passing.
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { BRANCH_VAR, canRotate, rotateAppRole, assertNotSkippedInCI } from "./helpers/app-role.js";
 import { createAuth } from "../src/auth.js";
 
 const OWNER_URL = process.env.DATABASE_URL;
 
 // A test that silently no-ops when unconfigured is a test that reports success
-// for an absent database. It is skipped explicitly and visibly instead.
-const mayRotate = process.env.AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE === "1";
-const configured = Boolean(OWNER_URL) && mayRotate;
+// for an absent database. It is skipped explicitly and visibly instead, and
+// gated on WHERE these tests point rather than on permission to rotate. See
+// helpers/app-role.ts: the target is the question that matters.
+const configured = canRotate();
 
-if (OWNER_URL && !mayRotate) {
+if (OWNER_URL && !configured) {
   console.warn(
     "\nauth-adapter tests SKIPPED: they rotate marginsheet_app's password.\n" +
-      "Set AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE=1 only against a disposable branch.\n"
+      `Set ${BRANCH_VAR} to an ephemeral pr-<n> branch to run them.\n`
   );
 }
 
@@ -55,14 +58,7 @@ let owner: ReturnType<typeof postgres>;
 beforeAll(async () => {
   if (!configured) return;
   owner = postgres(OWNER_URL!, { max: 1 });
-
-  const password = `probe_${crypto.randomUUID().replace(/-/g, "")}`;
-  await owner.unsafe(`ALTER ROLE marginsheet_app LOGIN PASSWORD '${password}'`);
-
-  const u = new URL(OWNER_URL!);
-  u.username = "marginsheet_app";
-  u.password = password;
-  appUrl = u.toString();
+  appUrl = await rotateAppRole(owner, OWNER_URL!, "probe");
 });
 
 afterAll(async () => {
@@ -77,6 +73,12 @@ function auth() {
     BETTER_AUTH_URL: "http://localhost:8787",
   });
 }
+
+// A skipped suite reports green. In CI the workflow sets both variables,
+// so a skip there means the harness broke and this is unguarded.
+it("is actually running, and did not skip itself in CI", () => {
+  assertNotSkippedInCI(expect, "the auth adapter suite");
+});
 
 describe.skipIf(!configured)("Better Auth runs as the RLS-subject application role", () => {
   it("connects as marginsheet_app, which holds no BYPASSRLS", async () => {

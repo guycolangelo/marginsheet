@@ -5,9 +5,9 @@ import { scrubEvent } from "@marginsheet/shared/sentry-scrub";
 import { readDbIdentity, readSchemaHealth } from "@marginsheet/shared/db";
 import { createAuth } from "./auth.js";
 import { postmarkSender } from "./email.js";
-import { confirmSignIn } from "./confirm.js";
+import { confirmSignIn, confirmLandingPage } from "./confirm.js";
 
-interface Env {
+export interface Env {
   ENVIRONMENT: "dev" | "staging" | "production";
   BUILD_SHA?: string;
   SENTRY_DSN?: string;
@@ -64,6 +64,17 @@ const handler = {
       );
     }
 
+    // GET /auth/confirm: the page the emailed link opens.
+    //
+    // This is the address in every sign-in email we send, so it is mounted
+    // before anything that could need configuration: it spends no token,
+    // touches no database, and therefore must never answer 503 because a
+    // secret is missing. On 16 Aug 2026 this route did not exist at all and a
+    // delivered link answered "Not found" to a real person.
+    if (url.pathname === "/auth/confirm" && request.method === "GET") {
+      return confirmLandingPage(request);
+    }
+
     // The confirm action. The emailed link points at a page; that page calls
     // this. Nothing is spent by opening the link.
     if (url.pathname === "/auth/confirm" && request.method === "POST") {
@@ -117,6 +128,12 @@ const handler = {
     return new Response("Not found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
+
+// The router, unwrapped. Exported so the journey test can enter through the
+// same routing a browser hits: the 404 that started task 3.2a's rework was a
+// ROUTING failure, and a test that calls the handler function directly cannot
+// see one. Only Sentry's instrumentation wrapper is bypassed by using this.
+export const router = handler;
 
 export default Sentry.withSentry(
   (env: Env) => ({

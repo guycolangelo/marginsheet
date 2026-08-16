@@ -2,7 +2,7 @@
 //
 // Rotation-guarded like the other adapter tests: it connects as
 // marginsheet_app by setting the role's password, so it runs only where
-// AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE is set (the ephemeral CI branch).
+// NEON_TEST_BRANCH names an ephemeral pr-<n> branch.
 //
 // AND IT MUST NOT RUN IN PARALLEL WITH auth-adapter.test.ts. Both files
 // ALTER ROLE marginsheet_app in beforeAll, and vitest runs files in parallel
@@ -14,11 +14,14 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { canRotate, rotateAppRole, assertNotSkippedInCI } from "./helpers/app-role.js";
 import { realSignIn } from "./helpers/real-sign-in.js";
 import type { AuthEnv } from "../src/auth.js";
 
 const OWNER_URL = process.env.DATABASE_URL;
-const configured = Boolean(OWNER_URL) && process.env.AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE === "1";
+// Gated on WHERE these tests point, not on permission to rotate. See
+// helpers/app-role.ts: the target is the question that matters.
+const configured = canRotate();
 
 const UA = "ProbeBrowser/9.9 (contract test)";
 const IP = "203.0.113.77";
@@ -30,23 +33,25 @@ let app: ReturnType<typeof postgres>;
 beforeAll(async () => {
   if (!configured) return;
   owner = postgres(OWNER_URL!, { max: 1 });
-  const password = `probe_${crypto.randomUUID().replace(/-/g, "")}`;
-  await owner.unsafe(`ALTER ROLE marginsheet_app LOGIN PASSWORD '${password}'`);
-  const u = new URL(OWNER_URL!);
-  u.username = "marginsheet_app";
-  u.password = password;
+  const appUrl = await rotateAppRole(owner, OWNER_URL!, "probe");
   env = {
-    NEON_DATABASE_URL: u.toString(),
+    NEON_DATABASE_URL: appUrl,
     ENVIRONMENT: "dev",
     BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long!",
     BETTER_AUTH_URL: "http://localhost:8787",
   };
-  app = postgres(u.toString(), { max: 1 });
+  app = postgres(appUrl, { max: 1 });
 });
 
 afterAll(async () => {
   if (owner) await owner.end();
   if (app) await app.end();
+});
+
+// A skipped suite reports green. In CI the workflow sets both variables,
+// so a skip there means the harness broke and this is unguarded.
+it("is actually running, and did not skip itself in CI", () => {
+  assertNotSkippedInCI(expect, "the realSignIn contract and layer 1 proof");
 });
 
 describe.skipIf(!configured)("the realSignIn contract", () => {

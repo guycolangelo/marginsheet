@@ -116,13 +116,22 @@ jobs:
       #
       # This step rotates marginsheet_app's password, which is why it runs
       # HERE and nowhere else. The PR branch is ephemeral and
-      # neon-pr-cleanup.yml destroys it. Never point this at a long-lived
-      # branch: the Workers holding the previous password would lose their
-      # database until the secret was reissued.
+      # neon-pr-cleanup.yml destroys it.
+      #
+      # NEON_TEST_BRANCH names the TARGET, and the helper refuses to rotate
+      # anything that is not pr-<n>. It replaced AUTH_ADAPTER_TEST_MAY_ROTATE_
+      # ROLE, which granted permission to rotate without ever naming a place:
+      # on 16 Aug 2026 that flag was set by hand against the shared dev branch
+      # and dev's Workers lost their database until the secret was reissued.
+      # The warning that used to sit here said exactly that, and stopped
+      # nothing, because a comment is documentation and not a control.
+      #
+      # Derived from the same PR number that built the branch, so the
+      # declaration and the connection string cannot drift apart.
       - name: Better Auth runs as the RLS-subject application role
         env:
           DATABASE_URL: ${{ env.PR_DATABASE_URL }}
-          AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE: "1"
+          NEON_TEST_BRANCH: pr-${{ github.event.pull_request.number }}
         run: pnpm --filter @marginsheet/api test:auth-adapter
 
   isolation:
