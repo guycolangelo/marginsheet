@@ -152,3 +152,28 @@ Anchor it differently or label it as what-if. **This is an open design requireme
 ### Candidate for the Annual Planning Session
 
 A household and MyKeeper moving sliders together during the call is a better ceremony than a form. Recorded as a candidate, not a commitment.
+
+---
+
+## 7. Postmark bounce and complaint webhooks (amends `plaid-pipeline-spec.md` invariant 5's provider set and `data-model-spec.md` `provider_events`)
+
+Postmark joins the other three providers in `provider_events`. Bounce and complaint webhooks are received, check-and-inserted there **first** like every other provider's, and **hard bounces surface in-app**.
+
+**This is a commitment already made externally.** Guy told Postmark's approval review that this is what MarginSheet does, so it has to be true. That makes it a promise with an outside party rather than an internal preference, and it is recorded here so nobody trims it as scope.
+
+Consequences:
+- `provider_events.source` admits Postmark alongside Plaid, Stripe and Twilio. Invariant 5's handler half, already owed to M4 and M7, now covers four providers rather than three.
+- A hard bounce is a household-visible fact: an address that cannot receive mail breaks magic-link sign-in and every composed artifact, so it cannot be a silent operational log line.
+- A complaint (spam report) is a different signal from a bounce and must not be collapsed into it. One is delivery failing; the other is the household telling us to stop.
+
+Nothing here is built. Recorded as owed alongside the rest of invariant 5's handler half.
+
+## 8. Postmark is in test mode until approval (operational constraint)
+
+**Production sends are limited to `@marginsheet.com` addresses until Postmark approves the account.** Sends to any other domain fail with HTTP 422.
+
+This was found the direct way on 16 August 2026: a live sign-in to an outside address returned 422 while the same send to `guy@marginsheet.com` was accepted and delivered. The sender signature was never the problem; `accounts@marginsheet.com` sits under a DKIM-verified domain.
+
+**The gate to watch is the first non-`@marginsheet.com` recipient, not the approval date.** Founder testing is unaffected. Any invitation, magic link, or composed artifact addressed outside the domain fails closed until approval clears, which is the correct direction, but it means the beta cohort cannot onboard through email while this holds.
+
+Tracked alongside the Twilio trial-account constraint, which has the same shape: a sandbox limit that is invisible until a real recipient is outside it.
