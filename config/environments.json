@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "The public address of every deployed Worker, per environment. ONE source of",
+    "truth, read by .github/scripts/verify-deploy.sh and by",
+    "services/api/test/db-identity.test.ts.",
+    "",
+    "WHY THIS FILE EXISTS. Both of those hardcoded a workers.dev hostname pattern.",
+    "On 16 Aug 2026 the api.marginsheet.com route was added to wrangler.jsonc,",
+    "Cloudflare disabled the workers.dev hostname for that Worker as it does",
+    "whenever explicit routes are declared, and two blocking checks went red",
+    "against an address nobody reaches while production itself was healthy.",
+    "",
+    "The asymmetry below is deliberate and correct: production has a custom",
+    "domain because households reach it, and dev and staging do not because",
+    "nobody does. A check should verify the address households actually use, not",
+    "a pattern that happens to be true today. When an address changes, change it",
+    "here and the checks follow it instead of going red."
+  ],
+  "dev": {
+    "api": "https://marginsheet-api-dev.guy-a84.workers.dev",
+    "conversation": "https://marginsheet-conversation-dev.guy-a84.workers.dev"
+  },
+  "staging": {
+    "api": "https://marginsheet-api-staging.guy-a84.workers.dev",
+    "conversation": "https://marginsheet-conversation-staging.guy-a84.workers.dev"
+  },
+  "production": {
+    "api": "https://api.marginsheet.com",
+    "conversation": "https://marginsheet-conversation.guy-a84.workers.dev"
+  }
+}
