@@ -25,14 +25,23 @@
 // No secrets. These are public endpoints returning two non-credential fields.
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-const HOSTS = {
-  dev: ["marginsheet-api-dev", "marginsheet-conversation-dev"],
-  staging: ["marginsheet-api-staging", "marginsheet-conversation-staging"],
-  production: ["marginsheet-api", "marginsheet-conversation"],
-} as const;
+// Addresses come from config/environments.json, never from a hostname pattern.
+// A pattern is an assumption about deployment shape: on 16 Aug 2026 adding a
+// custom domain made Cloudflare disable the workers.dev hostname, and this
+// check went red against an address nobody reaches while production was
+// healthy. The config is the one place an address is written down.
+const ENVIRONMENTS = JSON.parse(
+  readFileSync(join(import.meta.dirname, "..", "..", "..", "config", "environments.json"), "utf8")
+) as Record<string, Record<string, string>>;
 
-const ZONE = "guy-a84.workers.dev";
+const HOSTS = Object.fromEntries(
+  Object.entries(ENVIRONMENTS)
+    .filter(([name]) => !name.startsWith("_"))
+    .map(([name, services]) => [name, Object.values(services)])
+) as Record<string, string[]>;
 
 // The application connects as this role, and only this role.
 const EXPECTED_ROLE = "marginsheet_app";
@@ -42,22 +51,60 @@ const ALLOWED_KEYS = ["current_user", "bypassrls"] as const;
 
 type Identity = { current_user?: unknown; bypassrls?: unknown };
 
-async function identity(host: string): Promise<{ status: number; body: Identity }> {
-  const res = await fetch(`https://${host}.${ZONE}/debug/db-identity`, {
-    signal: AbortSignal.timeout(15_000),
-  });
-  return { status: res.status, body: (await res.json()) as Identity };
+// A check that goes red without saying why costs more than it saves. This
+// called res.json() directly, so anything that was not JSON threw a parse
+// error naming the first character of the response and nothing else. On
+// 16 Aug 2026 that read `Unexpected token '<', "<!DOCTYPE "...` across three
+// PRs while the endpoint answered correctly to every human who tried it, and
+// the check could not say whether it had been served a Cloudflare challenge,
+// a WAF block, a disabled hostname, or an origin error. Those are four
+// different problems with four different owners.
+//
+// The failure now carries the status, the content type and the CF-Ray, which
+// is enough to tell them apart without adding a temporary debugging step
+// to CI. The parse failure itself is not the finding; what answered is.
+async function identity(
+  origin: string
+): Promise<{ status: number; body: Identity; note: string }> {
+  const url = `${origin}/debug/db-identity`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  const text = await res.text();
+
+  try {
+    return { status: res.status, body: JSON.parse(text) as Identity, note: "" };
+  } catch {
+    // Deliberately the first line only: an intercepting page is not ours and
+    // may be arbitrarily large. The leak scan still runs over what we return.
+    const firstLine = text.trim().split("\n")[0]?.slice(0, 120) ?? "";
+    return {
+      status: res.status,
+      body: {},
+      note:
+        ` Did not answer with JSON, so something between CI and the Worker` +
+        ` answered instead of the Worker.` +
+        ` status=${res.status}` +
+        ` content-type=${res.headers.get("content-type") ?? "<none>"}` +
+        ` cf-ray=${res.headers.get("cf-ray") ?? "<none>"}` +
+        ` first-line=${JSON.stringify(firstLine)}`,
+    };
+  }
 }
 
-describe.each(Object.entries(HOSTS))("db identity: %s", (env, hosts) => {
-  for (const host of hosts) {
+describe.each(Object.entries(HOSTS))("db identity: %s", (env, origins) => {
+  for (const host of origins) {
     it(`${host} connects as ${EXPECTED_ROLE} and holds no BYPASSRLS`, async () => {
-      const { status, body } = await identity(host);
+      const { status, body, note } = await identity(host);
 
       expect(
         status,
-        `${host} could not report its database identity: ${JSON.stringify(body)}`
+        `${host} could not report its database identity: ${JSON.stringify(body)}${note}`
       ).toBe(200);
+
+      // A 200 carrying a non-JSON body is the disguised case: the edge
+      // intercepted and answered success on the Worker's behalf. Without this,
+      // the assertions below would read an empty object and fail by naming the
+      // wrong role rather than naming the interception.
+      expect(note, `${host}:${note}`).toBe("");
 
       // The positive assertion. Not "not the owner" - this role specifically.
       expect(
