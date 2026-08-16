@@ -25,14 +25,23 @@
 // No secrets. These are public endpoints returning two non-credential fields.
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-const HOSTS = {
-  dev: ["marginsheet-api-dev", "marginsheet-conversation-dev"],
-  staging: ["marginsheet-api-staging", "marginsheet-conversation-staging"],
-  production: ["marginsheet-api", "marginsheet-conversation"],
-} as const;
+// Addresses come from config/environments.json, never from a hostname pattern.
+// A pattern is an assumption about deployment shape: on 16 Aug 2026 adding a
+// custom domain made Cloudflare disable the workers.dev hostname, and this
+// check went red against an address nobody reaches while production was
+// healthy. The config is the one place an address is written down.
+const ENVIRONMENTS = JSON.parse(
+  readFileSync(join(import.meta.dirname, "..", "..", "..", "config", "environments.json"), "utf8")
+) as Record<string, Record<string, string>>;
 
-const ZONE = "guy-a84.workers.dev";
+const HOSTS = Object.fromEntries(
+  Object.entries(ENVIRONMENTS)
+    .filter(([name]) => !name.startsWith("_"))
+    .map(([name, services]) => [name, Object.values(services)])
+) as Record<string, string[]>;
 
 // The application connects as this role, and only this role.
 const EXPECTED_ROLE = "marginsheet_app";
@@ -42,15 +51,15 @@ const ALLOWED_KEYS = ["current_user", "bypassrls"] as const;
 
 type Identity = { current_user?: unknown; bypassrls?: unknown };
 
-async function identity(host: string): Promise<{ status: number; body: Identity }> {
-  const res = await fetch(`https://${host}.${ZONE}/debug/db-identity`, {
+async function identity(origin: string): Promise<{ status: number; body: Identity }> {
+  const res = await fetch(`${origin}/debug/db-identity`, {
     signal: AbortSignal.timeout(15_000),
   });
   return { status: res.status, body: (await res.json()) as Identity };
 }
 
-describe.each(Object.entries(HOSTS))("db identity: %s", (env, hosts) => {
-  for (const host of hosts) {
+describe.each(Object.entries(HOSTS))("db identity: %s", (env, origins) => {
+  for (const host of origins) {
     it(`${host} connects as ${EXPECTED_ROLE} and holds no BYPASSRLS`, async () => {
       const { status, body } = await identity(host);
 
