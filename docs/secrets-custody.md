@@ -103,6 +103,14 @@ The common shape: **every control observed something adjacent to the thing that 
 - `packages/schema/test/db/health.test.ts` proves the health check goes red: against an empty database, against an unreachable one, and it asserts the error is scrubbed of anything connection-shaped.
 - The `/debug/db-identity` and health helpers moved into `packages/shared/src/db.ts`. Both services had byte-identical private copies, which is how a third service inherits a stale one.
 
+### Found while closing this one, still open
+
+The `production` GitHub Environment carries `protection_rules: []`. `deploy.yml` has stated since Task 0.7 that production "waits on the `production` GitHub Environment, whose required reviewer is Guy", and it never has. The environment exists, the `environment: production` line in the workflow is real, and the environment simply has no rules attached, so the job has never paused for anyone. The first run of the extended pipeline took production from queued to migrated, deployed and verified in 37 seconds with no approval.
+
+Nothing bad reached production: the deploy was correct and verification passed. The control was the thing that was missing, not the outcome. This is the same shape as the three failures above and it was found the same way, by asking the system what it actually does instead of reading what it says.
+
+**Owner: Guy.** Settings, Environments, production, Required reviewers. Attempted programmatically on 15 Aug 2026 and refused by the harness classifier, which is the correct outcome for a production control.
+
 ### The shape to watch for
 
 The next gap will not be this one. It will have this shape: **a control that reports on a proxy for the thing it is trusted to guarantee.** The test is not "is this check correct?" but "if the thing it guards were completely broken, would this check go red?" For `/health`, the honest answer had always been no, and it was written down nowhere because nobody had asked the question in those words.

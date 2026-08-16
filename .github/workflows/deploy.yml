@@ -2,9 +2,20 @@
 # deploys, and with them the drift they cause: a hand-deployed environment
 # silently sat on a stale build for hours on 15 Aug 2026.
 #
-# Staging deploys on every push to main. Production waits on the `production`
-# GitHub Environment, whose required reviewer is Guy: CI executes, a human
-# still decides. Every deploy is followed by a verification step that fails
+# Staging deploys on every push to main. Production is SUPPOSED to wait on the
+# `production` GitHub Environment, whose required reviewer is Guy: CI executes,
+# a human still decides.
+#
+# !!! OPEN ITEM, 15 Aug 2026: THAT GATE DOES NOT EXIST. The `production`
+# environment is configured with `protection_rules: []`, so this job has never
+# paused for anyone. The first run of this workflow after the migrate step
+# landed took production from queued to deployed in 37 seconds with no
+# approval, and every production deploy since Task 0.7 went out the same way.
+# The `environment: production` line below is real and the environment exists;
+# it simply carries no rules. Fixing it is a repo settings change on Guy's
+# desk: Settings, Environments, production, Required reviewers.
+# Until it is set, `environment: production` documents an intention rather than
+# enforcing a control, which is the exact shape of the 15 Aug incident. Every deploy is followed by a verification step that fails
 # the job unless the live /health response reports the commit that was
 # deployed. A deploy that did not propagate is a failure, not a pass.
 #
