@@ -125,6 +125,8 @@ The corollary, which cost the most time here: **a fix is not a fix until somethi
 
 **Result, 15 August 2026.** HTTP 201 `status=pending`, then HTTP 200 `status=approved valid=True`, with no token, session, JWT, or credential-shaped field in the response. The decoupling holds.
 
+**Known constraint (15 Aug 2026): the account is on trial.** The first attempt returned error 21608, since trial accounts deliver only to verified caller IDs. The founder number was added to the allowlist and the probe passed. Upgrade scheduled Wednesday 19 August 2026 with the A2P brand retry. Blocking condition to watch is the first non-founder phone, not the date.
+
 **It can fail.** The first version of this probe was an inline one-liner using `read -p`, which is bash syntax that means "read from a coprocess" in zsh. Every variable stayed unset, Twilio answered 404, and the assertion scanned that error body and reported success. The script now asserts each HTTP status and payload before the next step runs, and the decoupling verdict is unreachable unless the check returned `approved`. Negative controls: empty credentials, malformed SIDs, and a live 401 all exit non-zero without printing a verdict.
 
 ## Observability privacy controls

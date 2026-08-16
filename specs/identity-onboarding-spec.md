@@ -23,6 +23,10 @@ The phone is a **security primitive, never a login method** (SIM-swap surface st
 
 **Verified live 15 August 2026.** A real OTP was sent and approved against the production Verify service using `scripts/verify-decoupling-probe.sh`. The check returned HTTP 200 with `status=approved, valid=True`, and the response carried no token, session, JWT, or credential-shaped field of any kind. The decoupling holds in practice: an approved verification yields a verdict and authenticates nobody. If that ever stops being true, the probe exits non-zero and this paragraph is wrong.
 
+**KNOWN CONSTRAINT, 15 August 2026: the Twilio account is on trial.** The first live probe attempt failed with error 21608, because trial accounts can only deliver to numbers on the verified caller-ID allowlist. Guy added the founder number and the probe then passed. Until the account is upgraded, Verify reaches allowlisted numbers only.
+
+The lift is scheduled for Wednesday 19 August 2026 alongside the A2P brand retry, which needs a paid account regardless. **The condition that matters is not the date but the first non-founder phone**: founder-household testing is unaffected, and nothing before real members arrive depends on this. Any attempt to verify a phone outside the allowlist while the account is on trial fails closed with 21608, which is the correct direction. It must be lifted before the beta cohort onboards.
+
 **This is a scheduling decision, not just a technical one:** Twilio Verify OTP delivery is pre-registered by Twilio and does not wait on our A2P 10DLC campaign approval. Phone verification works day one even if the brains' two A2P numbers are still in vetting. The single worst external dependency stops blocking onboarding entirely; it only gates the brains' conversational SMS.
 
 Rules (from data-model-spec, restated as behavior):
