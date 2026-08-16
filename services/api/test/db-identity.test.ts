@@ -15,6 +15,13 @@
 // Every environment reported healthy throughout. Nothing failed, because
 // nothing was asking.
 //
+// WHY THIS IS NOT PART OF isolation.test.ts: that suite derives its own
+// NEON_DATABASE_URL from neonctl as neondb_owner at job time and asks it
+// `select 1`. It never reads the credential the Worker actually runs with, so
+// it passed on every run while all six Worker secrets were empty and while no
+// long-lived branch had a single table. It validates the credentials CI can
+// derive; this file asks the running Worker what it actually is.
+//
 // No secrets. These are public endpoints returning two non-credential fields.
 
 import { describe, it, expect } from "vitest";
