@@ -29,30 +29,32 @@ target="${1:?usage: verify-deploy.sh <env> <short-sha> <expected-migrations>}"
 expected="${2:?usage: verify-deploy.sh <env> <short-sha> <expected-migrations>}"
 want_migrations="${3:?usage: verify-deploy.sh <env> <short-sha> <expected-migrations>}"
 
-case "$target" in
-  dev)
-    hosts=(
-      "marginsheet-api-dev.guy-a84.workers.dev|dev"
-      "marginsheet-conversation-dev.guy-a84.workers.dev|dev"
-    )
-    ;;
-  staging)
-    hosts=(
-      "marginsheet-api-staging.guy-a84.workers.dev|staging"
-      "marginsheet-conversation-staging.guy-a84.workers.dev|staging"
-    )
-    ;;
-  production)
-    hosts=(
-      "marginsheet-api.guy-a84.workers.dev|production"
-      "marginsheet-conversation.guy-a84.workers.dev|production"
-    )
-    ;;
-  *)
-    echo "unknown target: $target" >&2
-    exit 1
-    ;;
-esac
+# Addresses come from config/environments.json, the one place a public address
+# is written down. Hardcoding a hostname pattern here is what went wrong on
+# 16 Aug 2026: adding a custom domain made Cloudflare disable the workers.dev
+# hostname, and the checks went red against an address nobody reaches while
+# production was healthy. A pattern encodes an assumption about deployment
+# shape; the config encodes the address.
+# A read loop rather than mapfile: mapfile needs bash 4 and macOS ships 3.2,
+# so the script would work in CI and fail on the machine of whoever needed to
+# debug CI.
+hosts=()
+while IFS= read -r line; do
+  [ -n "$line" ] && hosts+=("$line")
+done < <(python3 -c "
+import json, sys
+envs = json.load(open('config/environments.json'))
+target = sys.argv[1]
+if target not in envs or target.startswith('_'):
+    sys.exit('unknown target: ' + target)
+for origin in envs[target].values():
+    print(origin + '|' + target)
+" "$target")
+
+if [ "${#hosts[@]}" -eq 0 ]; then
+  echo "no addresses configured for $target" >&2
+  exit 1
+fi
 
 # Read a dotted field out of the JSON body. Returns empty on any failure, so a
 # malformed body reads as a mismatch rather than crashing the script.
@@ -78,15 +80,15 @@ attempts=${VERIFY_ATTEMPTS:-20}
 delay=${VERIFY_DELAY:-6}
 
 for entry in "${hosts[@]}"; do
-  host="${entry%%|*}"
+  origin="${entry%%|*}"
   want_env="${entry##*|}"
-  echo "verifying https://$host/health"
+  echo "verifying $origin/health"
 
   for ((i = 1; i <= attempts; i++)); do
     # Deliberately NOT curl -f: /health answers 503 when the database half
     # fails, and that body carries the reason. Discarding it would leave the
     # most useful failure message unread.
-    body="$(curl -sS --max-time 15 "https://$host/health" || echo '{}')"
+    body="$(curl -sS --max-time 15 "$origin/health" || echo '{}')"
 
     got_build="$(field "$body" build)"
     got_env="$(field "$body" environment)"
