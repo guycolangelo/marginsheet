@@ -29,6 +29,14 @@
     "production": {
       "name": "marginsheet-api",
       "compatibility_flags": ["nodejs_compat"],
+      // The custom domain, in the repo rather than only in the dashboard, so
+      // it survives future deploys and is reviewable. BETTER_AUTH_URL is set
+      // to this origin: Better Auth checks it, and a mismatch produces magic
+      // links that fail verification, so these two move together or not at
+      // all.
+      "routes": [
+        { "pattern": "api.marginsheet.com", "custom_domain": true }
+      ],
       "vars": {
         "ENVIRONMENT": "production",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
