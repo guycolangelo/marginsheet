@@ -110,6 +110,21 @@ jobs:
           DATABASE_URL: ${{ env.PR_DATABASE_URL }}
         run: pnpm --filter @marginsheet/schema migrate:up
 
+      # Better Auth against a real database as marginsheet_app, the role the
+      # application actually uses. Proving it works as the OWNER would prove
+      # nothing: the owner holds BYPASSRLS and every privilege.
+      #
+      # This step rotates marginsheet_app's password, which is why it runs
+      # HERE and nowhere else. The PR branch is ephemeral and
+      # neon-pr-cleanup.yml destroys it. Never point this at a long-lived
+      # branch: the Workers holding the previous password would lose their
+      # database until the secret was reissued.
+      - name: Better Auth runs as the RLS-subject application role
+        env:
+          DATABASE_URL: ${{ env.PR_DATABASE_URL }}
+          AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE: "1"
+        run: pnpm --filter @marginsheet/api test:auth-adapter
+
   isolation:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

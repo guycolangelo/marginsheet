@@ -9,6 +9,8 @@ interface Env {
   BUILD_SHA?: string;
   SENTRY_DSN?: string;
   NEON_DATABASE_URL?: string;
+  BETTER_AUTH_SECRET?: string;
+  BETTER_AUTH_URL?: string;
 }
 
 const SERVICE = "marginsheet-api";
