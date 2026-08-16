@@ -84,8 +84,8 @@ Invariants 3 and 4 named in the manifest with their proofs, the M1 `auth_user_id
 
 ## The four rulings (all answered 15 Aug 2026)
 
-1. **The lost-every-device path** (3.1). My proposal is above. This is the floor of the security model.
-2. **Duplicate-phone rejection wording** (3.3). Generic to the user, specific to support, so a stranger guessing numbers learns nothing.
+1. **Lost-every-device, RULED: approved as proposed** (3.1). Magic link AND phone OTP, both required, neither sufficient. A recovery path weaker than the primary path makes the primary path's strength decorative. Email-also-gone is slow support-mediated identity proof, an owed process, not built in M3.
+2. **Duplicate-phone wording, RULED: approved** (3.3). Generic to the user, specific in the support queue. Never disclose the number exists, never hint at which household, never imply wrongdoing.
 3. **Endpoints, RULED: yes.** M3 ships enforcement plus endpoints; M8 ships the screens that call them. Guy's reasoning: *a rule only reachable through a service function nobody calls yet is a rule nobody has exercised.*
 4. **OTP rate limiting, RULED: M3 owns it.** It is an SMS-cost attack and a brute-force surface, and both go live the moment an endpoint exists. Deferring would ship the attack surface in M3 and the control in M8, which is backwards. **Limits per phone, per member, and per IP, expressed as config rather than constants.**
 
