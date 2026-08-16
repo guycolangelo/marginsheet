@@ -149,6 +149,23 @@ describe.skipIf(!configured)("the emailed sign-in link, followed", () => {
     expect(res.headers.get("content-type") ?? "").toContain("text/html");
   });
 
+  it("the token in the delivered email carries its purpose (3.2c)", async () => {
+    // Asserted on the household-facing artifact rather than on mintToken().
+    // The prefix is only worth anything if it survives Better Auth's
+    // generateToken hook, the verification store, and the link builder, and
+    // the message is the last place it can be checked before a person holds
+    // it. A unit test on the minter would pass with the hook unwired.
+    const message = await askToSignIn();
+    const token = new URL(linkFrom(message)).searchParams.get("token")!;
+
+    expect(token, `the emailed token is not a sign-in token: ${token}`).toMatch(
+      /^ms_signin_[0-9a-f]{64}$/
+    );
+    // And it survived the URL round trip without being escaped into something
+    // else, which is why the alphabet excludes the separator.
+    expect(encodeURIComponent(token)).toBe(token);
+  });
+
   it("opening the link consumes nothing, so a scanner cannot burn it", async () => {
     const message = await askToSignIn();
     const link = linkFrom(message);
