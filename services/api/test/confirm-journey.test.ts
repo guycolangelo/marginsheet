@@ -29,10 +29,13 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
+import { canRotate, rotateAppRole, assertNotSkippedInCI } from "./helpers/app-role.js";
 import { router, type Env as WorkerEnv } from "../src/index.js";
 
 const OWNER_URL = process.env.DATABASE_URL;
-const configured = Boolean(OWNER_URL) && process.env.AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE === "1";
+// Gated on WHERE these tests point, not on permission to rotate. See
+// helpers/app-role.ts: the target is the question that matters.
+const configured = canRotate();
 
 const BASE = "http://localhost:8787";
 
@@ -42,14 +45,9 @@ let owner: ReturnType<typeof postgres>;
 beforeAll(async () => {
   if (!configured) return;
   owner = postgres(OWNER_URL!, { max: 1 });
-  const password = `journey_${crypto.randomUUID().replace(/-/g, "")}`;
-  await owner.unsafe(`ALTER ROLE marginsheet_app LOGIN PASSWORD '${password}'`);
-  const u = new URL(OWNER_URL!);
-  u.username = "marginsheet_app";
-  u.password = password;
-
+  const appUrl = await rotateAppRole(owner, OWNER_URL!, "journey");
   env = {
-    NEON_DATABASE_URL: u.toString(),
+    NEON_DATABASE_URL: appUrl,
     ENVIRONMENT: "dev",
     BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long!",
     BETTER_AUTH_URL: BASE,
@@ -129,17 +127,10 @@ function open(url: string, init?: RequestInit): Promise<Response> {
   return router.fetch(new Request(url, init), env);
 }
 
-// A skipped suite reports green, which is how a journey test quietly stops
-// running and nobody finds out until a household does. Locally the skip is
-// legitimate, since there may be no database to rotate a role on. In CI both
-// variables are set by the workflow, so a skip there means the harness broke
-// and the journey is unguarded. This is the assertion that says so.
+// A skipped suite reports green. In CI the workflow sets both variables,
+// so a skip there means the harness broke and this is unguarded.
 it("is actually running, and did not skip itself in CI", () => {
-  if (!process.env.CI) return;
-  expect(
-    configured,
-    "the journey suite skipped in CI, so nothing checked the emailed link"
-  ).toBe(true);
+  assertNotSkippedInCI(expect, "the emailed-link journey suite");
 });
 
 describe.skipIf(!configured)("the emailed sign-in link, followed", () => {
