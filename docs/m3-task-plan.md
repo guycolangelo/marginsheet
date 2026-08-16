@@ -42,9 +42,11 @@ Then, assuming green:
 
 Passkey registration and login. Then the question you asked me to answer plainly.
 
-**What happens when a household loses every device.** My proposal, for your ruling: magic link to the verified email, then a phone OTP, both required, neither sufficient. That reconstructs access from two independent channels without a password existing anywhere. If the email is also gone, the path is support-mediated with identity proof, deliberately slow, and it is the only human-in-the-loop path in the auth system.
+**What happens when a household loses every device. RULED 15 Aug 2026 (Guy), approved as proposed.** Magic link to the verified email AND a phone OTP. Both required, neither sufficient. Access is reconstructed from two independent channels, with no password existing anywhere.
 
-I want your ruling on this because it is the floor of the whole security model: **whatever this path is, it is the weakest way into a household**, and everything above it is decoration if it is wrong.
+**The reasoning, recorded because it governs every future change to this path:** single-factor recovery makes the recovery path the weakest link, and an attacker attacks the weakest link. A recovery path weaker than the primary path means the primary path's strength is decorative. Anyone proposing to simplify this later is proposing to make passkeys ornamental.
+
+**Email also gone:** slow, support-mediated identity proof. **Slow is a feature, not an apology**, and it is never to be written about as friction to be reduced. This is an OWED PROCESS, not code, and it is NOT built in M3. It is carried as a named open item with an owner.
 
 ## Task 3.2, magic link, and the passkey tightening
 
@@ -60,7 +62,7 @@ The Twilio Verify send hook, wired to the service the probe validated. Then the 
 2. Phone changes in-app only, behind fresh auth; no write path from any channel. (Invariant 4.)
 3. One verified phone per member; a number in use by another member in any household is rejected with support routing.
 
-Rule 3 needs a decision from you: the rejection must not disclose that the number exists elsewhere, because that leaks household membership to a stranger who guesses a number. I propose the rejection is generic to the user and specific in the support queue.
+**Rule 3 wording, RULED 15 Aug 2026 (Guy), approved.** Generic to the user, specific in the support queue. Never disclose that the number exists. Never hint at which household. The user-facing message routes to support **without implying wrongdoing**: a spouse mistyping their partner's number is a likelier cause than an attacker enumerating, and the copy is written for the likely case, not the adversarial one.
 
 ## Task 3.4, recent-auth re-challenge
 
@@ -80,12 +82,12 @@ Invariants 3 and 4 named in the manifest with their proofs, the M1 `auth_user_id
 
 ---
 
-## Four things I want your ruling on before I build
+## The four rulings (all answered 15 Aug 2026)
 
 1. **The lost-every-device path** (3.1). My proposal is above. This is the floor of the security model.
 2. **Duplicate-phone rejection wording** (3.3). Generic to the user, specific to support, so a stranger guessing numbers learns nothing.
-3. **Does M3 expose HTTP endpoints, or only the service layer?** The spec says phone changes happen "in-app," and the app is M8. I propose M3 ships the enforcement plus the endpoints, and M8 ships the screens that call them, so M3's rules are testable over the wire rather than only as functions.
-4. **OTP rate limiting.** §8 instruments OTP failure rate but no spec section throttles it. Unthrottled OTP is an SMS-cost attack and a brute-force surface. I propose M3 owns throttling. If you would rather it wait, it becomes a named discipline gap with an owner rather than a silence.
+3. **Endpoints, RULED: yes.** M3 ships enforcement plus endpoints; M8 ships the screens that call them. Guy's reasoning: *a rule only reachable through a service function nobody calls yet is a rule nobody has exercised.*
+4. **OTP rate limiting, RULED: M3 owns it.** It is an SMS-cost attack and a brute-force surface, and both go live the moment an endpoint exists. Deferring would ship the attack surface in M3 and the control in M8, which is backwards. **Limits per phone, per member, and per IP, expressed as config rather than constants.**
 
 ## The verification test, applied to this module up front
 
