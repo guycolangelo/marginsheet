@@ -117,6 +117,21 @@ The next gap will not be this one. It will have this shape: **a control that rep
 
 The corollary, which cost the most time here: **a fix is not a fix until something fails without it.** Failure 2's remediation was recorded, believed, and never observed. The observation is the remediation. The rest is intent.
 
+## Network identity: what is actually protected, and by how much
+
+Measured 16 August 2026 against a real magic-link sign-in over HTTP, carrying a real `User-Agent` and a real client IP, with the 0012 trigger **disabled** so layer 1 could be seen on its own.
+
+| Column | Layers | Measured with the trigger off |
+|---|---|---|
+| `session.ip_address` | **two**: `advanced.ipAddress.disableIpTracking` and the 0012 trigger | no address recorded (an empty string, not NULL) |
+| `session.user_agent` | **one**: the 0012 trigger, and nothing else | the exact header value was written |
+
+**For user agent the trigger is not defence in depth. It is the sole defence.** Better Auth has no configuration for user agent and reads the header unconditionally. What would break this is a Better Auth upgrade that changes its session insert behaviour, and nothing in the application would report it: the column would simply start holding data the household never agreed to have kept.
+
+**Why the test asserts user agent is populated.** With the trigger enabled both columns are null, so asserting null proves nothing about layer 1; it would pass identically with `disableIpTracking` deleted. The proof disables the trigger, and the user-agent assertion then serves as the tripwire: if a change ever stopped the request context reaching the session write, user agent would go null and the test fails. That is the only way to tell "suppressed" apart from "never arrived". See `services/api/test/real-sign-in.test.ts` and migration 0016.
+
+**Recorded in 0016 rather than in 0012's header**, because 0012 is merged and migrations are append-only after merge (CLAUDE.md). The rule applies to a comment exactly as it applies to a schema change.
+
 ## The Verify decoupling probe
 
 `scripts/verify-decoupling-probe.sh` sends a real OTP through the production Twilio Verify service and checks it, to prove that an approved phone verification returns a verdict and nothing session-shaped. Phone is a security primitive under identity-onboarding-spec §§1 and 7, and a Verify response carrying a token would silently make it an authentication factor.

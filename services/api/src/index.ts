@@ -3,6 +3,8 @@
 import * as Sentry from "@sentry/cloudflare";
 import { scrubEvent } from "@marginsheet/shared/sentry-scrub";
 import { readDbIdentity, readSchemaHealth } from "@marginsheet/shared/db";
+import { createAuth } from "./auth.js";
+import { postmarkSender } from "./email.js";
 
 interface Env {
   ENVIRONMENT: "dev" | "staging" | "production";
@@ -11,6 +13,8 @@ interface Env {
   NEON_DATABASE_URL?: string;
   BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_URL?: string;
+  POSTMARK_TOKEN?: string;
+  AUTH_FROM_EMAIL?: string;
 }
 
 const SERVICE = "marginsheet-api";
@@ -57,6 +61,29 @@ const handler = {
         },
         { status: database.ok ? 200 : 503 }
       );
+    }
+
+    // Better Auth owns everything under /api/auth. This is the only place a
+    // session is ever issued: tests reach it through realSignIn(), which takes
+    // the cookie from a Set-Cookie header rather than constructing one.
+    if (url.pathname.startsWith("/api/auth")) {
+      if (!env.NEON_DATABASE_URL || !env.BETTER_AUTH_SECRET || !env.BETTER_AUTH_URL) {
+        return Response.json({ error: "auth is not configured" }, { status: 503 });
+      }
+      const mail =
+        env.POSTMARK_TOKEN && env.AUTH_FROM_EMAIL
+          ? postmarkSender(env.POSTMARK_TOKEN, env.AUTH_FROM_EMAIL)
+          : undefined;
+      const auth = createAuth(
+        {
+          NEON_DATABASE_URL: env.NEON_DATABASE_URL,
+          ENVIRONMENT: env.ENVIRONMENT,
+          BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+          BETTER_AUTH_URL: env.BETTER_AUTH_URL,
+        },
+        mail
+      );
+      return auth.handler(request);
     }
 
     if (url.pathname === "/debug/db-identity") {
