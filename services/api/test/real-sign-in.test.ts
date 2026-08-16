@@ -3,6 +3,14 @@
 // Rotation-guarded like the other adapter tests: it connects as
 // marginsheet_app by setting the role's password, so it runs only where
 // AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE is set (the ephemeral CI branch).
+//
+// AND IT MUST NOT RUN IN PARALLEL WITH auth-adapter.test.ts. Both files
+// ALTER ROLE marginsheet_app in beforeAll, and vitest runs files in parallel
+// by default, so two concurrent ALTERs on the same catalog row race and
+// Postgres refuses the second with "tuple concurrently updated". CI caught
+// that on 16 Aug 2026. The test:auth-adapter script passes
+// --no-file-parallelism for this reason: these files mutate shared global
+// state, not just their own rows.
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
