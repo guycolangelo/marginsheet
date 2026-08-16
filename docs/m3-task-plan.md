@@ -66,6 +66,10 @@ The harness problem is real but it is not the justification. Guy's ruling, recor
 
 The layer 1 proof moves for the same reason rather than a related one: it needs a real request context with real headers, which only a real sign-in produces.
 
+**Second reorder, 16 August 2026 (approved): 3.2d before the rest of 3.2a.** `realSignIn()` moves ahead of the sign-in flow's remaining pieces, because single use, expiry and the double-click behaviour cannot be proven against a real session row without it.
+
+Guy's framing, recorded because it keeps the tripwire below honest: **this is not a third dodge.** 3.1a moved toward `realSignIn()` and this moves toward it again. That is convergence on a missing foundation, not avoidance of a wall. The tripwire still applies to its actual case, which is reordering to avoid a thing rather than to build it.
+
 **The condition attached to this change.** When 3.2 lands, confirm that a real signed cookie from a real magic-link sign-in genuinely exercises the WebAuthn path end to end. If registration turns out to need something else the harness still cannot produce, that is a **named gap with an owner and a manual verification**, not another workaround. Two reorderings to dodge the same wall would mean the wall is the finding.
 
 ---
