@@ -66,6 +66,27 @@ export function createAuth(env: AuthEnv) {
     },
 
     advanced: {
+      // NO NETWORK IDENTITY (ruled by Guy, 15 Aug 2026).
+      //
+      // MarginSheet holds no network identity for households. Sentry was
+      // stripped of it in three layers including an org-level setting, and a
+      // session table storing IP and user agent would make that principle
+      // false in a different store. Guy's words: "we only keep it for
+      // security" is the sentence every company says before a breach
+      // discloses it.
+      //
+      // What this costs, accepted knowingly: no sign-in-from-a-new-device
+      // detection, no IP-based anomaly signals, weaker forensics if an
+      // account is ever compromised. Those are real security tools, traded
+      // for not holding the data. Any future control needing one of them is a
+      // ruling with a named purpose, never a default that accumulated.
+      //
+      // This flag is only the FIRST of two layers. It is configuration, and
+      // configuration is a setting somebody can flip. The structural half is
+      // the trigger in migration 0012, which nulls both columns on write no
+      // matter what this says. Better Auth has no equivalent flag for user
+      // agent at all: it reads the header unconditionally.
+      ipAddress: { disableIpTracking: true },
       // Cookies are cross-subdomain-free and secure everywhere except local
       // development, where there is no TLS to be secure over.
       useSecureCookies: env.ENVIRONMENT !== "dev",
