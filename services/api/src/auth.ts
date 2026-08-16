@@ -23,6 +23,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as authSchema from "./auth-schema.js";
 import { magicLinkEmail, type EmailSender } from "./email.js";
+import { TOKEN_PURPOSES, mintToken } from "./tokens.js";
 
 /** Sign-in links live 15 minutes (ruled 15 Aug 2026). */
 export const MAGIC_LINK_MINUTES = 15;
@@ -138,6 +139,13 @@ export function createAuth(env: AuthEnv, mail?: EmailSender) {
       // has spent a day removing.
       magicLink({
         expiresIn: MAGIC_LINK_MINUTES * 60,
+        // Every sign-in token carries its purpose in the value (3.2c). Better
+        // Auth stores whatever this returns, so the prefix travels with the
+        // token into `verification` and back out at verification time. The
+        // sign-in consumer rejects any other kind BEFORE a lookup happens, so
+        // an invitation presented here fails on purpose rather than by being
+        // absent from a table it was never in.
+        generateToken: () => mintToken(TOKEN_PURPOSES.signIn),
         sendMagicLink: async ({ email, token }) => {
           if (!mail) {
             // Never silently succeed. A sign-in flow that reports "check your

@@ -200,6 +200,26 @@ jobs:
   #
   # Needs full history, hence fetch-depth 0: the check compares every merged
   # migration byte for byte against origin/main.
+  # Open items print here, and the job fails when one has no owner. CLAUDE.md
+  # has required this since M0 and nothing implemented it, so on 16 Aug 2026 an
+  # item needed recording "like the others" and there were no others. A
+  # practice that is documented and unenforced is the shape this build keeps
+  # finding: the reviewer that did not exist, the comment warning against
+  # rotating a long-lived branch, the verify step that could not run.
+  open-items:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # pnpm before setup-node, matching every other job here: setup-node
+      # resolves the packageManager field and fails without it, even though
+      # this script needs nothing but node.
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - name: Every open item names an owner and what it is owed to
+        run: node .github/scripts/open-items.mjs
+
   migrations-append-only:
     runs-on: ubuntu-latest
     steps:

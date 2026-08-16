@@ -18,6 +18,18 @@
 // completes with JavaScript disabled, on any client, offline of any CDN. A
 // first sign-in is the worst possible moment to depend on anything else
 // loading.
+//
+// THE TRADEMARK APPEARS ONCE ACROSS THE WHOLE JOURNEY, on the confirm page and
+// nowhere after it. Doctrine is first or prominent use only, and a household
+// walking confirm then signed-in would otherwise meet the mark twice inside two
+// sentences. The rule is per journey, not per file, which is why the second
+// page carries a comment rather than a bare plain-text name somebody later
+// "corrects".
+//
+// STYLING IS DELIBERATELY MINIMAL AND TEMPORARY. Design holds the sign-in
+// surfaces (Guy, 16 Aug 2026). What is here is enough to be legible and
+// nothing more; it is not a design decision and must not be treated as one
+// when the real surfaces land.
 
 /**
  * The token arrives from a query string, which is attacker-controlled input
@@ -93,7 +105,11 @@ export function signedInPage(): string {
     "You are signed in",
     [
       "<h1>You are signed in</h1>",
-      "<p>You can close this tab and carry on in MarginSheet&trade;.</p>",
+      // No trademark here. The household has just come through the confirm
+      // page, which carries it, so this is not first use in the journey.
+      // These pages are one sentence long and the doctrine is first or
+      // prominent use only.
+      "<p>You can close this tab and carry on in MarginSheet.</p>",
     ].join("")
   );
 }

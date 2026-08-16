@@ -1,0 +1,58 @@
+[
+  {
+    "id": "3.2c-second-pass",
+    "item": "The token cross-presentation matrix covers 2 of 3 kinds. Recovery has no table, issuer or consumer, so its consumer column is 3 todos in services/api/test/token-matrix.test.ts. 3.2c is NOT complete.",
+    "owner": "build",
+    "owed_to": "3.1b (recovery consumer) and 3.5 (invitation consumer endpoint)",
+    "raised": "2026-08-16"
+  },
+  {
+    "id": "sign-in-surface-styling",
+    "item": "The /auth/confirm pages carry minimal placeholder styling. Design holds the sign-in surfaces; what ships now is legibility only and is not a design decision.",
+    "owner": "Guy (Design)",
+    "owed_to": "M8",
+    "raised": "2026-08-16"
+  },
+  {
+    "id": "postmark-test-mode",
+    "item": "Postmark is in test mode pending approval, so production sends are limited to @marginsheet.com recipients. The live send to guy@astonishent.com is still owed once it clears.",
+    "owner": "Guy",
+    "owed_to": "Postmark account approval",
+    "raised": "2026-08-16"
+  },
+  {
+    "id": "twilio-trial-caller-id",
+    "item": "The Twilio account is a trial, so delivery is limited to verified caller IDs. Same shape as the Postmark constraint: invisible until a real recipient is outside it.",
+    "owner": "Guy",
+    "owed_to": "3.3",
+    "raised": "2026-08-16"
+  },
+  {
+    "id": "provider-events-handler-half",
+    "item": "Invariant 5's handler half is unbuilt. It now covers four providers rather than three, since Postmark bounce and complaint webhooks joined Plaid, Stripe and Twilio in provider_events (amendment 7).",
+    "owner": "build",
+    "owed_to": "M4 and M7",
+    "raised": "2026-08-16"
+  },
+  {
+    "id": "canon-fixtures",
+    "item": "Five canon fixtures are owed before the golden suite can judge composed output against them. FraudReply first.",
+    "owner": "Guy",
+    "owed_to": "M10",
+    "raised": "2026-08-16"
+  },
+  {
+    "id": "rotation-guard-declaration",
+    "item": "The role-rotation guard trusts the caller's declaration of the target branch. NEON_TEST_BRANCH=pr-1 aimed at dev would still rotate dev. Verifying the declaration against Neon's branch endpoint would close it.",
+    "owner": "build",
+    "owed_to": "unscheduled",
+    "raised": "2026-08-16"
+  },
+  {
+    "id": "invitation-token-format-constraint",
+    "item": "invitations.token has no CHECK constraint requiring the ms_invite_ prefix, so 3.5 could mint an unprefixed token and the domain separation would be advisory for that kind. A migration would make it structural.",
+    "owner": "build",
+    "owed_to": "3.5",
+    "raised": "2026-08-16"
+  }
+]

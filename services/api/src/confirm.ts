@@ -34,6 +34,7 @@
 import type { Auth } from "./auth.js";
 import { MAGIC_LINK_MINUTES } from "./auth.js";
 import { confirmPage, incompleteLinkPage, signedInPage, spentLinkPage } from "./confirm-page.js";
+import { readSignInToken } from "./tokens.js";
 
 export type ConfirmOutcome =
   | { status: "signed_in" }
@@ -118,7 +119,13 @@ export async function confirmSignIn(
   baseUrl: string
 ): Promise<Response> {
   const html = wantsHtml(request);
-  const token = await readToken(request);
+
+  // The sign-in consumer, purpose baked in (3.2c). This runs BEFORE any
+  // lookup, so an invitation or a recovery half presented here is refused
+  // because it is not a sign-in token, never because it happens to be absent
+  // from `verification`. Storage separation alone would pass this test for the
+  // wrong reason and stop being true the moment two kinds share a store.
+  const token = readSignInToken(await readToken(request)) ?? "";
 
   if (token) {
     const verified = await auth.handler(
