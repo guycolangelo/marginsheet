@@ -22,6 +22,24 @@ import { passkey } from "@better-auth/passkey";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as authSchema from "./auth-schema.js";
+import { magicLinkEmail, type EmailSender } from "./email.js";
+
+/** Sign-in links live 15 minutes (ruled 15 Aug 2026). */
+export const MAGIC_LINK_MINUTES = 15;
+
+/**
+ * Which endpoint established a session maps to which credential class. Derived
+ * from the path the server itself just executed, never from anything the
+ * client said. See migration 0014: a client-supplied value would make the §1
+ * phone-change tightening advisory.
+ */
+export function authMethodForPath(path: string | undefined): "passkey" | "magic_link" | null {
+  if (!path) return null;
+  if (path.includes("/passkey/verify-authentication")) return "passkey";
+  if (path.includes("/magic-link/verify")) return "magic_link";
+  // Unknown provenance is the weakest class, never the strongest.
+  return null;
+}
 
 export interface AuthEnv {
   NEON_DATABASE_URL: string;
@@ -36,7 +54,7 @@ export interface AuthEnv {
 const THIRTY_DAYS_SECONDS = 60 * 60 * 24 * 30;
 const ONE_DAY_SECONDS = 60 * 60 * 24;
 
-export function createAuth(env: AuthEnv) {
+export function createAuth(env: AuthEnv, mail?: EmailSender) {
   // One connection per request. Workers are short-lived and Neon pools on its
   // side; holding a pool across invocations is what breaks first here.
   const sql = postgres(env.NEON_DATABASE_URL, {
@@ -63,6 +81,22 @@ export function createAuth(env: AuthEnv) {
     session: {
       expiresIn: THIRTY_DAYS_SECONDS,
       updateAge: ONE_DAY_SECONDS,
+      additionalFields: {
+        // input: false is the enforcement, not a hint. It stops the field
+        // being accepted from a request body. Migration 0014's comment
+        // explains why that is the whole control rather than a detail.
+        auth_method: { type: "string", required: false, input: false },
+      },
+    },
+
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session, ctx) => ({
+            data: { ...session, auth_method: authMethodForPath(ctx?.path) },
+          }),
+        },
+      },
     },
 
     advanced: {
@@ -103,8 +137,20 @@ export function createAuth(env: AuthEnv) {
       // success without sending is the exact shape of control this build
       // has spent a day removing.
       magicLink({
-        sendMagicLink: async () => {
-          throw new Error("magic link send hook is not wired yet (M3 task 3.2)");
+        expiresIn: MAGIC_LINK_MINUTES * 60,
+        sendMagicLink: async ({ email, token }) => {
+          if (!mail) {
+            // Never silently succeed. A sign-in flow that reports "check your
+            // email" while sending nothing is the exact failure shape this
+            // build has spent a day removing.
+            throw new Error("no email sender configured; refusing to report a send that did not happen");
+          }
+          // NOT the plugin's own callback URL. That one verifies on GET, and a
+          // GET-consumed token is burned by email security scanners before the
+          // member ever clicks. This points at a page that consumes nothing;
+          // an explicit action there completes the sign-in.
+          const confirmUrl = `${env.BETTER_AUTH_URL}/auth/confirm?token=${encodeURIComponent(token)}`;
+          await mail.send({ to: email, ...magicLinkEmail(confirmUrl, MAGIC_LINK_MINUTES) });
         },
       }),
     ],
