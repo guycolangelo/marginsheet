@@ -122,3 +122,33 @@ The difference between 3 months of history and 18 is real and **belongs in the b
 A household-stated per-category number becomes a projection input at that point, and when it diverges from history **the projection must carry both**. The stated number wins as the household's decision; the trajectory is stated as fact beside it. **Neither is a verdict.**
 
 Recorded as owed to Module 11 rather than designed now.
+
+---
+
+## 6. The Margin Instrument (new, Module 11 scope)
+
+A **modeling surface, not a budget screen**, and the distinction is what makes it survive the doctrine.
+
+Each spending category renders with the household's actual trailing average and a slider. An income line has its own. Moving any slider recomputes Margin live. The household plays until they find a shape they like, with the Method's 20% aim or their own stated target rendered as the reference.
+
+### Why this is not the thing amendment 5 ruled out
+
+A budget screen asks a household to set targets and then reports on their compliance. **This asks nothing and reports nothing.** It starts from what they actually spend and shows the arithmetic of their own choices.
+
+The household discovers that dining at $900 instead of $1,240 moves Margin from 14% to 17%, **and the tool never mentioned dining**. It is the "let's look at the math" exchange made touchable, and it lets a household find its own lever rather than answering a question it already knew to ask.
+
+That distinction is the whole licence for this surface. If it is ever lost, the surface becomes the ritual the Method argues against, wearing a nicer interface.
+
+### Three constraints
+
+**1. The output is a DECISION, not a budget.** When a household lands on a shape they like, the artifact is Household Goals plus a decision journal entry ("on 16 August you decided a 20% shape looks like this"), **never a set of category limits the system then polices**. The moment it reports compliance against those numbers it becomes the thing the Method refuses. This is the constraint that keeps amendment 5's ruling intact, and it is the one to check first in any review of this surface.
+
+**2. The starting position is their actual trailing average, and it stays visible throughout.** A slider moved down must read as **a change from reality**, never as a number entered on a blank form. A blank form is a budget; a departure from an observed figure is a model.
+
+**3. The income slider needs different treatment from the spending sliders.** Spending is largely a choice; income mostly is not, at least month to month. A household sliding income up to reach 20% is **modeling a raise they may not get**, and the interface must not make that feel equivalent to spending less.
+
+Anchor it differently or label it as what-if. **This is an open design requirement, not a solved one**, and it is recorded as owed to the Module 11 design rather than answered here. The failure mode it guards against is a household leaving the surface believing they have found a plan when they have found a wish.
+
+### Candidate for the Annual Planning Session
+
+A household and MyKeeper moving sliders together during the call is a better ceremony than a form. Recorded as a candidate, not a commitment.
