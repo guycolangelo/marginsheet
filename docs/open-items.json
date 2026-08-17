@@ -22,9 +22,9 @@
   },
   {
     "id": "twilio-trial-caller-id",
-    "item": "The Twilio account is a trial, so delivery is limited to verified caller IDs. Same shape as the Postmark constraint: invisible until a real recipient is outside it.",
+    "item": "The Twilio account is a trial, so Verify reaches only allowlisted numbers. The refusal PATH is now built and tested against a refusing sender (honest message naming the number, no hang, no 500), and it is permanent because Twilio refuses numbers for reasons that outlive the trial. What is still owed is one LIVE send to a non-allowlisted number, because only the real account produces the real error body.",
     "owner": "Guy",
-    "owed_to": "3.3",
+    "owed_to": "a live send by Guy, then a plan upgrade",
     "raised": "2026-08-16"
   },
   {
@@ -81,6 +81,20 @@
     "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and \u00a71 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
     "owner": "build",
     "owed_to": "standing constraint, reviewed whenever @better-auth/passkey is upgraded",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "recent-auth-unwired",
+    "item": "withinRecentAuthWindow() exists, is tested, and is called by NOTHING. It is rule 1's first half from migration 0001: a phone change is supposed to sit behind a 10-minute recent-auth window, and today a session created 29 days ago satisfies POST /auth/phone exactly as one created a minute ago. A control that exists and is not called must not be mistaken for a control that is enforced.",
+    "owner": "3.4",
+    "owed_to": "3.4, which wires recent-auth to every sensitive action",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "rule-2-refusal-timing",
+    "item": "Rule 2's cross-household collision is caught at CONFIRM rather than at START, because members carries household_isolation and the pre-check cannot see another household's row. The constraint enforces the rule; the code translates the violation into an honest refusal. Cost: a household receives a code before learning the number is taken. Closing it would need a second SECURITY DEFINER function, which 0018 makes a ruling.",
+    "owner": "Guy",
+    "owed_to": "a ruling, if the extra round trip is judged unacceptable",
     "raised": "2026-08-17"
   }
 ]
