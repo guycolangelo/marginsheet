@@ -1,0 +1,78 @@
+# Planted failures: break each control and require the right test to go red.
+#
+# Task 0.4's proof applied to M3 (task 3.6). A control nobody has watched fail
+# is a control nobody should trust.
+#
+# WHEN THIS RUNS, and why the split (Guy, 17 Aug 2026):
+#
+#   nightly     over every control. Mutations test the TESTS rather than the
+#               code, and tests change less often than code does.
+#   on demand   workflow_dispatch, for when somebody wants it now.
+#   per PR      automatically, when a PR touches a test file the register
+#               names. That is the case where the nightly delay costs
+#               something: the author of a desensitising change is the person
+#               who still has the context, and by the next morning it reads as
+#               an unrelated overnight failure that somebody spends an hour
+#               rediscovering.
+#
+# The per-PR trigger lives in ci.yml, which can see the changed files.
+name: planted-failures
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      control:
+        description: "A single control id, or blank for all of them"
+        required: false
+
+concurrency:
+  group: planted-failures
+  cancel-in-progress: false
+
+env:
+  NEON_PROJECT_ID: fancy-paper-35797264
+
+jobs:
+  plant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history, so a failure can name the commit that last touched
+          # the insensitive test. A nightly red with no owner is a nightly red
+          # that gets ignored by Thursday.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Create a scratch Neon branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          CS=$(scripts/neon-pr-branch.sh create 99${{ github.run_number }})
+          echo "::add-mask::$CS"
+          echo "PLANTED_DATABASE_URL=$CS" >> "$GITHUB_ENV"
+
+      - name: Migrate it
+        env:
+          DATABASE_URL: ${{ env.PLANTED_DATABASE_URL }}
+        run: pnpm --filter @marginsheet/schema migrate:up
+
+      - name: Break every control and require the right test to go red
+        env:
+          DATABASE_URL: ${{ env.PLANTED_DATABASE_URL }}
+          NEON_TEST_BRANCH: pr-99${{ github.run_number }}
+          CI: "1"
+        run: node .github/scripts/planted-failures.mjs ${{ inputs.control }}
+
+      - name: Destroy the scratch branch
+        if: always()
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: scripts/neon-pr-branch.sh delete 99${{ github.run_number }} || true

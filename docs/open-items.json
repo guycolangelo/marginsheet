@@ -82,5 +82,12 @@
     "owner": "M7, 3.5 and M8 respectively",
     "owed_to": "each action's own module",
     "raised": "2026-08-17"
+  },
+  {
+    "id": "planted-failure-inertness",
+    "item": "The planted-failure harness proves a mutation changed the FILE, not that it changed BEHAVIOUR, and proving the second is undecidable in general. So a 'test did not go red' result has two causes it cannot distinguish: an insensitive control, or an inert mutation. One was already found this way: a mutation whose injected condition was always undefined. The failure message names both causes, and register mutations need reviewing as code rather than as data.",
+    "owner": "build",
+    "owed_to": "standing constraint, reviewed whenever a register entry is added",
+    "raised": "2026-08-17"
   }
 ]

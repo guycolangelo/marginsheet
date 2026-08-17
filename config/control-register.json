@@ -1,0 +1,204 @@
+{
+  "_doc": [
+    "Every control M3 ships, and for each one THE TEST THAT WOULD FAIL if the",
+    "thing it guards were completely broken (M3 task 3.6).",
+    "",
+    "WHY THIS EXISTS. The constitution asks of every control: if the thing this",
+    "guards were completely broken, would this go red? Nine controls have failed",
+    "that question in two weeks. Answering it by asserting 'yes' is worth",
+    "nothing, so this register answers it by NAMING the test, and the",
+    "planted-failure harness then BREAKS each control and requires that exact",
+    "test to go red.",
+    "",
+    "A control nobody has watched fail is a control nobody should trust.",
+    "",
+    "HOW IT IS USED:",
+    "  per PR   control-register.test.ts checks every entry points at a test",
+    "           that exists, and prints the boundary report.",
+    "  per PR   the planted-failure harness runs AUTOMATICALLY when the PR",
+    "           touches any test file named here, because the author of a",
+    "           desensitising change is the person who still has the context.",
+    "  nightly  the harness runs over every entry.",
+    "  on call  workflow_dispatch, for when somebody wants it now.",
+    "",
+    "planted.kind is 'source' (a find/replace in a file) or 'sql' (statements",
+    "against the ephemeral branch). Either way the harness asserts the mutation",
+    "TOOK EFFECT before running the test, because a harness that silently stops",
+    "mutating would report every control as correctly red while doing nothing.",
+    "",
+    "WHY AN ENTRY STAYS EVEN WHEN SOMETHING ELSE WOULD CATCH IT (ruled 17 Aug",
+    "2026). The test applied to each entry is: would its absence be noticed by",
+    "something else? A control another control already catches does not need its",
+    "own entry; one that nothing else would notice needs one badly.",
+    "",
+    "But COVERAGE THAT IS INCIDENTAL IS NOT COVERAGE THAT IS DESIGNED. The",
+    "channel-gate-column entry looked redundant because a behavioural break in",
+    "mayReachMember also shows up in the phone-rules suite. That overlap is an",
+    "accident of how those tests happen to be written: narrow the fixtures or",
+    "refactor the suite and the coverage vanishes with nobody noticing, because",
+    "nothing wrote down that it was guarding rule 3's behavioural half. An entry",
+    "whose absence is only noticed by accident is exactly the one worth keeping.",
+    "",
+    "The register exists to make coverage EXPLICIT rather than EMERGENT.",
+    "",
+    "A near-miss is also kept: invitation-token-prefix's absence IS noticed, but",
+    "as the wrong problem. The consumer refuses the value and the failure reads as",
+    "a bug in redemption rather than in minting, and 'noticed as the wrong",
+    "problem' is close enough to not noticed."
+  ],
+  "controls": [
+    {
+      "id": "token-domain-separation",
+      "control": "readSignInToken and its siblings",
+      "guards": "One token kind cannot open another kind's door.",
+      "test": "services/api/test/token-matrix.test.ts",
+      "name": "the off-diagonal: every consumer refuses every other kind",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/tokens.ts",
+        "find": "if (!parsed || parsed.purpose !== TOKEN_PURPOSES.signIn) return null;",
+        "replace": "if (!parsed) return null;"
+      }
+    },
+    {
+      "id": "invitation-token-prefix",
+      "control": "invitations_token_purpose_prefix",
+      "guards": "An issuer cannot mint an unprefixed invitation token.",
+      "test": "services/api/test/invitations.test.ts",
+      "name": "the CHECK constraint refuses an unprefixed token",
+      "planted": {
+        "kind": "sql",
+        "apply": "ALTER TABLE invitations DROP CONSTRAINT invitations_token_purpose_prefix",
+        "restore": "DELETE FROM invitations WHERE token NOT LIKE 'ms\\_invite\\_%'; ALTER TABLE invitations ADD CONSTRAINT invitations_token_purpose_prefix CHECK (token LIKE 'ms\\_invite\\_%')",
+        "proof": "select count(*)::int as n from pg_constraint where conname = 'invitations_token_purpose_prefix'",
+        "appliedValue": 0,
+        "restoredValue": 1,
+        "restoreNote": "The mutation lets the named test insert a row the constraint forbids, so the restore must remove it first. Found by running the harness: the restore failed with 'is violated by some row', which is a flaw in the planted failure rather than in the control."
+      }
+    },
+    {
+      "id": "resolver-privilege",
+      "control": "auth_household_id EXECUTE is enumerated",
+      "guards": "The sync worker cannot resolve arbitrary users to households.",
+      "test": "services/api/test/rls-resolver.test.ts",
+      "name": "constraint 3: privileges are enumerated",
+      "planted": {
+        "kind": "sql",
+        "apply": "GRANT EXECUTE ON FUNCTION public.auth_household_id(text) TO marginsheet_sync",
+        "restore": "REVOKE EXECUTE ON FUNCTION public.auth_household_id(text) FROM marginsheet_sync",
+        "proof": "select has_function_privilege('marginsheet_sync','public.auth_household_id(text)','EXECUTE')::int as n",
+        "appliedValue": 1,
+        "restoredValue": 0
+      }
+    },
+    {
+      "id": "channel-gate-column",
+      "control": "mayReachMember reads phone_verified_at",
+      "guards": "No message about money reaches an unverified phone.",
+      "test": "services/api/test/phone-rules.test.ts",
+      "name": "RULE 3: phone_verified_at gates channel access",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/channel-gate.ts",
+        "find": "if (!row.verified) return { mayReach: false, reason: \"phone_unverified\" };",
+        "replace": "if (false) return { mayReach: false, reason: \"phone_unverified\" };"
+      },
+      "distinction": "Catches the RIGHT CODE BEING BROKEN: mayReachMember stops reading the column correctly. Paired with channel-gate-static, which catches the WRONG CODE BEING WRITTEN. Different failure modes, both worth an entry."
+    },
+    {
+      "id": "channel-gate-static",
+      "control": "the send-path scan",
+      "guards": "No send path gates on a number existing rather than on the column.",
+      "test": "services/api/test/phone-rules-static.test.ts",
+      "name": "RULE 3: the gate is the column, never the number",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/invitation-routes.ts",
+        "find": "    const payload = await body(request);",
+        "replace": "    const payload = await body(request);\n    if (payload.phone) {\n      // a send gated on a number EXISTING, which is what the scan forbids\n    }",
+        "note": "Mutates a module the scan COVERS. An earlier version mutated channel-gate.ts, which the scan skips by design and whose injected condition was always undefined: it changed the file, broke nothing, and the harness reported the control as insensitive. A planted failure that does not actually break the control tests the harness, not the control."
+      },
+      "distinction": "Catches the WRONG CODE BEING WRITTEN: a new send path gating on a number existing rather than on the column, which passes every behavioural test. Paired with channel-gate-column, which catches the right code being broken."
+    },
+    {
+      "id": "recent-auth",
+      "control": "withinRecentAuthWindow on the phone change",
+      "guards": "A sensitive action cannot run on a stale session.",
+      "test": "services/api/test/recent-auth-wired.test.ts",
+      "name": "the window is enforced",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/recent-auth.ts",
+        "find": "  if (ageMs > RECENT_AUTH_MINUTES * 60_000) return { fresh: false, reason: \"stale\" };",
+        "replace": "  if (false) return { fresh: false, reason: \"stale\" };"
+      }
+    },
+    {
+      "id": "sensitive-action-reachability",
+      "control": "SENSITIVE_ACTIONS direction 2",
+      "guards": "A listed action cannot claim to be built while nothing routes it.",
+      "test": "services/api/test/sensitive-actions.test.ts",
+      "name": "direction 2: every BUILT entry is actually reachable",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/sensitive-actions.ts",
+        "find": "    path: \"/billing/cancel\",\n    built: false,",
+        "replace": "    path: \"/billing/cancel\",\n    built: true,"
+      }
+    },
+    {
+      "id": "send-limits-fail-closed",
+      "control": "recordSendIfPermitted fails closed",
+      "guards": "An unreachable ledger refuses rather than granting permission.",
+      "test": "services/api/test/send-limits.test.ts",
+      "name": "it fails closed",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/send-limits.ts",
+        "find": "    return { allowed: false, reason: \"unavailable\" };",
+        "replace": "    return { allowed: true };"
+      }
+    },
+    {
+      "id": "recovery-two-halves",
+      "control": "the recovery grant needs both halves",
+      "guards": "Neither factor alone recovers an account.",
+      "test": "services/api/test/recovery.test.ts",
+      "name": "neither half is sufficient",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/recovery.ts",
+        "find": "  if (!challenge.phone_half_met_at) return { granted: false, reason: \"phone_half_missing\" };",
+        "replace": "  if (false) return { granted: false, reason: \"phone_half_missing\" };"
+      }
+    },
+    {
+      "id": "rotation-target-guard",
+      "control": "rotateAppRole refuses a non-ephemeral target",
+      "guards": "A destructive operation cannot hit a long-lived branch.",
+      "test": "services/api/test/app-role-guard.test.ts",
+      "name": "rotation is refused anywhere that is not an ephemeral PR branch",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/test/helpers/app-role.ts",
+        "find": "const EPHEMERAL_BRANCH = /^pr-\\d+$/;",
+        "replace": "const EPHEMERAL_BRANCH = /^.*$/;"
+      }
+    },
+    {
+      "id": "household-is-the-unit",
+      "control": "household_isolation on members",
+      "guards": "Two members of one household see each other; other households do not.",
+      "test": "services/api/test/invitations.test.ts",
+      "name": "THE TWO-MEMBER ASSERTION: the household is the unit",
+      "planted": {
+        "kind": "sql",
+        "apply": "ALTER POLICY household_isolation ON members USING (false)",
+        "restore": "ALTER POLICY household_isolation ON members USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid)",
+        "proof": "select (pg_get_expr(polqual, polrelid) like '%false%')::int as n from pg_policy p join pg_class c on c.oid = p.polrelid where c.relname = 'members' and p.polname = 'household_isolation'",
+        "appliedValue": 1,
+        "restoredValue": 0
+      }
+    }
+  ]
+}
