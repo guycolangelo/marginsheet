@@ -7,6 +7,7 @@ import { createAuth } from "./auth.js";
 import { postmarkSender } from "./email.js";
 import { confirmSignIn, confirmLandingPage } from "./confirm.js";
 import { limitsFor, recordSendIfPermitted } from "./send-limits.js";
+import { changePhone } from "./phone-change.js";
 // Bundled at build time: Workers have no filesystem. Still config in the
 // repo, still reviewable, and the environment picks its row at runtime.
 import rateLimitConfig from "../../../config/rate-limits.json";
@@ -139,6 +140,30 @@ const handler = {
           { error: "too many sign-in requests", retry: "in a few minutes" },
           { status: 429 }
         );
+      }
+    }
+
+    // POST /auth/phone: the §1 tightening, enforced (3.1a).
+    //
+    // Owed since 15 Aug, when the 3.2 plan ruled for a minimal real endpoint
+    // rather than a stand-in. Until this existed, mayChangePhone() was correct,
+    // tested, and wired to nothing: no path could attempt a phone change, so
+    // the tightening could not have gone red however broken it was.
+    if (url.pathname === "/auth/phone" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.BETTER_AUTH_SECRET || !env.BETTER_AUTH_URL) {
+        return Response.json({ error: "auth is not configured" }, { status: 503 });
+      }
+      const auth = createAuth({
+        NEON_DATABASE_URL: env.NEON_DATABASE_URL,
+        ENVIRONMENT: env.ENVIRONMENT,
+        BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL: env.BETTER_AUTH_URL,
+      });
+      const sql = postgres(env.NEON_DATABASE_URL, { max: 1, idle_timeout: 5, connect_timeout: 10 });
+      try {
+        return await changePhone(auth, sql, request);
+      } finally {
+        await sql.end();
       }
     }
 
