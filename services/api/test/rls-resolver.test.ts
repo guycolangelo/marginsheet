@@ -37,6 +37,18 @@ let bob: { household: string; member: string; userId: string };
 
 async function seed(name: string) {
   const userId = `user_${crypto.randomUUID()}`;
+  // A REAL Better Auth user row, not just an id.
+  //
+  // members.auth_user_id is a soft reference with an integrity test instead of
+  // a foreign key (ruled 1.1), and that test asserts across the whole database
+  // that no member points at a user which does not exist. Seeding a fabricated
+  // id makes this fixture the thing that breaks it, which is what happened on
+  // 17 Aug: the M1 suite went red on residue from here rather than on anything
+  // the product did. A soft reference is still a reference.
+  await owner`
+    insert into "user" (id, name, email, email_verified, created_at, updated_at)
+    values (${userId}, ${name}, ${`${userId}@marginsheet.test`}, false, now(), now())
+  `;
   const [h] = await owner<{ id: string }[]>`
     insert into households (name) values (${name}) returning id
   `;

@@ -9,6 +9,7 @@ import { confirmSignIn, confirmLandingPage } from "./confirm.js";
 import { limitsFor, recordSendIfPermitted } from "./send-limits.js";
 import { changePhone } from "./phone-change.js";
 import { recoveryRoutes } from "./recovery-routes.js";
+import { invitationRoutes } from "./invitation-routes.js";
 import { twilioVerifySender } from "./otp.js";
 // Bundled at build time: Workers have no filesystem. Still config in the
 // repo, still reviewable, and the environment picks its row at runtime.
@@ -193,6 +194,39 @@ const handler = {
           baseUrl: env.BETTER_AUTH_URL,
           rpId: new URL(env.BETTER_AUTH_URL).hostname,
           origin: new URL(env.BETTER_AUTH_URL).origin,
+        });
+        if (handled) return handled;
+      } finally {
+        await sql.end();
+      }
+    }
+
+    // Invitations (3.5). Creation is a SENSITIVE ACTION per amendment 11.
+    if (url.pathname.startsWith("/household/invitations")) {
+      if (!env.NEON_DATABASE_URL || !env.BETTER_AUTH_SECRET || !env.BETTER_AUTH_URL) {
+        return Response.json({ error: "auth is not configured" }, { status: 503 });
+      }
+      const mail =
+        env.POSTMARK_TOKEN && env.AUTH_FROM_EMAIL
+          ? postmarkSender(env.POSTMARK_TOKEN, env.AUTH_FROM_EMAIL)
+          : undefined;
+      if (!mail) {
+        // Delivery or nothing: an invitation that cannot be sent is not created.
+        return Response.json({ error: "invitations are not configured" }, { status: 503 });
+      }
+      const auth = createAuth({
+        NEON_DATABASE_URL: env.NEON_DATABASE_URL,
+        ENVIRONMENT: env.ENVIRONMENT,
+        BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL: env.BETTER_AUTH_URL,
+      });
+      const sql = postgres(env.NEON_DATABASE_URL, { max: 1, idle_timeout: 5, connect_timeout: 10 });
+      try {
+        const handled = await invitationRoutes(request, url, {
+          sql,
+          auth,
+          mail,
+          baseUrl: env.BETTER_AUTH_URL,
         });
         if (handled) return handled;
       } finally {

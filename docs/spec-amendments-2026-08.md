@@ -280,3 +280,29 @@ The prompt sits immediately before the card step, so anything that stalls here c
 ### The test this owes
 
 The supported end state proven as supported: a household that skips completes signup, reaches the card step, holds no passkey, signs in by magic link afterwards, and changes their phone successfully on a magic-link session. Plus the negative that gives it meaning: a household that declined is not prompted again, while one that never reached the step still is.
+
+---
+
+## 11. Invitation creation is a sensitive action (amends `identity-onboarding-spec.md` §1's sensitive-action list; ruled 17 August 2026)
+
+§1 lists four actions requiring recent-auth re-challenge: **phone change, cancellation, member removal, export.** Member *addition* is not among them. **It is now.** Invitation creation requires recent-auth.
+
+This is a deliberate widening of an explicit list, recorded as an amendment rather than slipped in as an implementation detail.
+
+### The reasoning, which is about the illegitimate case
+
+"Invited and expected" describes the legitimate case, and controls exist for the illegitimate one.
+
+**A stolen session that invites its own address creates a permanent second door into the household's books.** That door survives the original member noticing the compromise, because it is not a session to be revoked or a password to be changed: it is a member. And to the system it looks like a normal family member, because that is exactly what it is.
+
+**Removal is loud and gets noticed within a day. Addition is quiet and durable.** Somebody losing access finds out immediately; somebody gaining it may never be observed at all.
+
+### Why it is the largest grant the product makes
+
+The membership model is that **every full member sees everything**. There is no partial access, no per-surface permission, no read-only member. So an invitation is not a grant of some access, it is a grant of all of it, and it is the single largest one the product is capable of making.
+
+That makes the asymmetry with removal the wrong way round in the original list. Removal takes access from one person; addition gives the whole household's financial life to somebody who did not have it, permanently, in one request.
+
+### What implements it
+
+`SENSITIVE_ACTIONS` in `services/api/src/sensitive-actions.ts` gains the entry, which means the enumeration test requires the route to exist and be guarded. The list is the enforcement mechanism, so amending §1 and amending the list are the same act.
