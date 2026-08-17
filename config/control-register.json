@@ -193,11 +193,12 @@
       "name": "THE TWO-MEMBER ASSERTION: the household is the unit",
       "planted": {
         "kind": "sql",
-        "apply": "ALTER POLICY household_isolation ON members USING (false)",
+        "apply": "ALTER POLICY household_isolation ON members USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid AND is_primary)",
         "restore": "ALTER POLICY household_isolation ON members USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid)",
-        "proof": "select (pg_get_expr(polqual, polrelid) like '%false%')::int as n from pg_policy p join pg_class c on c.oid = p.polrelid where c.relname = 'members' and p.polname = 'household_isolation'",
+        "proof": "select (pg_get_expr(polqual, polrelid) like '%is_primary%')::int as n from pg_policy p join pg_class c on c.oid = p.polrelid where c.relname = 'members' and p.polname = 'household_isolation'",
         "appliedValue": 1,
-        "restoredValue": 0
+        "restoredValue": 0,
+        "note": "SUBTLY WRONG IN ONE DIRECTION, not off. An earlier version used USING (false), which proves the test fails when the policy is disabled, and the control is not guarding against disabled: off breaks loudly for everyone immediately and nobody would miss it. What it guards against is the policy being scoped PER MEMBER rather than per household, which is exactly the wrong direction that passed every isolation test for two weeks. This narrows visibility to a single member of the household while leaving cross-household isolation intact, so only the two-member assertion can detect it. Ruled by Guy, 17 Aug 2026: if this does not redden the test, the test is not proving what the register says it proves."
       }
     }
   ]
