@@ -142,6 +142,21 @@ MarginSheet's promise is control, and the opportunity to create wealth. It never
 
 Rules 1 and 2 are enforced by `packages/lint` (`no-net-worth-lead`, `no-net-worth-celebration`), the same engine that gates commits today and M11's send path in October. Rule 1's "largest number on a screen" clause is a design review item, not lint-detectable; see the rules file.
 
+## NETWORK IDENTITY: CUSTODY IS THE LINE (amended 16 August 2026)
+
+The original ruling (15 Aug) said MarginSheet holds no network identity: `disableIpTracking` plus the 0012 trigger, and Sentry stripped in three layers. Rate limiting forced the question of what "holds" means, and the answer is recorded here in both halves so the next person finds an answer rather than the argument.
+
+**The rule is CUSTODY, not contact.** Cloudflare already handles the client IP as a matter of routing on every request, whether or not we act on it. A control that runs at the edge leaves custody where it already sits. A control that runs in our code takes custody, because we choose the key, the store and the lifetime.
+
+- **Permitted:** Cloudflare edge rate limiting, WAF rules, and anything else where the IP is handled by infrastructure that already has it and never reaches a Worker.
+- **Refused:** keying our own counters, logs, tables or caches on an IP **or any derivative of one**, including a salted hash with a short window.
+
+**Why the hash was refused, since it is the tempting middle.** The bright line is the value, not its reversibility. A hashed IP with a 15-minute window is genuinely hard to reverse, and that is not the point: once "derived from network identity, transient, hashed" is an acceptable category, it gets cited for the next feature and the one after, and each citation is individually reasonable. A line that admits degrees is not a line. Guy, 16 Aug 2026.
+
+**The cost, accepted knowingly.** Per-source limiting can only express what Cloudflare's rule engine expresses, and it cannot be combined with application state, so "this IP, for this household, on this endpoint" is not available. That is a real capability given up.
+
+**The drift obligation that comes with it.** An edge control is invisible to code review, and a control living only in a dashboard is what broke production deploys on 16 Aug 2026. So any edge control is declared in the repo (`config/edge-rate-limits.json`) and verified against the live zone by the `edge-rules` CI job, which keeps "absent or altered" distinct from "could not read" and fails on both. An edge control without a repo declaration and a check is not permitted either.
+
 ## Current state (updated 14 Aug 2026)
 
 Spec phase complete (8/8 + 2 brain docs). Targets: **1 Oct stretch** (platform, founder migrated), **1 Nov real** (founder fully live), beta cohort gated on founder OK + objective floor (zero advice-gate hard failures, zero traceability failures, trailing 14 days). M0 opens next. External clocks: A2P 10DLC submission, cyber liability quotes, attorney hour (8 items) — Guy's desk.
