@@ -231,6 +231,76 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: node .github/scripts/verify-edge-rules.mjs
 
+  # The register and the boundary run on every PR. The planted failures do not,
+  # except when this PR touches a test the register names: that is the case
+  # where waiting for the nightly costs something, because the author of a
+  # desensitising change is the person who still has the context.
+  control-register:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Every registered control names a test that exists
+        run: pnpm --filter @marginsheet/api exec vitest run test/control-register.test.ts
+
+      - name: What M3 covers, and what it does not
+        run: node .github/scripts/boundary-report.mjs
+
+      - name: Does this PR touch a test the register names?
+        if: github.event_name == 'pull_request'
+        id: touched
+        run: |
+          git fetch --depth=1 origin "${{ github.base_ref }}"
+          CHANGED=$(git diff --name-only FETCH_HEAD...HEAD)
+          REGISTERED=$(node -e "console.log(JSON.parse(require('fs').readFileSync('config/control-register.json','utf8')).controls.map(c=>c.test).join('\n'))")
+          HITS=$(comm -12 <(echo "$CHANGED" | sort -u) <(echo "$REGISTERED" | sort -u) || true)
+          if [ -n "$HITS" ]; then
+            echo "This PR touches registered control tests:"
+            echo "$HITS"
+            echo "hits<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$HITS" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "No registered control tests touched; the nightly run covers these."
+          fi
+
+      - name: Create a scratch Neon branch
+        if: steps.touched.outputs.hits != ''
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          CS=$(scripts/neon-pr-branch.sh create 98${{ github.run_number }})
+          echo "::add-mask::$CS"
+          echo "PLANTED_DATABASE_URL=$CS" >> "$GITHUB_ENV"
+
+      - name: Migrate it
+        if: steps.touched.outputs.hits != ''
+        env:
+          DATABASE_URL: ${{ env.PLANTED_DATABASE_URL }}
+        run: pnpm --filter @marginsheet/schema migrate:up
+
+      - name: This PR changed a control test, so prove it still goes red
+        if: steps.touched.outputs.hits != ''
+        env:
+          DATABASE_URL: ${{ env.PLANTED_DATABASE_URL }}
+          NEON_TEST_BRANCH: pr-98${{ github.run_number }}
+          CI: "1"
+        run: node .github/scripts/planted-failures.mjs
+
+      - name: Destroy the scratch branch
+        if: always() && steps.touched.outputs.hits != ''
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: scripts/neon-pr-branch.sh delete 98${{ github.run_number }} || true
+
   open-items:
     runs-on: ubuntu-latest
     steps:
