@@ -20,27 +20,37 @@ Two things in that inventory deserve naming before anything is built on them.
 
 The pattern that has paid for itself all week: confirm behaviour by running it, not by reading about it. Three assumptions sit under M4's design and none has been executed here.
 
-### 1a. Durable Objects, which this codebase has never used
+### 1a. Does `marginsheet_sync` work at all
+
+**Treated as a spike output, not an assumption to design around** (ruled 17 Aug 2026). Three things, all before anything is built on the role:
+
+1. It **connects**.
+2. It **reads `access_token_ciphertext`**, which is the one thing it exists to do and which `marginsheet_app` is refused.
+3. It is **refused something it should not have**, so the answer is a boundary rather than a door.
+
+The third is what makes the first two mean anything. A role that connects and can read everything is not the control the column grant describes.
+
+### 1b. Durable Objects, which this codebase has never used
 
 Invariant 1 depends on a per-household lock: *"two webhooks for the same household never run concurrent syncs (replaces Base44's optimistic status checks with an actual lock)."* No Durable Object exists in this repo, no binding is declared, and no migration tag has ever been written.
 
 **What the spike must answer, empirically:** that two concurrent requests to the same DO id genuinely serialise; what happens to the second when the first is mid-await; whether the lock survives a Worker eviction; and how a DO is exercised in `vitest` at all. If DOs cannot be driven in the harness, that is a named gap with a manual verification, not a workaround, and I would rather find it in a spike than in the middle of the sync build.
 
-### 1b. Plaid's cursor semantics
+### 1c. Plaid's cursor semantics
 
 Invariant 2 requires a mid-sync crash to resume from the persisted cursor *"with no gap and no replay."* The spec says persist after every page. **Whether Plaid's cursor actually behaves that way is a claim about Plaid, and Sandbox can settle it**: sync, persist, kill mid-stream, resume, and compare the union against a clean run.
 
-### 1c. Whether Sandbox can produce the error states
+### 1d. Whether Sandbox can produce the error states
 
 Invariant 8 lists the fixtures: `ITEM_LOGIN_REQUIRED`, item error, removed transactions, pending→posted, reversal. Sandbox has `/sandbox/item/reset_login` and `/sandbox/item/fire_webhook`, and the rest are less certain.
 
-**This is the ninth finding waiting to happen.** If a fixture cannot construct an error state, the test for that error state is honest and vacuous, exactly like every isolation test before a household had two members. So the spike enumerates which states Sandbox can actually produce, and any it cannot becomes a named gap rather than a test that quietly proves nothing.
+**This is the ninth finding waiting to happen.** If a fixture cannot construct an error state, the test for that error state is honest and vacuous, exactly like every isolation test before a household had two members. So the spike enumerates which states Sandbox can actually produce. **Any it cannot becomes a named gap with an owner on the open-items list, never a test written against a fixture that cannot fail** (ruled 17 Aug 2026).
 
 ---
 
-## 2. Two rulings I need before building
+## 2. Two rulings, both made
 
-### 2a. Where does sync run?
+### 2a. Where sync runs: a third Worker (RULED)
 
 The spec says *"decrypted only inside the sync worker"*, and there is no sync worker. Today there are two: `api` and `conversation`. Three options:
 
@@ -48,11 +58,13 @@ The spec says *"decrypted only inside the sync worker"*, and there is no sync wo
 - **A queue consumer inside `api`** with its own binding and connection string. Fewer moving parts; weaker boundary, because the same deployable holds both the household-facing routes and the decryption key.
 - **The Durable Object itself does the sync**, since it already owns serialisation.
 
-I recommend the first. The token custody rules in `data-model-spec` §2 are written as though a separate sync worker exists, and the whole point of the column grant is that the role which can read ciphertext is not the role serving requests. Putting the key in `api` would make that split cosmetic.
+**Ruled: the third Worker.** The custody rules are written as though a separate sync worker exists, and putting the decryption key in the deployable that serves household requests would make the role split cosmetic, which is the thing M3 spent itself removing.
 
-### 2b. Production Plaid credentials
+Guy's addition, which is the stronger half of the reasoning: **it makes the token-reading surface a deployable with no public routes at all.** That is a better boundary than a code path inside one that has them, because it cannot be reached by a request that takes a wrong turn.
 
-The deferral ledger says Plaid production lands with M4. Sandbox credentials exist for dev and staging. That is a paste session on your desk, and it should happen **after** the Sandbox work is green, matching the sequence that worked for Postmark: build against Sandbox, prove the flow, then paste production and do one real connection.
+### 2b. Production Plaid credentials: Sandbox green, then paste, then one real connection (RULED)
+
+The same sequence as Postmark, for the same reason: **a live credential against an unproven path is the wrong order.**
 
 ---
 
@@ -72,7 +84,20 @@ Every one gets a register entry and a planted failure, per 3.6. Named here so th
 | Token custody | the access token appears in no log, error report or client payload: a static scan plus a behavioural probe (invariant 7) |
 | Sandbox error fixtures | each error state actually constructed, or named as a gap (invariant 8) |
 
-**The reconciliation control is the one to judge M4 by.** It is the only new build in a module that is mostly extraction, and it is the first control in the product that **blocks a customer-visible number**. Its planted failure is the interesting one: widen the tolerance to infinity and the drift test must go red.
+**The reconciliation control is the one to judge M4 by.** It is the only new build in a module that is mostly extraction, and it is the first control in the product that **blocks a customer-visible number**.
+
+### It is two controls, not one, and the register carries two entries
+
+Ruled 17 Aug 2026. Widening the tolerance to infinity is a correct planted failure and it proves only that the test notices a **disabled tolerance**. The second mutation leaves the tolerance intact and breaks the **blocking**: drift is detected, the investigation item opens, and the number ships anyway.
+
+**That is the failure mode that matters, because it is what Base44 had.** A reconciliation check that reports without blocking looks healthy from every angle: the drift is found, the item exists, somebody could read it. The only thing missing is the part that protects a household from a wrong number.
+
+Applying the register's own test to the pair: if blocking broke, would the detection test notice? **No.** It would still detect, still open the item, still pass. So blocking needs its own entry badly, which is exactly the criterion for keeping one.
+
+| Entry | Mutation | Must go red |
+|---|---|---|
+| `reconciliation-detects` | tolerance widened to infinity | the drift test, because nothing is ever out of tolerance |
+| `reconciliation-blocks` | tolerance intact, the block removed | a test asserting the account's numbers do **not** ship while an investigation item is open |
 
 **Invariant 7 needs both halves.** A static scan catches the token being logged in code somebody writes. A behavioural probe catches it arriving in a Sentry payload through a path nobody wrote deliberately, which is how it would actually happen. M3's Sentry scrubbing exists; whether it survives a Plaid error object carrying a token in a nested field is a question for a test, not for reading.
 
