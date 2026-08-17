@@ -58,6 +58,30 @@ Both Workers expose `GET /debug/db-identity`, which returns exactly two values: 
 
 **It is asserted by a blocking job, not by the isolation suite.** The isolation suite derives its own `NEON_DATABASE_URL` from `neonctl` as `neondb_owner` at job time, so it validates a credential no Worker uses and never notices what the Workers actually hold.
 
+## The marginsheet-ci Cloudflare token: minimal permissions, established empirically
+
+Trimmed 16 August 2026, one permission at a time, with the `edge-rules` CI job re-run between each change as the oracle. Recorded so the set is not re-accumulated by the next person guessing.
+
+| Permission | Scope | What needs it |
+|---|---|---|
+| Workers Scripts, Edit | account | `wrangler deploy` uploading either Worker |
+| Workers Routes, Edit | zone: marginsheet.com | reconciling `api.marginsheet.com`. Its absence broke every production deploy on 16 Aug 2026, after the upload had already shipped |
+| Zone WAF, **Read** | zone: marginsheet.com | the `edge-rules` job reading the `http_ratelimit` ruleset |
+
+Zone Resources is scoped to **marginsheet.com specifically**, not all zones. This token only ever touches one.
+
+### What was removed, and what it cost to learn
+
+Three permissions were attached during this session and none of them did anything:
+
+- **Firewall Services, Read.** Added twice on the assistant's advice, on the belief that rate limiting rules still sit behind the old firewall permission. They do not; they moved into the rulesets engine. It failed on its own and was confirmed dead weight by removal.
+- **Config Rules, Edit.** Governs the `http_config_settings` phase. Rate limiting is `http_ratelimit`, a different phase entirely.
+- **Zone WAF, Edit.** Read is sufficient to fetch a phase entrypoint. A CI token that only ever reads rules now holds no write access to them.
+
+The method is the point. Cloudflare returns "10000: Authentication error" identically whether a token is invalid, unscoped to the zone, or merely unscoped to the endpoint, so guessing produced two wrong answers in a row. What resolved it was making the checker probe `user/tokens/verify` and the zone read on any refusal and report **which layer** said no. That turned a guess into a finding in one run: token valid, zone visible, rulesets refused.
+
+**Any future permission question on this token is answered the same way**: change one thing, re-run the job, read what it says. Not by reasoning about what Cloudflare probably calls it.
+
 ## Incident log
 
 - **15 Aug 2026**: three compounding database failures, each hiding the next: every Worker connected as a `BYPASSRLS` role, all six connection-string secrets then held the empty string, and no migration had ever been applied to any long-lived branch. Written up in full under "Incident: the schema that was never there" below, because the analysis of why every control missed it is worth more than the fix.
