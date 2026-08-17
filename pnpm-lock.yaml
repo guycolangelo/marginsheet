@@ -101,6 +101,9 @@ importers:
       '@sentry/cloudflare':
         specifier: ^10
         version: 10.70.0(@cloudflare/workers-types@5.20260815.1)(wrangler@4.123.0(@cloudflare/workers-types@5.20260815.1))
+      '@simplewebauthn/server':
+        specifier: ^13.3.2
+        version: 13.3.2
       better-auth:
         specifier: ^1.6.29
         version: 1.6.29(@cloudflare/workers-types@5.20260815.1)(@opentelemetry/api@1.9.1)(@prisma/client@5.22.0)(better-sqlite3@12.11.1)(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@cloudflare/workers-types@5.20260815.1)(@opentelemetry/api@1.9.1)(@prisma/client@5.22.0)(@types/pg@8.21.0)(better-sqlite3@12.11.1)(kysely@0.29.5)(pg@8.23.0)(postgres@3.4.9))(pg@8.23.0)(vitest@3.2.7(@types/node@22.20.1)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))

@@ -5,10 +5,10 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --exclude '**/isolation.test.ts' --exclude '**/db-identity.test.ts' --exclude '**/auth-adapter.test.ts' --exclude '**/real-sign-in.test.ts' --exclude '**/magic-link-consumption.test.ts' --exclude '**/confirm-journey.test.ts' --exclude '**/no-account-enumeration.test.ts' --exclude '**/send-limits.test.ts' --exclude '**/passkey.test.ts' --exclude '**/phone-change.test.ts' --exclude '**/rls-resolver.test.ts' --passWithNoTests",
+    "test": "vitest run --exclude '**/isolation.test.ts' --exclude '**/db-identity.test.ts' --exclude '**/auth-adapter.test.ts' --exclude '**/real-sign-in.test.ts' --exclude '**/magic-link-consumption.test.ts' --exclude '**/confirm-journey.test.ts' --exclude '**/no-account-enumeration.test.ts' --exclude '**/send-limits.test.ts' --exclude '**/passkey.test.ts' --exclude '**/phone-change.test.ts' --exclude '**/rls-resolver.test.ts' --exclude '**/recovery.test.ts' --passWithNoTests",
     "test:isolation": "vitest run test/isolation.test.ts",
     "test:db-identity": "vitest run test/db-identity.test.ts",
-    "test:auth-adapter": "vitest run --no-file-parallelism test/auth-adapter.test.ts test/real-sign-in.test.ts test/magic-link-consumption.test.ts test/confirm-journey.test.ts test/no-account-enumeration.test.ts test/send-limits.test.ts test/passkey.test.ts test/phone-change.test.ts test/rls-resolver.test.ts"
+    "test:auth-adapter": "vitest run --no-file-parallelism test/auth-adapter.test.ts test/real-sign-in.test.ts test/magic-link-consumption.test.ts test/confirm-journey.test.ts test/no-account-enumeration.test.ts test/send-limits.test.ts test/passkey.test.ts test/phone-change.test.ts test/rls-resolver.test.ts test/recovery.test.ts"
   },
   "devDependencies": {
     "@better-auth/cli": "^1.4.21",
@@ -23,6 +23,7 @@
     "@better-auth/passkey": "^1.6.29",
     "@marginsheet/shared": "workspace:*",
     "@sentry/cloudflare": "^10",
+    "@simplewebauthn/server": "^13.3.2",
     "better-auth": "^1.6.29",
     "drizzle-orm": "^0.44.7",
     "postgres": "^3"

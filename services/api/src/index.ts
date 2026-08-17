@@ -8,6 +8,8 @@ import { postmarkSender } from "./email.js";
 import { confirmSignIn, confirmLandingPage } from "./confirm.js";
 import { limitsFor, recordSendIfPermitted } from "./send-limits.js";
 import { changePhone } from "./phone-change.js";
+import { recoveryRoutes } from "./recovery-routes.js";
+import { twilioVerifySender } from "./otp.js";
 // Bundled at build time: Workers have no filesystem. Still config in the
 // repo, still reviewable, and the environment picks its row at runtime.
 import rateLimitConfig from "../../../config/rate-limits.json";
@@ -22,6 +24,9 @@ export interface Env {
   BETTER_AUTH_URL?: string;
   POSTMARK_TOKEN?: string;
   AUTH_FROM_EMAIL?: string;
+  TWILIO_ACCOUNT_SID?: string;
+  TWILIO_AUTH_TOKEN?: string;
+  TWILIO_VERIFY_SERVICE_SID?: string;
 }
 
 const SERVICE = "marginsheet-api";
@@ -140,6 +145,58 @@ const handler = {
           { error: "too many sign-in requests", retry: "in a few minutes" },
           { status: 429 }
         );
+      }
+    }
+
+    // The recovery path (3.1b). Mounted in the same task that built the
+    // service, because a service with no caller is a control that cannot
+    // fail, which is what the phone-change endpoint's absence proved.
+    if (url.pathname.startsWith("/auth/recovery")) {
+      if (!env.NEON_DATABASE_URL || !env.BETTER_AUTH_SECRET || !env.BETTER_AUTH_URL) {
+        return Response.json({ error: "auth is not configured" }, { status: 503 });
+      }
+      const mail =
+        env.POSTMARK_TOKEN && env.AUTH_FROM_EMAIL
+          ? postmarkSender(env.POSTMARK_TOKEN, env.AUTH_FROM_EMAIL)
+          : undefined;
+      // Twilio credentials are deferred until M3's phone work ships them. With
+      // none present the OTP half cannot be met, so recovery FAILS CLOSED
+      // rather than completing on one factor.
+      const otp =
+        env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_VERIFY_SERVICE_SID
+          ? twilioVerifySender(
+              env.TWILIO_ACCOUNT_SID,
+              env.TWILIO_AUTH_TOKEN,
+              env.TWILIO_VERIFY_SERVICE_SID
+            )
+          : undefined;
+      if (!mail || !otp) {
+        return Response.json(
+          { error: "recovery is not configured", detail: "both halves require a sender" },
+          { status: 503 }
+        );
+      }
+
+      const auth = createAuth({
+        NEON_DATABASE_URL: env.NEON_DATABASE_URL,
+        ENVIRONMENT: env.ENVIRONMENT,
+        BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL: env.BETTER_AUTH_URL,
+      });
+      const sql = postgres(env.NEON_DATABASE_URL, { max: 1, idle_timeout: 5, connect_timeout: 10 });
+      try {
+        const handled = await recoveryRoutes(request, url, {
+          sql,
+          auth,
+          mail,
+          otp,
+          baseUrl: env.BETTER_AUTH_URL,
+          rpId: new URL(env.BETTER_AUTH_URL).hostname,
+          origin: new URL(env.BETTER_AUTH_URL).origin,
+        });
+        if (handled) return handled;
+      } finally {
+        await sql.end();
       }
     }
 

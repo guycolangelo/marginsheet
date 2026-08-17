@@ -6,40 +6,41 @@
 // diagonal ("each token works with its own consumer") passes happily on a
 // system where any token opens any door. The off-diagonal cells are the test.
 //
-// !!! THIS MATRIX IS INCOMPLETE, DELIBERATELY AND VISIBLY. !!!
+// THE MATRIX IS COMPLETE: NINE REAL CELLS (3.1b closed the second pass).
 //
-// Three kinds were specified: sign-in, invitation, recovery. Recovery has no
-// table, no issuer and no consumer, because the recovery path is task 3.1b.
-// Its row and column are present below as explicitly empty cells with reasons
-// rather than being quietly omitted, because AN INCOMPLETE MATRIX THAT LOOKS
-// COMPLETE IS HOW SIX UNTESTED CELLS BECOME ASSUMED-TESTED (Guy, 16 Aug 2026).
-//
-// Second pass owed to 3.1b (recovery consumer) and 3.5 (invitation consumer).
-// Tracked in docs/open-items.json and printed by the open-items CI job.
+// It shipped as 2x2 on 16 Aug with recovery's row and column carried as
+// explicitly empty todos, because an incomplete matrix that looks complete is
+// how six untested cells become assumed-tested (Guy). 3.1b built the recovery
+// consumer, so the column is now real and the todos are gone.
 //
 //                      | sign-in consumer | invitation consumer | recovery consumer
 //   -------------------+------------------+---------------------+------------------
-//   sign-in token      | ACCEPT (tested)  | REFUSE (tested)     | owed to 3.1b
-//   invitation token   | REFUSE (tested)  | ACCEPT (tested)     | owed to 3.1b
-//   recovery token     | REFUSE (tested)  | REFUSE (tested)     | owed to 3.1b
+//   sign-in token      | ACCEPT           | REFUSE              | REFUSE
+//   invitation token   | REFUSE           | ACCEPT              | REFUSE
+//   recovery token     | REFUSE           | REFUSE              | ACCEPT
 //
-// The recovery TOKEN row is testable today even though the recovery CONSUMER
-// is not: the purpose string is reserved in tokens.ts, so a recovery-purpose
-// token can be minted and presented to the two consumers that do exist. What
-// cannot be tested is anything in the recovery consumer column.
+// Three diagonal cells succeed and six off-diagonal cells are refused, all
+// generated below rather than written out, so a fourth token kind cannot be
+// added without its whole row and column appearing.
+//
+// STILL OWED, and narrowed rather than closed: the invitation consumer has no
+// ENDPOINT until 3.5. The format and the consumer function are real; what 3.5
+// adds is an issuer that mints them and a route that spends them.
 
 import { describe, it, expect } from "vitest";
 import {
   TOKEN_PURPOSES,
   mintToken,
   readInvitationToken,
+  readRecoveryToken,
   readSignInToken,
 } from "../src/tokens.js";
 
-/** The consumers that exist. Recovery is absent from this list on purpose. */
+/** All three consumers. Recovery joined in 3.1b, closing the column. */
 const CONSUMERS = {
   "sign-in": readSignInToken,
   invitation: readInvitationToken,
+  recovery: readRecoveryToken,
 } as const;
 
 const KINDS = {
@@ -60,6 +61,11 @@ describe("the diagonal: each consumer accepts its own kind", () => {
   it("the invitation consumer accepts an invitation token", () => {
     const token = mintToken(TOKEN_PURPOSES.invitation);
     expect(readInvitationToken(token)).toBe(token);
+  });
+
+  it("the recovery consumer accepts a recovery token", () => {
+    const token = mintToken(TOKEN_PURPOSES.recovery);
+    expect(readRecoveryToken(token)).toBe(token);
   });
 });
 
@@ -132,28 +138,20 @@ describe("the refusals are refusals ON PURPOSE, not accidents of storage", () =>
   });
 });
 
-describe("the empty cells, named rather than omitted", () => {
-  // These do not assert behaviour. They exist so the recovery consumer column
-  // is visible in the test output as owed rather than absent, and so a reader
-  // counting green ticks cannot mistake this matrix for a complete one.
-  it.todo("the recovery consumer accepts a recovery token (owed to 3.1b)");
-  it.todo("the recovery consumer refuses a sign-in token (owed to 3.1b)");
-  it.todo("the recovery consumer refuses an invitation token (owed to 3.1b)");
-
-  it("no recovery consumer is exported, so nothing can accidentally use one", async () => {
-    // If 3.1b adds one, this fails and whoever adds it has to come here and
-    // fill in the three todos above rather than leaving them.
+describe("the recovery column, which used to be three todos", () => {
+  it("a recovery consumer IS now exported, which is what the old assertion forced", async () => {
+    // This inverts the assertion that shipped on 16 Aug. That one required NO
+    // recovery consumer to exist, precisely so that whoever added one would
+    // fail this file and have to come back and fill the column in. It worked:
+    // this is that visit.
     const tokens = await import("../src/tokens.js");
-    expect(
-      Object.keys(tokens).filter((k) => /recovery/i.test(k) && k.startsWith("read")),
-      "a recovery consumer now exists; fill in the recovery column of this matrix"
-    ).toEqual([]);
+    expect(Object.keys(tokens)).toContain("readRecoveryToken");
   });
 
-  it("the recovery purpose is reserved, so 3.1b inherits the namespace", () => {
-    // Reserving the string is not the same as building the consumer. This
-    // stops 3.1b inventing a colliding or unprefixed format later.
-    expect(TOKEN_PURPOSES.recovery).toBe("recover");
+  it("every purpose has exactly one consumer, so none can be orphaned", () => {
+    // A fourth kind added to TOKEN_PURPOSES without a consumer would mint
+    // tokens nothing accepts, which fails closed but silently. This names it.
+    expect(Object.keys(CONSUMERS)).toHaveLength(Object.keys(KINDS).length);
     expect(new Set(Object.values(TOKEN_PURPOSES)).size).toBe(
       Object.values(TOKEN_PURPOSES).length
     );
