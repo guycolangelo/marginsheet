@@ -153,13 +153,38 @@ describe("the phone rules are readable from the database", () => {
     expect(row.description).toContain("recent-auth");
   });
 
-  it("the channel gate rule is on phone_verified_at", async () => {
+  it("the channel gate rule is on phone_verified_at, with its SCOPE", async () => {
+    // Amended by migration 0020. This test previously asserted "THE GATE ON
+    // ALL CHANNEL ACCESS", 0001's literal wording, and it caught the
+    // amendment, which is the control working.
+    //
+    // It now asserts the RULING rather than the phrasing. 0001 read literally
+    // gated auth email too, and a member cannot verify a phone without first
+    // getting into the product: a household who abandoned at step 1 could
+    // never come back, contradicting the spine's own recovery path. Ruled by
+    // Guy 17 Aug 2026, and asserted here so the distinction lives in the
+    // database rather than only in a task plan.
     const [row] = await sql<{ description: string | null }[]>`
       select col_description('members'::regclass, ordinal_position) as description
       from information_schema.columns
       where table_name = 'members' and column_name = 'phone_verified_at'
     `;
-    expect(row.description).toContain("THE GATE ON ALL CHANNEL ACCESS");
+    const comment = row.description ?? "";
+
+    expect(comment).toContain("HOUSEHOLD-FACING CHANNEL ACCESS");
+
+    // The substance: money is gated, access is not, and the line is a rule
+    // rather than a list of exemptions somebody extends.
+    expect(comment).toMatch(/MONEY/);
+    expect(comment).toMatch(/ACCESS/);
+    expect(comment).toMatch(/sign-in links/i);
+
+    // And the trap it exists to prevent is still named, because that is the
+    // half a reader is most likely to get wrong.
+    expect(
+      comment,
+      "the comment no longer says the gate is the COLUMN rather than the presence of a number, which is the mistake rule 3 exists to prevent"
+    ).toMatch(/not the presence of a phone number/i);
   });
 
   it("auth_user_id records the soft reference as deliberate", async () => {
