@@ -32,7 +32,7 @@
 export const TOKEN_PURPOSES = {
   signIn: "signin",
   invitation: "invite",
-  /** Reserved. No consumer exists yet; the recovery path is 3.1b. */
+  /** The recovery challenge bearer (3.1b). */
   recovery: "recover",
 } as const;
 
@@ -118,13 +118,21 @@ export function readInvitationToken(token: unknown): string | null {
   return token as string;
 }
 
-// NO RECOVERY CONSUMER EXISTS, and that is deliberate rather than an oversight.
+/** The recovery consumer. Accepts recovery tokens. Refuses every other kind. */
+export function readRecoveryToken(token: unknown): string | null {
+  const parsed = parse(token);
+  if (!parsed || parsed.purpose !== TOKEN_PURPOSES.recovery) return null;
+  return token as string;
+}
+
+// THE MATRIX IS NOW 3x3 (3.1b closed 3.2c's second pass for recovery).
 //
-// The recovery path is 3.1b. It has no table, no issuer and no endpoint, so a
-// consumer here would be a function nothing can present a real token to. A
-// refusal from a stand-in proves nothing, and a stand-in that later gets wired
-// up carries whatever assumptions it was written under.
+// Three kinds, three consumers, three diagonal cells that must succeed and six
+// off-diagonal cells that must be refused. The recovery consumer above is what
+// the three `it.todo` entries in test/token-matrix.test.ts were holding open,
+// and the assertion that no recovery consumer was exported has been updated in
+// the same commit, which is exactly what it existed to force.
 //
-// The purpose string is reserved above so 3.1b inherits the namespace instead
-// of inventing one, and the cross-presentation matrix carries recovery's row
-// and column as explicitly empty. See test/token-matrix.test.ts.
+// The invitation CONSUMER's endpoint is still 3.5's. The format and the
+// consumer function are real here; what 3.5 adds is an issuer that mints them
+// and a route that spends them.

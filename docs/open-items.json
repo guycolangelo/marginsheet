@@ -1,9 +1,9 @@
 [
   {
     "id": "3.2c-second-pass",
-    "item": "The token cross-presentation matrix covers 2 of 3 kinds. Recovery has no table, issuer or consumer, so its consumer column is 3 todos in services/api/test/token-matrix.test.ts. 3.2c is NOT complete.",
+    "item": "The token cross-presentation matrix is now 3x3 and complete at the CONSUMER level: 3.1b built the recovery consumer and the three todos are gone. What remains is narrower than when this was raised: the invitation consumer has no ENDPOINT, so no invitation token is ever minted or spent by the product. 3.5 adds the issuer and the route.",
     "owner": "build",
-    "owed_to": "3.1b (recovery consumer) and 3.5 (invitation consumer endpoint)",
+    "owed_to": "3.5 (invitation issuance and redemption)",
     "raised": "2026-08-16"
   },
   {
@@ -68,5 +68,19 @@
     "owner": "Guy",
     "owed_to": "a Cloudflare plan upgrade",
     "raised": "2026-08-16"
+  },
+  {
+    "id": "recovery-twilio-credentials",
+    "item": "The recovery path fails closed without Twilio credentials: with no OTP sender the phone half cannot be met, so /auth/recovery returns 503 rather than completing on one factor. Correct behaviour, and it means recovery is not usable in any environment until Twilio credentials land with 3.3.",
+    "owner": "Guy",
+    "owed_to": "3.3",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "second-credential-write-path",
+    "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and \u00a71 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
+    "owner": "build",
+    "owed_to": "standing constraint, reviewed whenever @better-auth/passkey is upgraded",
+    "raised": "2026-08-17"
   }
 ]
