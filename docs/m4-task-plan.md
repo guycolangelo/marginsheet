@@ -20,7 +20,19 @@ Two things in that inventory deserve naming before anything is built on them.
 
 The pattern that has paid for itself all week: confirm behaviour by running it, not by reading about it. Three assumptions sit under M4's design and none has been executed here.
 
-### 1a. Does `marginsheet_sync` work at all
+### 1a. Does `marginsheet_sync` work at all (SPIKE COMPLETE, 17 Aug 2026)
+
+**Two findings, and the second is larger than the first.**
+
+**It can log in and it cannot connect.** `0009_app_role_login` granted LOGIN, so `rolcanlogin` is true. But no provisioning path exists: `app-db-url.mts` and `put-app-db-url.sh` handle `marginsheet_app` only, nothing in `scripts/` mentions the sync role, and no sync connection string is inventoried in the custody doc. The role has a privilege it cannot use and no way to get a credential. 4.1 builds that path.
+
+The custody half is clean: `SELECT, UPDATE` on `access_token_ciphertext`, and correctly refused `session`, `user`, `recovery_challenges` and `auth_send_attempts`.
+
+**The grant is far wider than the description.** 39 tables with INSERT, SELECT and UPDATE, including `messages`, `threads`, `handoffs`, `llm_call_logs`, `decision_journal`, `known_context`, `insight_ledger`. The pipeline needs eight. Not exploitable today because nothing connects as the role, which is exactly why it is worth fixing before 4.1 issues the credential: the moment it exists, a compromised sync worker reads every household's conversation history.
+
+**Ruled 17 Aug 2026: narrow it in 4.1.** The custody doc's description is the security claim, and a role that can read every conversation is a different component wearing that sentence. Recorded in CLAUDE.md as a class, because two roles have now been found wider than their documentation and both were found by looking rather than by anything failing.
+
+### 1a-bis. The original question, for the record
 
 **Treated as a spike output, not an assumption to design around** (ruled 17 Aug 2026). Three things, all before anything is built on the role:
 
@@ -30,13 +42,34 @@ The pattern that has paid for itself all week: confirm behaviour by running it, 
 
 The third is what makes the first two mean anything. A role that connects and can read everything is not the control the column grant describes.
 
-### 1b. Durable Objects, which this codebase has never used
+### 1b. Durable Objects (SPIKE COMPLETE, 17 Aug 2026)
 
-Invariant 1 depends on a per-household lock: *"two webhooks for the same household never run concurrent syncs (replaces Base44's optimistic status checks with an actual lock)."* No Durable Object exists in this repo, no binding is declared, and no migration tag has ever been written.
+**A DURABLE OBJECT IS NOT A LOCK, AND THE SPEC ASSUMES IT IS.**
 
-**What the spike must answer, empirically:** that two concurrent requests to the same DO id genuinely serialise; what happens to the second when the first is mid-await; whether the lock survives a Worker eviction; and how a DO is exercised in `vitest` at all. If DOs cannot be driven in the harness, that is a named gap with a manual verification, not a workaround, and I would rather find it in a spike than in the middle of the sync build.
+§3 says *"the household's Durable Object owns sync execution, so two webhooks for the same household never run concurrent syncs (replaces Base44's optimistic status checks with an actual lock)."* Implemented as written, that is false.
 
-### 1c. Plaid's cursor semantics
+Measured against a real DO under `wrangler dev`, three concurrent requests to one object id, counting how many were inside the handler at once:
+
+```
+{ "naive": 3, "blocking": 1, "chained": 1 }
+```
+
+A plain `fetch` handler **interleaves at every await**. A DO gives single-threaded execution, not mutual exclusion: the moment the handler awaits, another request enters. For a sync that awaits on every Plaid call and every database write, that is concurrency at every step, which is exactly what the spec says the DO prevents. **Routing webhooks through a DO and calling it a lock would have reproduced Base44's race with more machinery.**
+
+Two things do serialise, and both were measured rather than assumed:
+
+- **`blockConcurrencyWhile()`** holds everything, including status reads, and is documented for initialisation. A Plaid sync held under it makes the object unresponsive for the whole sync.
+- **An explicit promise-chain lock**, where each request awaits the previous one's completion. Serialises the work while leaving other paths responsive.
+
+**Recommendation: the promise-chain lock**, with `blockConcurrencyWhile` reserved for the object's own initialisation. Invariant 1's test then attempts the violation properly: fire concurrent webhooks for one household and assert only one sync ran, which is a test that would have passed against the naive implementation only by luck of timing.
+
+### 1b-bis. Whether a DO can be driven in the test harness
+
+**Not by the current suite, and that is structural.** The existing tests run in Node and talk TCP to Neon; workerd cannot. Driving a DO in-process needs `@cloudflare/vitest-pool-workers`, which is not installed and would be a second vitest project rather than a setting.
+
+Options for 4.5, needing a ruling when we get there: add the workers pool as a separate project for DO tests only, or drive the DO over HTTP against `wrangler dev` the way this spike did. The spike proves the second works and needs no new dependency.
+
+### 1c. Plaid's cursor semantics### 1c. Plaid's cursor semantics
 
 Invariant 2 requires a mid-sync crash to resume from the persisted cursor *"with no gap and no replay."* The spec says persist after every page. **Whether Plaid's cursor actually behaves that way is a claim about Plaid, and Sandbox can settle it**: sync, persist, kill mid-stream, resume, and compare the union against a clean run.
 
@@ -106,7 +139,7 @@ Applying the register's own test to the pair: if blocking broke, would the detec
 ## 4. Sub-tasks
 
 - **4.0** The spike: Durable Objects, cursor semantics, Sandbox fixture inventory. Findings before design.
-- **4.1** `marginsheet_sync` proven to connect and to hold exactly the privileges the pipeline needs, and no more.
+- **4.1** `marginsheet_sync`: the provisioning path that does not exist, and the grant narrowed from 39 tables to the 8 the pipeline needs. Enumerated, never granted-and-subtracted. The negative control attempts `messages`, `known_context` and `decision_journal`, three sections apart, because one refusal proves a boundary exists and three prove it is not a single lucky revoke.
 - **4.2** Token custody: encrypt, decrypt in the sync path only, and both halves of invariant 7.
 - **4.3** Link and exchange, with zombie prevention and reconnect.
 - **4.4** `/transactions/sync` with cursor persistence and the coordination state machine.
