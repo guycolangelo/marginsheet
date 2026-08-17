@@ -92,6 +92,47 @@ The method is the point. Cloudflare returns "10000: Authentication error" identi
 
 - **16 Aug 2026**: the role-rotating test suites were run locally against the shared dev branch, rotating `marginsheet_app`'s password and leaving both dev Workers unable to authenticate until the secret was reissued. Staging and production untouched. Written up under "Incident: the guard that asked the wrong question" below, because the shape of the guard is worth more than the fix.
 
+- **17 Aug 2026**: the §1 phone-change tightening had been nominally live since 3.2b and had never been exercised, because the endpoint it guards was never built. Written up under "Incident: the control with nothing to guard" below.
+
+## Incident: the control with nothing to guard (17 August 2026)
+
+No outage and no exposure. A security control that had been believed live for two days could not have failed, because nothing could reach it.
+
+### What happened
+
+The §1 tightening says a phone change requires a passkey when the member has one registered. The phone is the SIM-swap surface, so an email-delivered link that can move it lets whoever controls the inbox move the security primitive.
+
+Task 3.2b shipped `src/auth-guard.ts` with `mayChangePhone()` and a test of its decision table. Both were correct. **`mayChangePhone()` had no caller anywhere in `src/`.** There was no phone-change endpoint, so no request could attempt a phone change, so the tightening could not have gone red however broken it was.
+
+Asked the standing question, would this go red if the thing it guards were completely broken: no. Not because it watched a proxy, and not because it was skipped, but because **the operation it governs did not exist**. A function returning the right answer to a question nobody asks.
+
+### The instruction was recorded and not followed
+
+This was ruled on 15 August, and the ruling is in `docs/m3-2-task-plan.md` §2 in Guy's own framing:
+
+> "Build the minimal real endpoint here, not a stand-in. Guy's reasoning: a control tested against a stand-in is a control nobody has exercised, and the endpoint is small."
+
+The plan recorded the instruction. The build delivered the decision table. Nothing caught the gap for a day, and the reason it was not caught is the part worth keeping: **the only test was against the pure function, and it passed honestly.** A green suite covering a function is indistinguishable from a green suite covering a feature, unless something asks how the function is reached.
+
+### Why it took a second thing to surface it
+
+Even with an endpoint, the refusal case could not have been constructed: proving "member HAS a passkey, magic-link session, refused" requires a registered passkey, and no test could register one until the passkey harness landed on 17 August. Two absences hid each other. The endpoint was missing, and the only case that would have exercised it was unbuildable.
+
+### What changed
+
+- `POST /auth/phone` exists, mounted in the Worker, as ruled on 15 August.
+- The three §1 cases are proven **through the endpoint** rather than against the function, against a **real registered passkey**.
+- Every assertion is on the **database row**, not the response. A handler that answers 403 while writing the change looks identical from the outside, and the row is what decides whether the SIM-swap surface moved.
+- The refusal test asserts the **reason**, not just the status. Its first run failed on `no_member` rather than `passkey_required`, which is how the RLS gap below was found. Asserting `403` alone would have shown green while the tightening never ran.
+
+### Found while closing this one
+
+The endpoint was the first request-scoped read of a policied table in the build, and it did not work: `members` carries `household_isolation`, so a session identifies a user, the member row says which household, and the member row cannot be read until the household is known. That circle has no solution inside the policy and had never been hit because nothing had needed it. Closed by migration 0018's `auth_household_id()`, the first deliberate hole in the RLS boundary, whose constraints are enforced by `services/api/test/rls-resolver.test.ts` rather than described.
+
+### The shape to watch for
+
+**A control's test must show how the control is reached, not only that it decides correctly.** The decision table was never wrong. What was missing was any path to it, and a unit test cannot see that a function has no callers. The question to ask of a guard is not "does it return the right answer" but "what would have to happen for this to run at all, and does that thing exist yet".
+
 ## Incident: the guard that asked the wrong question (16 August 2026)
 
 Dev's two Workers lost their database for roughly twenty minutes. No household data was touched and no other environment was affected. The interesting part is not the outage, it is that a guard existed, was working exactly as written, and did not apply.

@@ -72,11 +72,15 @@ async function signedInMember() {
   return { auth, userId: found!.user.id, client, device, signedIn };
 }
 
+// Every test below drives at least one real WebAuthn ceremony against a real
+// database, so the suites carry a 40s timeout. Vitest's 5s default is enough
+// when this file runs alone and not enough when it runs with the other eight,
+// and a timeout there reads as a broken control rather than a slow fixture.
 it("is actually running, and did not skip itself in CI", () => {
   assertNotSkippedInCI(expect, "the passkey suite");
 });
 
-describe.skipIf(!configured)("registration, against a real product session", () => {
+describe.skipIf(!configured)("registration, against a real product session", { timeout: 40_000 }, () => {
   it("registers a credential and writes it to the right user", async () => {
     const { auth, userId, client, device } = await signedInMember();
 
@@ -120,7 +124,7 @@ describe.skipIf(!configured)("registration, against a real product session", () 
   });
 });
 
-describe.skipIf(!configured)("login with a registered credential", () => {
+describe.skipIf(!configured)("login with a registered credential", { timeout: 40_000 }, () => {
   it("authenticates and issues a session", async () => {
     const { auth, client, device } = await signedInMember();
     await client.register(auth.api, device, "Login Device");
@@ -164,7 +168,7 @@ describe.skipIf(!configured)("login with a registered credential", () => {
   });
 });
 
-describe.skipIf(!configured)("listing and revoking", () => {
+describe.skipIf(!configured)("listing and revoking", { timeout: 40_000 }, () => {
   it("lists the member's own credentials", async () => {
     const { auth, client, device } = await signedInMember();
     await client.register(auth.api, device, "Listed Device");
