@@ -150,25 +150,28 @@ describe("RULE 2: the collision refusal is not a 500", () => {
   });
 });
 
-describe("the unwired control is declared as unwired", () => {
-  it("withinRecentAuthWindow has no caller in src, and says so", () => {
-    // Rule 1's first half. Wired by 3.4, tracked on the open-items list with
-    // 3.4 as owner. This test exists so the unwired state is a FACT in the
-    // suite rather than a thing somebody assumes was finished: a control that
-    // exists and is not called must not be mistaken for one that is enforced.
+describe("rule 1's second half is now WIRED, which inverts an earlier assertion", () => {
+  it("withinRecentAuthWindow HAS a caller, and it is the phone-change handler", () => {
+    // This test previously asserted the OPPOSITE: that the function had no
+    // callers, precisely so 3.4 would fail here and have to come back and say
+    // so. That is this visit.
+    //
+    // The reason it was written that way: a control that exists and is not
+    // called must not be mistaken for a control that is enforced. It happened
+    // twice this week, with mayChangePhone() and then with this function, and
+    // both were found by trying to use them rather than by reading them.
+    //
+    // Enforcement is now proven behaviourally in recent-auth-wired.test.ts,
+    // including against a 29-day-old rolling-refreshed session. This assertion
+    // is only the wiring claim.
     const callers = sources()
       .filter(({ file }) => file !== "recent-auth.ts")
       .filter(({ text }) => code(text).includes("withinRecentAuthWindow"))
       .map(({ file }) => file);
 
-    if (callers.length > 0) {
-      // Somebody wired it. Good, but then this test and the open item are both
-      // stale, and 3.4 has to come here and say so.
-      expect(
-        callers,
-        "withinRecentAuthWindow now has callers, so 3.4 has landed: close the open item and replace this test with one that attempts a stale-session phone change."
-      ).toEqual([]);
-    }
-    expect(callers).toEqual([]);
+    expect(
+      callers,
+      "recent-auth is no longer wired to the phone-change handler, so rule 1 is back to being half a rule"
+    ).toContain("phone-change.ts");
   });
 });

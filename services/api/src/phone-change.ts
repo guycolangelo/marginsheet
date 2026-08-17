@@ -31,10 +31,12 @@
 import type { Sql } from "postgres";
 import type { Auth } from "./auth.js";
 import { mayChangePhone, type AuthMethod } from "./auth-guard.js";
+import { withinRecentAuthWindow } from "./recent-auth.js";
 
 export type PhoneChangeOutcome =
   | { status: "changed" }
   | { status: "refused"; reason: "passkey_required" }
+  | { status: "refused"; reason: "stale_auth" }
   | { status: "refused"; reason: "not_signed_in" }
   | { status: "refused"; reason: "no_member" }
   | { status: "refused"; reason: "invalid_phone" };
@@ -125,7 +127,34 @@ export async function changePhone(
     const authMethod = ((session.session as { auth_method?: unknown }).auth_method ??
       null) as AuthMethod;
 
-    const decision = mayChangePhone({ sessionAuthMethod: authMethod, memberHasPasskey });
+    // TWO CONDITIONS, KEPT SEPARATE, and reported separately (3.4).
+  //
+  //   fresh            when did they authenticate  (session.created_at)
+  //   credential class how  did they authenticate  (session.auth_method)
+  //
+  // They are not collapsed into one "is this session good enough" predicate,
+  // because the refusals demand DIFFERENT ACTIONS. "Sign in again" and "you
+  // need a passkey" are not interchangeable, and a household told the wrong one
+  // is stuck. M8 prompts off these reasons.
+  //
+  // Recent-auth is checked FIRST because it is the cheaper question and the
+  // more common refusal: a household coming back after a week hits staleness,
+  // not the credential-class rule.
+  const createdAt = (session.session as { createdAt?: unknown }).createdAt;
+  const freshness = withinRecentAuthWindow({
+    sessionCreatedAt: createdAt instanceof Date ? createdAt : createdAt ? new Date(String(createdAt)) : null,
+  });
+  if (!freshness.fresh) {
+    // Rule 1's first half, enforced from 3.4. Until this landed, a session
+    // created 29 days ago satisfied this endpoint exactly as one created a
+    // minute ago, and the control existed with no caller.
+    return Response.json(
+      { status: "refused", reason: "stale_auth" } satisfies PhoneChangeOutcome,
+      { status: 403 }
+    );
+  }
+
+  const decision = mayChangePhone({ sessionAuthMethod: authMethod, memberHasPasskey });
     if (!decision.allowed) {
       // Refused BEFORE any write. The test asserts on the database row rather
       // than this response, because a handler that returns 403 while writing
