@@ -92,9 +92,9 @@
   },
   {
     "id": "rule-2-refusal-timing",
-    "item": "Rule 2's cross-household collision is caught at CONFIRM rather than at START, because members carries household_isolation and the pre-check cannot see another household's row. The constraint enforces the rule; the code translates the violation into an honest refusal. Cost: a household receives a code before learning the number is taken. Closing it would need a second SECURITY DEFINER function, which 0018 makes a ruling.",
-    "owner": "Guy",
-    "owed_to": "a ruling, if the extra round trip is judged unacceptable",
+    "item": "RULED ACCEPTABLE, 17 Aug 2026 (Guy), and recorded so it is not revisited as an oversight. Rule 2's cross-household collision is caught at CONFIRM rather than START, because members carries household_isolation and a pre-check cannot see another household's row. The constraint enforces; the code translates the violation. Cost: one wasted SMS and a clear refusal. Weighed against a second SECURITY DEFINER function, which is a permanent widening of the RLS hole, for a case that is genuinely rare: two households legitimately claiming one verified number is either a typo or a person moving between households, and both want support anyway.",
+    "owner": "closed by ruling",
+    "owed_to": "nothing; recorded so the trade is not re-opened as a defect",
     "raised": "2026-08-17"
   }
 ]
