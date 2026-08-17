@@ -1,12 +1,5 @@
 [
   {
-    "id": "3.2c-second-pass",
-    "item": "The token cross-presentation matrix is now 3x3 and complete at the CONSUMER level: 3.1b built the recovery consumer and the three todos are gone. What remains is narrower than when this was raised: the invitation consumer has no ENDPOINT, so no invitation token is ever minted or spent by the product. 3.5 adds the issuer and the route.",
-    "owner": "build",
-    "owed_to": "3.5 (invitation issuance and redemption)",
-    "raised": "2026-08-16"
-  },
-  {
     "id": "sign-in-surface-styling",
     "item": "The /auth/confirm pages carry minimal placeholder styling. Design holds the sign-in surfaces; what ships now is legibility only and is not a design decision.",
     "owner": "Guy (Design)",
@@ -46,13 +39,6 @@
     "item": "The role-rotation guard trusts the caller's declaration of the target branch. NEON_TEST_BRANCH=pr-1 aimed at dev would still rotate dev. Verifying the declaration against Neon's branch endpoint would close it.",
     "owner": "build",
     "owed_to": "unscheduled",
-    "raised": "2026-08-16"
-  },
-  {
-    "id": "invitation-token-format-constraint",
-    "item": "invitations.token has no CHECK constraint requiring the ms_invite_ prefix, so 3.5 could mint an unprefixed token and the domain separation would be advisory for that kind. A migration would make it structural.",
-    "owner": "3.5",
-    "owed_to": "a migration adding the CHECK, shipped with invitation issuance",
     "raised": "2026-08-16"
   },
   {

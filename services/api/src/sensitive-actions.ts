@@ -54,6 +54,28 @@ export const SENSITIVE_ACTIONS: readonly SensitiveAction[] = [
     why: "The phone is the SIM-swap surface. Moving it moves the security primitive, which is why it also requires a passkey when the member has one.",
   },
   {
+    // AMENDMENT 11, ruled 17 Aug 2026. §1's list named four and did not include
+    // member ADDITION. It does now, and the widening is deliberate.
+    //
+    // "Invited and expected" describes the legitimate case, and controls exist
+    // for the illegitimate one. A stolen session that invites its own address
+    // creates a permanent second door into the household's books: one that
+    // survives the original member noticing, because it is not a session to
+    // revoke or a password to change, it is a member, and to the system it
+    // looks exactly like a normal family member.
+    //
+    // Removal is loud and gets noticed within a day. Addition is quiet and
+    // durable. And because every full member sees everything, an invitation is
+    // not a grant of SOME access, it is a grant of ALL of it: the largest
+    // single grant the product is capable of making.
+    name: "invitation creation",
+    method: "POST",
+    path: "/household/invitations",
+    built: true,
+    owner: "M3 (3.5)",
+    why: "Grants a person the household's entire financial life, permanently, in one request. Every full member sees everything, so there is no partial version of this grant. Quiet and durable where removal is loud, which is why it needs recent-auth more than removal does, not less.",
+  },
+  {
     name: "cancellation",
     method: "POST",
     path: "/billing/cancel",
@@ -91,6 +113,11 @@ export const NOT_SENSITIVE: readonly { path: string; why: string }[] = [
     path: "/auth/recovery/phone",
     why:
       "This is the OTP half of the RECOVERY path, where the household has no credential at all by definition: that is the premise of recovery. Requiring recent-auth would require an authentication the member cannot perform, making recovery impossible for exactly the people it exists for. The same shape as the channel gate's literal reading, which would have blocked the sign-in link that lets someone verify a phone in the first place. Recovery is protected instead by needing BOTH halves, bound to one challenge, which is a stronger requirement than a fresh session.",
+  },
+  {
+    path: "/household/invitations/accept",
+    why:
+      "ACCEPTANCE IS NOT THE GRANT. The grant is made when the primary CREATES the invitation, and that is the guarded action under amendment 11. Acceptance is the invitee walking through a door the household already decided to open, and they cannot reach it without having just established identity. Requiring recent-auth here would guard the wrong end: the danger amendment 11 describes is a stolen session CREATING a permanent second door, not an invitee taking twenty minutes to read the email before clicking. Guarding acceptance would also add nothing, since an attacker who could accept would need the token from the invitee's inbox and a session as the invitee, at which point they are the invitee.",
   },
 ] as const;
 

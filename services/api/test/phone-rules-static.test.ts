@@ -99,10 +99,18 @@ describe("RULE 3: the gate is the column, never the number", () => {
       const body = code(text);
 
       // A truthiness check on a phone field, not on the verified column.
+      // GATING shapes only. `x.phone ?? ""` was here and has been removed: it
+      // coalesces a request field to a default, which is input parsing rather
+      // than a gate, and it flagged invitation-routes.ts for reading
+      // `payload.phone` off a body. A pattern that cannot tell reading from
+      // gating produces a false positive per parser, and an exemption list
+      // grown that way is how the real check gets switched off.
+      //
+      // The kept shapes all decide whether to PROCEED based on a number
+      // existing, which is exactly the mistake rule 3 names.
       const suspicious = [
         /if\s*\(\s*!?\s*\w+\.phone\s*\)/,
         /if\s*\(\s*!?\s*phone\s*\)\s*\{?\s*(?!.*phone_verified_at)/,
-        /\w+\.phone\s*\?\?/,
         /\w+\.phone\s*&&/,
       ].some((re) => re.test(body));
 

@@ -73,7 +73,7 @@ describe("direction 1: no sensitive route exists outside the list", () => {
     // What counts as sensitive by §1's own vocabulary. Deliberately broad: a
     // false positive costs somebody a list entry, a false negative costs the
     // recent-auth defence on an action that moves money or access.
-    const SENSITIVE_SHAPES = [/phone/i, /cancel/i, /\bexport\b/i, /members?\/|removal/i];
+    const SENSITIVE_SHAPES = [/phone/i, /cancel/i, /\bexport\b/i, /members?\/|removal/i, /invit/i];
     const enumerated = new Set([
       ...SENSITIVE_ACTIONS.map((a) => a.path),
       ...NOT_SENSITIVE.map((e) => e.path),
@@ -142,10 +142,12 @@ describe("the unbuilt entries stay explicitly empty", () => {
   it("carries all four of §1's actions, built or not", () => {
     // An enumeration that omits what has not been built is how three unguarded
     // endpoints arrive in six months.
-    expect(SENSITIVE_ACTIONS).toHaveLength(4);
+    // Five since amendment 11 added invitation creation to §1's four.
+    expect(SENSITIVE_ACTIONS).toHaveLength(5);
     expect(SENSITIVE_ACTIONS.map((a) => a.name).sort()).toEqual([
       "cancellation",
       "export",
+      "invitation creation",
       "member removal",
       "phone change",
     ]);

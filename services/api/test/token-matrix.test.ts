@@ -23,9 +23,17 @@
 // generated below rather than written out, so a fourth token kind cannot be
 // added without its whole row and column appearing.
 //
-// STILL OWED, and narrowed rather than closed: the invitation consumer has no
-// ENDPOINT until 3.5. The format and the consumer function are real; what 3.5
-// adds is an issuer that mints them and a route that spends them.
+// CLOSED, not narrowed again (3.5). Every kind now has an ISSUER and every
+// consumer has a ROUTE: sign-in mints through Better Auth's generateToken,
+// recovery through requestRecovery, and invitations through createInvitation.
+// The `3.2c-second-pass` open item closes here rather than being narrowed a
+// third time.
+//
+// invitations.token also carries a CHECK constraint from migration 0022, so for
+// that kind the prefix is structural rather than a habit of the writer: an
+// issuer that wrote an unprefixed token would otherwise pass every test here,
+// because the consumer would refuse the value and the failure would look like a
+// bug in redemption rather than in minting.
 
 import { describe, it, expect } from "vitest";
 import {
