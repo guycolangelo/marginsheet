@@ -265,7 +265,7 @@ describe.skipIf(!configured)("it is the ONLY definer function", () => {
     `;
     expect(
       rows.map((r) => r.name),
-      "a new SECURITY DEFINER function exists. That is a ruling, not a detail: show that what it needs is genuinely unobtainable inside the policy."
+      "a new SECURITY DEFINER function exists. THE BAR (Guy, 17 Aug 2026): a second one needs a case where the cost of NOT having it is a household HARMED, not a household INCONVENIENCED. Rule 2's phone-uniqueness timing failed that bar and was ruled not worth it: one wasted SMS against a permanent widening of the RLS boundary. Show which harm this prevents, or find the answer inside the policy."
     ).toEqual(["auth_household_id"]);
   });
 });
