@@ -1,5 +1,5 @@
 # M4 Task 4.3, Link and Exchange
-## Drafted for Guy's approval, 18 August 2026. Nothing executes until approved.
+## APPROVED as drafted, 18 August 2026. The open question is ruled.
 ## Governing doc: `plaid-pipeline-spec.md` §2. Custody from M4 §2a and §4a.
 
 ---
@@ -30,9 +30,13 @@ The tell, as always: the assertion would still pass if the subject were wrong, b
 |---|---|---|
 | Exchange the same public token twice | one Item at Plaid, one row locally | `/item/get`, then our table |
 | Reconnect an institution the household already has | Item id UNCHANGED, `needs_reauth` cleared | `/item/get` |
-| Exchange concurrently, same public token, two requests at once | one Item | `/item/get` |
+| Exchange concurrently, same public token, two requests at once (after 4.5) | one Item | `/item/get` |
+| Connect TWO logins at one institution | both survive, two Item ids, two cursors | `/item/get` on both |
+| Reconnect one of two Items at one institution | the OTHER Item untouched | `/item/get` on both |
 
-The third is not in the spec and I am proposing it. Link's accordion connects institutions in sequence and a household on a slow connection can double-submit. It is the same shape as invariant 1's webhook race, and the DO lock from 4.5 is the likely answer, which is a sequencing note rather than a blocker.
+The third is not in the spec and was proposed here. **Approved 18 Aug 2026, sequenced AFTER 4.5 rather than blocking it**: the DO lock is the right answer and it does not exist until then. Link's accordion connects institutions in sequence and a household on a slow connection can double-submit, which is invariant 1's webhook race wearing different clothes.
+
+**The test CONSTRUCTS the race rather than hoping for one**, the same requirement invariant 1 carries: two exchanges fired at genuinely the same moment against one public token, asserting one Item at Plaid. Fired in sequence it passes against a completely unlocked handler, which is a fixture that cannot express its own failure.
 
 ---
 
@@ -76,6 +80,7 @@ Production Plaid credentials are Guy's paste session at 4.5b and land on **sync 
 |---|---|---|
 | `exchange-idempotent` | drop the existing-Item check so a re-fire creates a second | the re-fire attempt, asserted at Plaid |
 | `reconnect-reuses-item` | make reconnect take the create path rather than update mode | the reconnect attempt, asserted at Plaid |
+| `reconnect-keys-on-item` | key reconnect lookup on `institution_id` instead of the Item id | the two-logins case, because the OTHER Item gets orphaned while the reconnected one looks perfect |
 | `api-never-holds-access-token` | return the access token in the binding's response | a test asserting the response carries no token-shaped value |
 
 The third is worth its own entry because it is the §4a boundary and nothing else would notice: a token in that response breaks nothing, and every other test passes.
@@ -91,6 +96,20 @@ The third is worth its own entry because it is the §4a boundary and nothing els
 
 ---
 
-## 7. The open question I need ruled
+## 7. RULED: two Items, and reconnect keys on the Item
 
-**Does a household reconnecting a DIFFERENT institution that reports the same `institution_id` count as a reconnect or a new Item?** Plaid's update mode is per Item, so the answer follows from which Item we hand it, and the ambiguous case is a household with two logins at one bank. My reading is that these are two Items and always were, and that reconnect must be keyed on the Item rather than on the institution. I would rather have that confirmed than infer it, because getting it wrong creates exactly the duplicate this task exists to prevent.
+**An Item is a LOGIN, not an institution** (Guy, 18 Aug 2026).
+
+A household with a personal and a business login at the same bank has **two credential sets, two authorizations, and Plaid bills for two.** They are two Items and always were.
+
+**Recorded because the institution feels like the natural key and someone will reach for it.** `institution_id` is the field that looks like identity: it is stable, it is human-meaningful, it is what the UI groups by, and one row per bank is what a household would draw on a whiteboard. It is the wrong key. **Keying reconnect on the institution finds the wrong Item, updates it, and orphans the other**: the business login silently stops syncing, its cursor stops advancing, and the household sees stale figures on an account that still appears connected. No error, which is this task's whole theme.
+
+### It gets a test, not a note
+
+**A guard written against duplicates could reasonably treat two logins at one bank as one**, which is why the case is exercised rather than mentioned:
+
+- connect two Items at the same `institution_id`
+- assert **both survive independently**: two Item ids at Plaid, two rows, two cursors
+- reconnect one and assert the other's Item id and `needs_reauth` are untouched
+
+That last line is the one that catches the orphaning, because the duplicate-prevention bug and the wrong-key bug look identical from the reconnected Item's side. Only the other Item shows the difference.

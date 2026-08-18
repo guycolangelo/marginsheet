@@ -19,6 +19,10 @@ Sources: `base44/shared/plaid.ts` and `transactions.ts` (extracted), the plaid-*
 - Plaid Link with the **non-blocking accordion and progressive rendering** — the ported pattern, kept verbatim in behavior: institutions connect in sequence, each begins backfilling immediately, the UI never blocks on the slowest bank.
 - `plaid-exchange-public-token` flow ports: public token → access token → Item + accounts created, Institution upserted (global table), balances snapshotted.
 - **Zombie prevention** (ported fix): exchange is idempotent per Item; a re-fired exchange never creates a duplicate Item. Reconnect (`plaid-reconnect-link`) reuses the existing Item in update mode; `needs_reauth` clears on success.
+
+  **AN ITEM IS A LOGIN, NOT AN INSTITUTION, AND RECONNECT KEYS ON THE ITEM** (ruled 18 Aug 2026). A household with a personal and a business login at the same bank has two credential sets, two authorizations, and Plaid bills for two. Recorded because `institution_id` feels like the natural key and someone will reach for it: keying reconnect there finds the wrong Item, updates it, and **orphans the other**, which silently stops syncing while still appearing connected. Exercised by a test that connects two Items at one institution and requires both to survive a reconnect of either.
+
+  **THE api WORKER BRIEFLY HOLDS A PUBLIC TOKEN, AND THAT IS NOT A BOUNDARY VIOLATION.** After §4a the browser posts the `public_token` to `api`, which proxies it to `marginsheet-sync` over a service binding. A public token is short-lived and single-use; an access token is neither. **The boundary is "api never holds an ACCESS token", not "api touches nothing from Plaid"**, and it is stated here so the distinction is not later mistaken for a violation of the third-Worker ruling.
 - **"I've connected all my accounts"** button state + last-institution timestamp both recorded — the M13 intro trigger consumes whichever fires first (button, or backfill-complete/30-minute fallback per the tightened trigger).
 - Capital One parameter handling (ported fix) carries over as a Link-config note.
 
