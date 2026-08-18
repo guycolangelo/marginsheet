@@ -328,7 +328,17 @@ jobs:
           # exemption that outlives its reason. Same shape as a trigger tied to
           # a module number: the thing that made it safe stops being true and
           # nothing notices.
-          git show FETCH_HEAD:config/control-register.json > /tmp/register-base.json 2>/dev/null || echo '{"controls":[]}' > /tmp/register-base.json
+          # `set -e` is on, and a failed `git show` exits 128 before the `||`
+          # fallback can write. Guarded with an explicit if, because the base
+          # may legitimately not contain this file. Broke the whole step on its
+          # first run: a step that dies takes the register check down with it,
+          # which is worse than the gap it was added to close.
+          if git show "FETCH_HEAD:config/control-register.json" > /tmp/register-base.json 2>/dev/null; then
+            echo "read the base register"
+          else
+            echo '{"controls":[]}' > /tmp/register-base.json
+            echo "no base register; treating every entry as new"
+          fi
           FORMERLY_OWED=$(node -e "
             const fs = require('fs');
             const owed = (j) => new Set(JSON.parse(fs.readFileSync(j,'utf8')).controls.filter(c => c.status === 'owed').map(c => c.id));
