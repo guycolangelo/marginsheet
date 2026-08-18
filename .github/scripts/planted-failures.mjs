@@ -80,18 +80,39 @@ function blame(file) {
 }
 
 /** Runs one named test. Returns whether it passed. */
+/** Which workspace package owns a test path, and the path relative to it.
+ *
+ * THE HARNESS RAN EVERYTHING AGAINST @marginsheet/api. Registered controls whose
+ * tests live in services/sync were handed a path that does not exist there, so
+ * vitest exited non-zero EVERY TIME. That reads as RED, and red is what the
+ * mutation step wants, so step 3 passed for four controls the harness had never
+ * actually run.
+ *
+ * ONLY THE RESTORE CHECK CAUGHT IT. Step 5 requires the test to go GREEN again
+ * after restoring, and a test that cannot run is red in both states. Without
+ * step 5 this would have reported four controls as correctly sensitive while
+ * executing nothing, which is the exact class this harness exists to find,
+ * occurring inside the harness. Found 18 Aug 2026. */
+function packageFor(testPath) {
+  const match = testPath.match(/^(services|packages)\/([^/]+)\//);
+  if (!match) throw new Error(`cannot tell which package owns ${testPath}`);
+  const [, kind, name] = match;
+  return { pkg: `@marginsheet/${name}`, relative: testPath.replace(`${kind}/${name}/`, "") };
+}
+
 async function testPasses(control) {
+  const { pkg, relative } = packageFor(control.test);
   try {
     await run(
       "pnpm",
       [
         "--filter",
-        "@marginsheet/api",
+        pkg,
         "exec",
         "vitest",
         "run",
         "--no-file-parallelism",
-        control.test.replace("services/api/", ""),
+        relative,
         "-t",
         control.name,
       ],
