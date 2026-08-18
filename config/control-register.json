@@ -389,6 +389,21 @@
         "note": "INVERTS THE COUNTER so it looks at announced rows instead. It then reads zero forever and its silence means nothing, which is indistinguishable from the window never being hit."
       },
       "distinction": "THE OPPOSITE DIRECTION FROM sweep-is-blind-to-unannounced-rows, ON THE SAME COLUMN. The sweep must not see unannounced rows; the counter must. Together they make the sweep's blindness deliberate rather than accidental: a blindness with nothing watching it is a loss nobody can observe, and a counter without a blind sweep is just a poller in two parts. If the window is truly a millisecond the counter reads zero forever AND ITS SILENCE MEANS SOMETHING."
+    },
+    {
+      "id": "mutation-branch-does-not-replay",
+      "control": "the restart cursor after TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION",
+      "guards": "A refused pagination is not retried from the cursor Plaid refused, which would replay transactions into a household's ledger.",
+      "test": "services/sync/test/transactions-sync.test.ts",
+      "name": "restarts from LAST COMPLETED, never from the refused in-flight cursor",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/transactions-sync.ts",
+        "find": "    let cursor = restarts === 0 ? cursors.inFlight : cursors.lastCompleted;",
+        "replace": "    let cursor = cursors.inFlight;",
+        "note": "RETRIES THE REFUSED CURSOR, which is the change a well-meaning person makes: the sync failed, so retry it. Verified 18 Aug 2026, exactly one test reddens and it is the one naming the replay. The loop still terminates, still completes, still reports sensible counts. Nothing else notices, which is the criterion for its own entry."
+      },
+      "distinction": "The failure this guards is not a crash. Retrying the in-flight cursor SUCCEEDS and produces duplicate transactions in a household's ledger, arriving through a change that looked like reliability work and had a green suite behind it. Tested against a SYNTHESISED 400: the real error reproduced 3 times in 5 against Sandbox, which is flaky and therefore not a fixture, so this proves our handler takes the right branch and does not claim to have proven Plaid's behaviour."
     }
   ]
 }
