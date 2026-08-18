@@ -194,4 +194,43 @@ for ((i = 1; i <= attempts; i++)); do
   sleep "$delay"
 done
 
+# THE DEPLOYED ROUND TRIP, using the key sync actually holds.
+#
+# The unit tests supply their own key, which proves the algorithm and says
+# nothing about the value in the secret store: malformed, truncated and
+# wrong-length keys all pass a round trip against a key the test generated
+# itself. This is the half that could only ever be proven here.
+#
+# tamperRejected is the one that proves the AUTHENTICATION TAG is verified on
+# the deployed code path. A wrong-key rejection alone does not: a wrong key
+# could be refused for reasons unrelated to authentication. One flipped byte of
+# ciphertext under the CORRECT key is rejected by nothing else.
+echo "verifying sync crypto via $api_origin/debug/sync-crypto"
+for ((i = 1; i <= attempts; i++)); do
+  body="$(curl -sS --max-time 15 "$api_origin/debug/sync-crypto" || echo '{}')"
+  got_round="$(field "$body" roundTrip)"
+  got_wrong="$(field "$body" wrongKeyRejected)"
+  got_tamper="$(field "$body" tamperRejected)"
+
+  if [[ "$got_round" == "true" && "$got_wrong" == "true" && "$got_tamper" == "true" ]]; then
+    echo "  ok: roundTrip=true wrongKeyRejected=true tamperRejected=true"
+    break
+  fi
+
+  if (( i == attempts )); then
+    echo "  FAIL after $attempts attempts" >&2
+    echo "  RAW RESPONSE (trust this over the reading below): $body" >&2
+    echo "  Likely causes, ILLUSTRATIVE and not exhaustive:" >&2
+    if [[ "$got_round" != "true" ]]; then
+      echo "  The key sync holds cannot encrypt and decrypt its own output. It is present but unusable: wrong length, not base64, or truncated in the store." >&2
+    elif [[ "$got_tamper" != "true" ]]; then
+      echo "  A TAMPERED CIPHERTEXT DECRYPTED. The authentication tag is not being verified, and a caller could be handed corrupted bytes as an access token." >&2
+    elif [[ "$got_wrong" != "true" ]]; then
+      echo "  Decryption under a wrong key succeeded, which should be impossible." >&2
+    fi
+    exit 1
+  fi
+  sleep "$delay"
+done
+
 echo "all $target endpoints serve $expected against a schema of $want_migrations migrations"
