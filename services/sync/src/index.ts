@@ -14,6 +14,7 @@
 
 import { readSyncSchemaHealth } from "@marginsheet/shared/db";
 import { encryptToken, decryptToken } from "./token-crypto.js";
+import { exchangePublicToken } from "./exchange.js";
 
 export interface Env {
   ENVIRONMENT: string;
@@ -22,6 +23,7 @@ export interface Env {
   TOKEN_ENCRYPTION_KEY?: string;
   PLAID_CLIENT_ID?: string;
   PLAID_SECRET?: string;
+  PLAID_BASE_URL?: string;
 }
 
 // THE SECRETS THIS WORKER MUST HOLD, AND MUST HOLD NON-EMPTY.
@@ -136,6 +138,53 @@ export default {
 
       const ok = result.roundTrip && result.wrongKeyRejected && result.tamperRejected;
       return Response.json(result, { status: ok ? 200 : 503 });
+    }
+
+    // POST /internal/exchange: the token exchange, reachable only over the
+    // service binding from api. There is no public route to this Worker, so
+    // "internal" describes what is true rather than what is intended.
+    //
+    // The response carries NO access token. That is the section 4a boundary and
+    // it is asserted by test, because a token here would break nothing: the
+    // exchange would still work, the household would still connect, and every
+    // other test would still pass.
+    if (url.pathname === "/internal/exchange" && request.method === "POST") {
+      const { publicToken, householdId } = (await request.json()) as {
+        publicToken?: string;
+        householdId?: string;
+      };
+      if (!publicToken || !householdId) {
+        return Response.json({ error: "publicToken and householdId are required" }, { status: 400 });
+      }
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY || !env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        // Fails closed and names WHICH is missing, without any value.
+        const missing = (["NEON_DATABASE_URL", "TOKEN_ENCRYPTION_KEY", "PLAID_CLIENT_ID", "PLAID_SECRET"] as const)
+          .filter((k) => !env[k]?.length);
+        return Response.json({ error: `sync is not configured: ${missing.join(", ")}` }, { status: 503 });
+      }
+
+      try {
+        const result = await exchangePublicToken(
+          publicToken,
+          householdId,
+          {
+            clientId: env.PLAID_CLIENT_ID,
+            secret: env.PLAID_SECRET,
+            baseUrl: env.PLAID_BASE_URL,
+          },
+          env.TOKEN_ENCRYPTION_KEY,
+          env.NEON_DATABASE_URL
+        );
+        return Response.json(result);
+      } catch (error) {
+        // PlaidError.toJSON enumerates what may be published. A raw error is
+        // never returned, because the request body is what carries the token.
+        const shaped = error as { toJSON?: () => unknown; name?: string };
+        return Response.json(
+          { error: "exchange failed", detail: shaped.toJSON ? shaped.toJSON() : { name: shaped.name ?? "Error" } },
+          { status: 502 }
+        );
+      }
     }
 
     return new Response("not found", { status: 404 });

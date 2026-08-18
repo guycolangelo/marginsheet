@@ -57,8 +57,15 @@ export class PlaidError extends Error {
 export interface PlaidCredentials {
   clientId: string;
   secret: string;
-  baseUrl: string;
+  /** Defaults to Sandbox. THE DEFAULT LIVES HERE, not in the Worker entry
+   *  point, because plaid-call-sites.test.ts requires exactly one module to
+   *  look like a Plaid call site. Naming the host anywhere else makes that
+   *  enumeration fire, and it fired: the first version of 4.3.2 put this
+   *  default in index.ts. The control was right and the code moved. */
+  baseUrl?: string;
 }
+
+const DEFAULT_BASE_URL = "https://sandbox.plaid.com";
 
 /** Calls Plaid. THE ONLY PLACE A REQUEST BODY CARRYING A TOKEN IS BUILT.
  *
@@ -79,7 +86,7 @@ export async function callPlaid<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${credentials.baseUrl}${endpoint}`, {
+    response = await fetch(`${credentials.baseUrl ?? DEFAULT_BASE_URL}${endpoint}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body,

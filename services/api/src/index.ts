@@ -72,6 +72,35 @@ const handler = {
     //
     // Reports no secret material: sync's own /health returns a boolean for the
     // key's presence and never any part of its value.
+    // POST /plaid/exchange: the household-facing end of the connect flow.
+    //
+    // api HOLDS A PUBLIC TOKEN BRIEFLY AND NEVER AN ACCESS TOKEN. A public
+    // token is short-lived and single-use; an access token is neither. The
+    // boundary is "api never holds an access token", not "api touches nothing
+    // from Plaid" (plaid-pipeline-spec section 2).
+    //
+    // Everything past this line happens inside marginsheet-sync, which has no
+    // public route and holds the only copy of the encryption key.
+    if (url.pathname === "/plaid/exchange" && request.method === "POST") {
+      if (!env.SYNC) {
+        return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+      }
+      const payload = await request.json();
+      const response = await env.SYNC.fetch(
+        new Request("https://sync.internal/internal/exchange", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+      );
+      // Passed through unchanged. api does not read, reshape or log this body:
+      // reshaping is where a token would be copied somewhere by accident.
+      return new Response(await response.text(), {
+        status: response.status,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     // Both sync debug routes go through the one binding. Listed explicitly
     // rather than prefix-forwarded: a prefix would forward anything somebody
     // later adds to sync, including something that should not be public.

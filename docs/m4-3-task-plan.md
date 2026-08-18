@@ -67,6 +67,10 @@ Production Plaid credentials are Guy's paste session at 4.5b and land on **sync 
 
 - **4.3.1** The credential move, with the inventory declaring sync before anything is pasted.
 - **4.3.2** The exchange over the service binding, `api` never holding an access token.
+
+  **WHAT A GREEN 4.3.2 DOES NOT MEAN, stated before it is built rather than after it passes.** Sandbox mints a `public_token` through `/sandbox/public_token/create` with no browser involved, so the handler path is fully testable in CI. **Link itself is not.** The test follows the artifact as far as the token, which is where the household's journey reaches our code, and **Link's own behaviour is unproven until M8**: the accordion, the sequencing of institutions, the Capital One parameter handling, what a household actually sees when a bank is slow or refuses.
+
+  A green 4.3.2 means the exchange works when handed a valid public token. It does not mean the connect flow works end to end, and it must not be read that way in any status report. This is the journey rule at its boundary: a journey test starts where the household starts, and the household starts in Link, which does not exist yet.
 - **4.3.3** Zombie prevention: idempotent per Item, proven by attempting a re-fire.
 - **4.3.4** Reconnect in update mode, reusing the Item, `needs_reauth` cleared on success.
 - **4.3.5** Institution upsert and account creation, with the Capital One parameter note carried from the port.
