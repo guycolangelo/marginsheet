@@ -227,5 +227,13 @@
     "trigger": "A2P 10DLC clearance",
     "owed_to": "TRIGGER: A2P 10DLC clearance. Read any SMS assumption against this rather than against a module number.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "soc2-posture",
+    "item": "DECIDED 18 Aug 2026: NOT PURSUING SOC 2 NOW. Pre-revenue, one person, an unusual stack, and no customer requiring it. Realistic first-year cost 20 to 35 thousand dollars across platform, auditor and pen test. Recorded as a DECISION rather than a gap, so it is not rediscovered as an oversight. TWO THINGS THAT MAKE THE DEFERRAL CHEAPER THAN IT LOOKS. The Written Infosec Program is already owed to Plaid and is the foundation of a SOC 2 posture, so it is worth writing regardless and is not wasted work if this is never pursued. And the change management and access control evidence this project already produces as a matter of course, every change through a pull request with required checks, branch protection with no admin override, enumerated role grants, a control register with planted failures, WOULD COVER A TYPE II OBSERVATION WINDOW RETROACTIVELY if it ever matters. The observation window is the expensive part of a Type II and the only part that cannot be bought later, so producing the evidence now without pursuing the audit is the arrangement that keeps the option open at no cost.",
+    "owner": "Guy",
+    "trigger": "the first customer, partner or investor who requires it",
+    "owed_to": "TRIGGER: the first customer, partner or investor who REQUIRES it. Not a module and not a date: per the trigger rule, this is gated on someone outside the project.",
+    "raised": "2026-08-18"
   }
 ]
