@@ -35,17 +35,33 @@ afterAll(async () => {
   if (sql) await sql.end();
 });
 
-/** Runs one statement with the sync role's privileges and returns the error code. */
+/** Runs one statement with the sync role's privileges and returns the error code.
+ *
+ * NOT IN A TRANSACTION, deliberately. The first version wrapped this in
+ * sql.begin() and every refusal failed the test rather than satisfying it: a
+ * statement that errors inside a transaction aborts it, and postgres.js
+ * rethrows the original error past the catch. The refusals were CORRECT and
+ * the harness reported them as failures.
+ *
+ * A reserved connection gives the same isolation for what this needs, which is
+ * that SET ROLE does not leak to another test, without a transaction to
+ * poison. RESET ROLE runs in finally so a throwing statement cannot leave the
+ * connection holding the sync role when it returns to the pool. */
 async function asSyncRole(statement: string): Promise<{ ok: boolean; code?: string }> {
-  return await sql.begin(async (tx) => {
-    await tx.unsafe("SET LOCAL ROLE marginsheet_sync");
+  const conn = await sql.reserve();
+  try {
+    await conn.unsafe("SET ROLE marginsheet_sync");
     try {
-      await tx.unsafe(statement);
+      await conn.unsafe(statement);
       return { ok: true };
     } catch (error: unknown) {
       return { ok: false, code: (error as { code?: string }).code };
+    } finally {
+      await conn.unsafe("RESET ROLE");
     }
-  });
+  } finally {
+    conn.release();
+  }
 }
 
 const FORBIDDEN = [
