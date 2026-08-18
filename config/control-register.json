@@ -256,9 +256,9 @@
       "planted": {
         "kind": "source",
         "file": "services/sync/src/token-crypto.ts",
-        "find": "    plaintext = await crypto.subtle.decrypt({ name: \"AES-GCM\", iv }, key, b64urlDecode(ctPart));",
-        "replace": "    plaintext = await crypto.subtle.decrypt({ name: \"AES-CTR\", counter: iv, length: 64 }, key, b64urlDecode(ctPart));",
-        "note": "THE DIRECTION IS THE POINT. Switching the mode to AES-CTR removes authentication while leaving decryption working, which is precisely the silent failure: a wrong key still fails, the round trip still succeeds, and a tampered ciphertext now returns corrupted bytes instead of throwing. Deleting the try/catch would also redden the test and would prove almost nothing, because a decrypt that throws on everything breaks loudly on the first real call."
+        "find": "    throw new Error(\"decryption failed: wrong key or tampered ciphertext\");",
+        "replace": "    return \"\";",
+        "note": "SWALLOWS THE FAILURE instead of raising, which is the shape that ships: a caller receives an empty string where it expected a token and carries on. The first version switched AES-GCM to AES-CTR and was INERT: the key is imported for AES-GCM, so the mismatched algorithm threw anyway and the test could not tell why. Found by running the harness after it was fixed to resolve the owning package."
       },
       "distinction": "The wrong-key test is NOT this control. A wrong key can be refused upstream of authentication, by importKey's length check or the base64 check, so it passes whether or not the tag is verified. Only a flipped ciphertext byte under the correct key isolates the tag."
     },
@@ -271,9 +271,9 @@
       "planted": {
         "kind": "source",
         "file": "services/sync/src/plaid-client.ts",
-        "find": "  } catch (cause) {",
-        "replace": "  } catch (cause) {\n    if (cause) (globalThis as Record<string, unknown>).__lastCause = cause;",
-        "note": "Mutating the TRANSPORT path rather than the 400 path, because that is where the danger is: fetch rejects with an error whose shape we do not control, and the postgres incident of 17 Aug is exactly a library formatting what you sent into an exception. The planted line is the shape a well-meaning wrapper adds to keep context."
+        "find": "    throw new PlaidError(endpoint, 0, {\n      error_code: \"NETWORK_ERROR\",\n      error_message: \"the request did not complete\",\n    });",
+        "replace": "    throw new Error(`Plaid ${endpoint} failed after sending ${body}`);",
+        "note": "PUTS THE REQUEST BODY IN THE MESSAGE, which is the postgres incident's exact shape and what a wrapper adding context actually does. The first version stashed `cause` on globalThis and was INERT: the thrown error never carried it, so nothing the test inspects changed."
       },
       "distinction": "Amended 18 Aug 2026 from Plaid's RESPONSE shape to our REQUEST envelope. Seven Plaid error classes captured from Sandbox return an identical seven-key envelope with no request echo, so a scrubber aimed at Plaid's errors would pass forever guarding nothing. The token is in the request."
     },
@@ -337,9 +337,11 @@
         "file": "services/sync/src/exchange.ts",
         "find": "  alreadyConnected: boolean;\n}",
         "replace": "  alreadyConnected: boolean;\n  accessToken?: string;\n}",
-        "note": "WIDENS THE RESULT TYPE, which is how this would actually happen: somebody needs the token downstream, adds an optional field, and everything keeps working. A token in this response BREAKS NOTHING. The exchange succeeds, the household connects, the accounts appear, and every other test passes. Breaking the exchange itself would redden many tests and prove nothing about the boundary."
+        "note": "THE TEST IS THE PROBLEM, NOT THE MUTATION. exchange-boundary.test.ts asserts the shape of a HAND-WRITTEN LITERAL typed as ExchangeResult, so no change to exchange.ts can redden it. TypeScript's excess-property check catches an added field at compile time, which is real but is not what this entry claims. The test must call exchangePublicToken with Plaid and the database stubbed, or it is asserting that a literal I wrote matches a list I wrote."
       },
-      "distinction": "Asserted by ENUMERATION rather than by scanning for token-shaped strings. A scan only knows the prefixes it was taught, so a field carrying the token under another name passes it. The enumeration fails on any field that was not there before, which is the failure mode: a well-meaning addition."
+      "distinction": "Asserted by ENUMERATION rather than by scanning for token-shaped strings. A scan only knows the prefixes it was taught, so a field carrying the token under another name passes it. The enumeration fails on any field that was not there before, which is the failure mode: a well-meaning addition.",
+      "status": "owed",
+      "owedTo": "a rewrite of exchange-boundary.test.ts against the real handler, not a literal"
     }
   ]
 }
