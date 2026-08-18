@@ -41,9 +41,24 @@ const ONLY = process.argv[2]; // optional control id, for a single run
 const treeBefore = execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" });
 
 const register = JSON.parse(readFileSync(REGISTER, "utf8"));
+// Owed entries are DESIGNED but not built, so there is nothing to mutate. They
+// are PRINTED rather than skipped silently: a harness that quietly ignores part
+// of its register reports on a smaller set than the register describes, which
+// is how "all controls verified" comes to mean something narrower than it says.
+const owedEntries = register.controls.filter((c) => c.status === "owed");
+const runnable = register.controls.filter((c) => c.status !== "owed");
+
 const controls = ONLY
-  ? register.controls.filter((c) => c.id === ONLY)
-  : register.controls;
+  ? runnable.filter((c) => c.id === ONLY)
+  : runnable;
+
+if (owedEntries.length > 0 && !ONLY) {
+  process.stdout.write(`\n${owedEntries.length} OWED control(s), designed and not yet built:\n`);
+  for (const c of owedEntries) {
+    process.stdout.write(`  ${c.id}: owed to ${c.owedTo}, test ${c.test}\n`);
+  }
+  process.stdout.write("  These are not failures. They are not verified either.\n");
+}
 
 if (controls.length === 0) {
   console.error(ONLY ? `No control with id "${ONLY}"` : "The register is empty.");
