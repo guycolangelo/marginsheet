@@ -51,6 +51,13 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 
   Its sibling: nothing compared deployed state against main's tip, so **"green" never meant "current."** An approval arriving out of order rolled production back one commit and no check said so. A control that verifies the artifact without verifying that the artifact is the current one is answering a question nobody asked.
 
+  **The alternating signature, recorded so the next occurrence costs thirty seconds instead of a diagnosis.** Four consecutive production deploys failed on 18 Aug 2026 and looked like one repeating fault. They were two independent controls taking turns:
+
+  - **every commit predating a fix fails VERIFICATION**, because it carries the defect the fix removes
+  - **every commit that sat waiting while another merged fails the TIP GUARD**, because main moved underneath it
+
+  Merging a fix produces both at once: the fix's own commit invalidates whatever is queued, and everything queued still predates the fix. **Neither is a defect and neither needs a change.** What makes it expensive is reading a run list and inferring one cause from four reds. Read the failing STEP first: "Refuse to deploy a commit main has moved past" needs nothing, and a verification failure needs the raw body.
+
 - **The eighth is the one that was tracking the other seven.** This file has required since M0 that "open items travel with named owners and print in CI". Nothing implemented it. Every owed item across three modules lived in prose that no gate ever read: the reviewer that did not exist, the handler half owed to M4 and M7, the canon fixtures, the sandbox limits that fail closed only when a real recipient appears. They were recorded faithfully and tracked by nobody.
 
   That makes it different in kind from the other seven. **A control that guards nothing is one failure; the mechanism for remembering failures guarding nothing is how the other seven stayed open.** It was found the same way as the rest, by trying to use it: an item needed recording "like the others" and there were no others.
