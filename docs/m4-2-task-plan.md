@@ -1,5 +1,5 @@
 # M4 Task 4.2, Token Custody
-## Drafted for Guy's approval, 17 August 2026. Nothing executes until approved.
+## APPROVED as drafted, 17 August 2026. Both open questions ruled.
 ## Governing docs: `plaid-pipeline-spec.md` §1 and invariant 7, `data-model-spec` §2 and invariant 2, M4 §2a (the third Worker).
 
 ---
@@ -53,7 +53,7 @@ Asked the standing question: **if `api` still held the key, would this go red?**
 - **4.2.5** Invariant 7, both halves. The static scan for the token in any log line, plus a behavioural probe that a Plaid error object carrying a token in a nested field does not reach Sentry with it intact.
 - **4.2.6** Register entries and planted failures.
 
-**4.2.3 landing before 4.2.4 is deliberate.** A check written after the change it is meant to verify tends to encode the change rather than the requirement. Written first, it fails, and the move is what makes it pass.
+**4.2.3 landing before 4.2.4 is deliberate, and it is what makes it a proof rather than a description** (Guy, 17 Aug 2026). A check written after the change it is meant to verify **agrees with whatever was done**, which is the same reasoning as the planted failures: a control nobody has watched fail is a control nobody should trust. Written first, it is red on the un-removed key, and the move is what makes it pass.
 
 ---
 
@@ -71,10 +71,25 @@ Asked the standing question: **if `api` still held the key, would this go red?**
 
 ---
 
-## 4. Open questions for your ruling
+## 4. Both questions ruled, 17 August 2026
 
-1. **Does `api` need the exchange path at all?** Plaid Link returns a `public_token` to the browser, and exchanging it produces the access token that must be encrypted where the key lives. That means either `api` proxies the exchange to `marginsheet-sync` over a service binding, or the browser talks to a sync route, which contradicts "no public routes". **My recommendation is the service binding**: `api` stays the only public surface and never sees an access token, and the binding is not a route.
-2. **Whether `TOKEN_ENCRYPTION_KEY` should be rotated as part of this move.** The current value has lived on a Worker it should not have been on. Nothing indicates exposure, and rotation today costs nothing because no Plaid Item exists yet to re-encrypt. **After 4.5b connects real institutions, rotation means re-linking.** So this is the cheapest hour it will ever be, and my recommendation is to rotate now rather than inherit a key whose custody history includes a Worker with public routes.
+### 4a. The exchange goes over a service binding (RULED)
+
+`api` proxies the token exchange to `marginsheet-sync` and **never sees an access token**. The alternative, a browser talking to a sync route, makes "no public routes" false on day one, and **the third-Worker ruling would then have bought nothing.**
+
+Guy's addition, which is the part worth carrying into the threat model: **this also narrows what an `api` compromise yields.** The public surface can request an exchange and cannot read its result. A compromised `api` can cause a token to be created and cannot obtain one, which is a materially different blast radius from a compromised `api` that holds the key and the ciphertext together.
+
+### 4b. The key is rotated as part of the move (RULED)
+
+Rotated **because it sat on the wrong Worker, not because anything indicated compromise.** That distinction is recorded in the custody doc for the benefit of whoever reads the log later trying to work out whether there was an incident: there was not.
+
+The deciding argument is the cost curve. Nothing suggests exposure, and *"nothing suggests exposure"* is the sentence that precedes carrying a known-weakened credential for a year. Today the key protects zero Plaid Items, so rotation means nothing at all. After 4.5b connects real institutions, rotation means re-linking them. **This is the cheapest hour it will ever be and the price only rises.**
+
+## 4c. A note on `migrate`, so nobody spends an afternoon on it
+
+The `migrate` CI job takes between **1m and 7m on identical work**, observed across more than ten runs. It is variance in Neon branch provisioning, not drift, and it has not failed for this reason. Recorded here so a long run is recognised rather than investigated.
+
+**If it ever FAILS rather than merely running long, that is a different signal** and worth following.
 
 ---
 
