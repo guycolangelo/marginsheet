@@ -14,7 +14,7 @@ Deferral ruling (Guy, 15 Aug 2026): production/live credentials land with the mo
 | Secret | Service | dev / staging | production |
 |---|---|---|---|
 | `NEON_DATABASE_URL` | api + conversation | reissued 15 Aug 2026 for `marginsheet_app` (branch-matched: dev, staging) | reissued 15 Aug 2026 for `marginsheet_app` (main branch) |
-| `PLAID_CLIENT_ID`, `PLAID_SECRET` | api | sandbox, set 0.3 | **deferred to M4** |
+| `PLAID_CLIENT_ID`, `PLAID_SECRET` | **sync** (was: api) | sandbox, set 0.3 | **M4, at task 4.5b.** Earlier than the deferral ledger's usual shape, ruled 17 Aug 2026: pending to posted is unconstructible in Sandbox, so the founder household's real institutions are the only place categorization-spec §10 is exercised, and that has to happen while M4 can still absorb a fix |
 | `STRIPE_SECRET` | api | test mode, set 0.3 | **deferred to M7** |
 | `STRIPE_WEBHOOK_SECRET` | api | **deferred to M7**: minted with the webhook endpoint, test and live | **deferred to M7** |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | api + conversation | **deferred to M3** (unset 15 Aug ruling; the isolation Twilio check skips while absent and re-arms when set) | **deferred to M3**; exercised live 15 Aug 2026 by the decoupling probe, prompted into one process on Guy's machine and stored nowhere |
@@ -22,7 +22,7 @@ Deferral ruling (Guy, 15 Aug 2026): production/live credentials land with the mo
 | `POSTMARK_TOKEN` | conversation | sandbox server token, set 0.3 | **deferred to M3** |
 | `ANTHROPIC_API_KEY` | conversation | non-production key, set 0.3 (0.5's smoke call needs it) | **deferred to the first production deploy that calls a model** |
 | `ANTHROPIC_API_KEY` | api | **deferred to M5** (escalation calls: Haiku to Sonnet parsing chain) | **deferred to M5** |
-| `TOKEN_ENCRYPTION_KEY` | api | set 0.3, distinct per environment | set 0.3, distinct |
+| `TOKEN_ENCRYPTION_KEY` | **sync** (currently held by api) | set 0.3, distinct per environment | set 0.3, distinct |
 
 GitHub Actions store: `CLOUDFLARE_API_TOKEN` (scoped API token, not a personal OAuth token), `NEON_API_KEY`, `ANTHROPIC_API_KEY` (non-production), and `DEV_` / `STAGING_` prefixed sets for the isolation suite (Plaid sandbox pair, Stripe test key; Twilio pair joins at M3; DB URLs derived from `NEON_API_KEY` at run time).
 
@@ -32,6 +32,7 @@ GitHub Actions store: `CLOUDFLARE_API_TOKEN` (scoped API token, not a personal O
 - Generated on Guy's machine by `openssl rand -base64 32`, piped directly into `wrangler secret put`. Displayed nowhere, stored nowhere else. One key per environment, all distinct.
 - The only copy lives in the Cloudflare secret store for its environment. Loss means re-linking Plaid Items, not data loss.
 - Rotation requires decrypt-and-re-encrypt of stored tokens. That path is built in M4; until then rotation equals re-linking.
+- **The key is currently on `api`, and the third-Worker ruling says it should not be** (M4 §2a, 17 Aug 2026). The whole argument for a separate `marginsheet-sync` deployable is that the token-reading surface has no public routes, and a key sitting on the deployable that serves household requests makes the role split cosmetic. **4.2 moves it and removes it from `api`**, and removing it is the half that is easy to skip: a key that is merely also present somewhere else is not a boundary.
 
 ## Database roles (the other half of the token control)
 
