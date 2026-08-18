@@ -149,10 +149,28 @@ for ((i = 1; i <= attempts; i++)); do
   got_migrations="$(field "$body" database.migrations)"
   got_key="$(field "$body" tokenKeyPresent)"
 
+  # EVERY declared secret must be NON-EMPTY, not merely named. wrangler secret
+  # list returns {name, type} and never a value, so secret-inventory can only
+  # prove a name exists: a secret set to the empty string passes it perfectly.
+  # That is the 15 Aug 2026 incident exactly, and the Worker is the only thing
+  # that can see the value, so the Worker is asked.
+  empty_secrets="$(printf '%s' "$body" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print('UNREADABLE'); raise SystemExit
+s = d.get('secrets')
+if not isinstance(s, dict) or not s:
+    print('NO_SECRETS_BLOCK'); raise SystemExit
+print(','.join(sorted(k for k, v in s.items() if not v)))
+" 2>/dev/null || echo UNREADABLE)"
+
   if [[ "$got_service" == "marginsheet-sync" && "$got_build" == "$expected" \
      && "$got_env" == "$target" && "$got_ok" == "true" \
-     && "$got_migrations" == "$want_migrations" && "$got_key" == "true" ]]; then
-    echo "  ok: sync build=$got_build database.ok=true migrations=$got_migrations tokenKeyPresent=true"
+     && "$got_migrations" == "$want_migrations" && "$got_key" == "true" \
+     && -z "$empty_secrets" ]]; then
+    echo "  ok: sync build=$got_build database.ok=true migrations=$got_migrations, every declared secret non-empty"
     break
   fi
 
@@ -186,6 +204,13 @@ for ((i = 1; i <= attempts; i++)); do
       esac
     elif [[ "$got_key" != "true" ]]; then
       echo "  The sync Worker has no TOKEN_ENCRYPTION_KEY. It cannot decrypt any Plaid token." >&2
+    elif [[ "$empty_secrets" == "NO_SECRETS_BLOCK" ]]; then
+      echo "  sync reported no secrets block. Either it is running code older than this check, or the block was removed, in which case NOTHING is verifying that any secret is non-empty." >&2
+    elif [[ -n "$empty_secrets" && "$empty_secrets" != "UNREADABLE" ]]; then
+      echo "  SECRETS PRESENT BUT EMPTY: $empty_secrets" >&2
+      echo "  The names exist, so secret-inventory passes. The VALUES are empty strings." >&2
+      echo "  wrangler secret put reports success for an empty payload, which is how six" >&2
+      echo "  connection strings were empty on 15 Aug 2026 while everything reported healthy." >&2
     elif [[ "$got_migrations" != "$want_migrations" ]]; then
       echo "  Schema drift: this commit carries $want_migrations migrations, sync sees $got_migrations." >&2
     fi
