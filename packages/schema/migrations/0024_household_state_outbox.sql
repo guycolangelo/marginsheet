@@ -81,6 +81,12 @@ CREATE INDEX "household_state_signals_unclaimed"
 	WHERE "claimed_at" IS NULL;--> statement-breakpoint
 
 ALTER TABLE "household_state_signals" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+-- FORCE as well as ENABLE. Without FORCE the table OWNER bypasses every policy,
+-- so the isolation would hold for marginsheet_app and evaporate for whoever runs
+-- migrations. Caught by an M1 invariant asserting FORCE is set on all 37 policied
+-- tables or none: it reported 36 of 37, which is the whole value of an assertion
+-- that counts rather than spot-checks.
+ALTER TABLE "household_state_signals" FORCE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE POLICY "household_isolation" ON "household_state_signals"
 	USING ("household_id" = current_setting('marginsheet.household_id', true)::uuid);--> statement-breakpoint
 

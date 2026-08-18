@@ -235,7 +235,7 @@
       "control": "marginsheet_sync holds exactly ten tables (migrations 0023, 0024)",
       "guards": "An eleventh table granted to the sync role is noticed, even when nobody named it.",
       "test": "services/api/test/sync-role-boundary.test.ts",
-      "name": "holds grants on exactly the 9 tables",
+      "name": "holds grants on exactly the 10 tables",
       "planted": {
         "kind": "sql",
         "apply": "GRANT SELECT ON receivables TO marginsheet_sync",
