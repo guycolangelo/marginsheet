@@ -187,11 +187,19 @@
     "raised": "2026-08-18"
   },
   {
-    "id": "second-login-versus-double-connect",
-    "item": "SPIKED 18 Aug 2026, and the spike moved the target. Plaid is idempotent on the public token: exchanging the same one twice returns the SAME item_id and access_token, so the re-fire the spec describes cannot create a duplicate. But a second Link SESSION at the same institution creates a genuinely distinct Item, confirmed. So the billable zombie is a household completing Link TWICE, not a re-fired exchange, and exchange idempotency cannot prevent it because the two exchanges are legitimately different from Plaid's side. It also cannot be prevented by refusing a second Item at a known institution, because that is the two-logins case ruled legitimate on 18 Aug: a personal and a business login are two Items and must both survive. THE QUESTION: what distinguishes a second login from the same login connected twice? Candidates are overlapping account masks (catches most real cases, but two logins can legitimately share nothing and joint accounts can legitimately appear twice), asking the household at connect time (exact and honest, but it is a question in Link's flow which is M8's surface), or allowing it and detecting later (no false refusals, but the bill arrives first). Claude's reading is that asking belongs to M8 and M4 should record the overlap rather than act on it. NOT BUILT ON THAT READING.",
-    "owner": "Guy",
-    "trigger": "before 4.3.4, since reconnect's behaviour depends on the answer",
-    "owed_to": "TRIGGER: a ruling before 4.3.4. Reconnect keys on the Item, so what counts as a NEW Item is the same question.",
+    "id": "account-overlap-recorded-not-acted-on",
+    "item": "RULED 18 Aug 2026. A household completing Link twice produces two Items at one institution and two bills, and so does a household connecting a legitimate second login. Nothing distinguishes them from Plaid's side. THE CONTROL FAILS TOWARD PERMITTING, on which error is recoverable: a false refusal blocks a household from connecting their own business account with NO PATH AROUND IT, and a duplicate costs a few dollars a month and is fixable the moment anyone notices. Asymmetric, so allow. ACCOUNT-MASK OVERLAP IS A SIGNAL, NOT A RULE: two Items sharing every mask is almost certainly one login connected twice, two sharing none is almost certainly two logins, and the middle is genuinely ambiguous which is exactly where a rule would be wrong. M4 stores the overlap and surfaces it as an internal item for a human to read, and acts on it nowhere.",
+    "owner": "build",
+    "trigger": "when insight_ledger is first written, at 4.6",
+    "owed_to": "TRIGGER: 4.6, when insight_ledger is first written and there is somewhere to put an internal item.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "ask-at-connect-when-overlap-ambiguous",
+    "item": "The honest long answer to distinguishing a second login from a double connect is ASKING THE HOUSEHOLD, and it belongs in M8 where Link's flow lives. WITH ONE CONSTRAINT THAT IS THE WHOLE POINT (Guy, 18 Aug 2026): the question is only worth asking when the overlap signal is AMBIGUOUS. Two Items sharing every account mask, or sharing none, need no question. Asking every household to explain their own bank accounts is the setup cliff the product refuses, and a question asked always is a question that teaches people to dismiss it.",
+    "owner": "Guy (Design) and M8",
+    "trigger": "M8's Link surface",
+    "owed_to": "TRIGGER: M8's Link surface. Asked ONLY on an ambiguous overlap, never by default.",
     "raised": "2026-08-18"
   }
 ]

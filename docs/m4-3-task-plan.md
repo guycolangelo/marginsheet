@@ -125,7 +125,13 @@ Both produce a new Item at the same institution, and the spike proves Plaid trea
 | Asking the household at connect time | Exact, and honest | A question in the connect flow, which is M8's surface and not M4's |
 | Nothing: allow it, detect later | No false refusals | The bill arrives first, which is the failure this task exists to prevent |
 
-My reading is that the second is right and belongs to M8's Link surface rather than to the exchange, and that M4 should record the overlap rather than act on it. **Not built on that reading.** Owed as a ruling.
+**RULED 18 Aug 2026: allow it, detect the overlap, act on neither in M4.**
+
+**The deciding argument is which error is recoverable.** A false refusal blocks a household from connecting their own business account and **there is no path around it**: they cannot make the product accept a legitimate second login. A duplicate costs a few dollars a month and is fixable the moment anyone notices. The failure modes are asymmetric, so **the control fails toward permitting.**
+
+**Account-mask overlap is a signal, not a rule.** Two Items sharing every mask is almost certainly one login connected twice; two sharing none is almost certainly two logins. **The middle is genuinely ambiguous, and that is exactly where a rule would be wrong.** M4 stores the overlap and surfaces it as an internal item for a human to read.
+
+Asking the household is the honest long answer and belongs to M8, **asked only when the overlap is ambiguous.** Asking every household to explain their own bank accounts is the setup cliff the product refuses.
 
 ## 7. RULED: two Items, and reconnect keys on the Item
 

@@ -86,6 +86,35 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: node .github/scripts/verify-worker-secrets.mjs
 
+  # The Sandbox-backed zombie-prevention attempts. Split from the default test
+  # run because they need real Plaid credentials: in the default run they would
+  # skipIf their way to green forever, which is a test that cannot fail.
+  #
+  # Asserts against Plaid's /item/get rather than our own table, because a bug
+  # that creates a duplicate AT PLAID while writing one row locally passes any
+  # assertion we make about ourselves, and the first sign would be the bill.
+  plaid-sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Zombie prevention, attempted against Plaid Sandbox
+        env:
+          PLAID_CLIENT_ID: ${{ secrets.DEV_PLAID_CLIENT_ID }}
+          PLAID_SECRET: ${{ secrets.DEV_PLAID_SECRET }}
+        run: |
+          if [ -z "$PLAID_CLIENT_ID" ] || [ -z "$PLAID_SECRET" ]; then
+            echo "REFUSING: no Plaid Sandbox credentials, so these tests would skip to green." >&2
+            echo "A suite that passes by skipping is a control that cannot fail." >&2
+            exit 1
+          fi
+          pnpm --filter @marginsheet/sync test:sandbox
+
   gitleaks:
     runs-on: ubuntu-latest
     steps:
