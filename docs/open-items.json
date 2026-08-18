@@ -185,5 +185,13 @@
     "trigger": "the first real 429 observed from Plaid, in any environment",
     "owed_to": "TRIGGER: the first real 429 observed from Plaid. Capture the body then; do not synthesise one before.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "second-login-versus-double-connect",
+    "item": "SPIKED 18 Aug 2026, and the spike moved the target. Plaid is idempotent on the public token: exchanging the same one twice returns the SAME item_id and access_token, so the re-fire the spec describes cannot create a duplicate. But a second Link SESSION at the same institution creates a genuinely distinct Item, confirmed. So the billable zombie is a household completing Link TWICE, not a re-fired exchange, and exchange idempotency cannot prevent it because the two exchanges are legitimately different from Plaid's side. It also cannot be prevented by refusing a second Item at a known institution, because that is the two-logins case ruled legitimate on 18 Aug: a personal and a business login are two Items and must both survive. THE QUESTION: what distinguishes a second login from the same login connected twice? Candidates are overlapping account masks (catches most real cases, but two logins can legitimately share nothing and joint accounts can legitimately appear twice), asking the household at connect time (exact and honest, but it is a question in Link's flow which is M8's surface), or allowing it and detecting later (no false refusals, but the bill arrives first). Claude's reading is that asking belongs to M8 and M4 should record the overlap rather than act on it. NOT BUILT ON THAT READING.",
+    "owner": "Guy",
+    "trigger": "before 4.3.4, since reconnect's behaviour depends on the answer",
+    "owed_to": "TRIGGER: a ruling before 4.3.4. Reconnect keys on the Item, so what counts as a NEW Item is the same question.",
+    "raised": "2026-08-18"
   }
 ]
