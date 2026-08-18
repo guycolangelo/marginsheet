@@ -64,7 +64,7 @@
   },
   {
     "id": "second-credential-write-path",
-    "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and \u00a71 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
+    "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and §1 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
     "owner": "build",
     "owed_to": "standing constraint, reviewed whenever @better-auth/passkey is upgraded",
     "raised": "2026-08-17"
@@ -78,7 +78,7 @@
   },
   {
     "id": "sensitive-actions-unbuilt",
-    "item": "Three of the four sensitive actions \u00a71 names do not exist yet: cancellation (M7), member removal (3.5), export (M8). They are enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts each has NO route, so building one without flipping the flag fails and sends the author to where the recent-auth requirement is written. Recent-auth is live on the one that exists.",
+    "item": "Three of the four sensitive actions §1 names do not exist yet: cancellation (M7), member removal (3.5), export (M8). They are enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts each has NO route, so building one without flipping the flag fails and sends the author to where the recent-auth requirement is written. Recent-auth is live on the one that exists.",
     "owner": "M7, 3.5 and M8 respectively",
     "owed_to": "each action's own module",
     "raised": "2026-08-17"
@@ -88,6 +88,41 @@
     "item": "The planted-failure harness proves a mutation changed the FILE, not that it changed BEHAVIOUR, and proving the second is undecidable in general. So a 'test did not go red' result has two causes it cannot distinguish: an insensitive control, or an inert mutation. One was already found this way: a mutation whose injected condition was always undefined. The failure message names both causes, and register mutations need reviewing as code rather than as data.",
     "owner": "build",
     "owed_to": "standing constraint, reviewed whenever a register entry is added",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "sandbox-cannot-build-four-of-five-fixtures",
+    "item": "Invariant 8 lists five Sandbox error fixtures and FOUR CANNOT BE CONSTRUCTED (spike 1d, 17 Aug 2026). Constructible: ITEM_LOGIN_REQUIRED via /sandbox/item/reset_login. Not constructible: item error (webhook_type has no code ERROR), removed transactions (TRANSACTIONS_REMOVED is not fireable and the removed stream was empty in every run), pending to posted (0 pending across 48 default-user transactions and across user_custom shapes), reversal as an event. The invariant is rewritten to claim what Sandbox can actually prove; the rest are gaps rather than tests written against fixtures that cannot fail.",
+    "owner": "build",
+    "owed_to": "M4, and invariant 9 at M9 for the states only real Items produce",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "pending-to-posted-unexercised",
+    "item": "THE ONE TRACKED LOUDEST (Guy, 17 Aug 2026). Pending to posted is NOT an error path. It is the normal daily behaviour of every card transaction in the product, and categorization-spec section 10 turns on it. Plaid Sandbox cannot construct it: zero pending transactions across 48 default-user rows and across every user_custom shape tried, so no CI fixture can express the transition. M4 tests the transition against a hand-built fixture of our own rows, which proves our filing and reconciliation logic and DOES NOT prove Plaid's shape is what we assumed. Those are two different claims and only the first is made. THE SECOND CAN ONLY BE PROVEN IN ONE PLACE: invariant 9, against the founder household's real institutions. A silent double-count on this transition reaches a household's Kept figure before anyone sees it.",
+    "owner": "Guy",
+    "owed_to": "invariant 9, against the founder household's real institutions",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "historical-update-not-fireable",
+    "item": "plaid-pipeline-spec section 4 gives HISTORICAL_UPDATE real work: it marks backfill-complete for the M13 intro trigger. Sandbox will not fire it (INVALID_FIELD), so the webhook half of that trigger cannot be exercised in CI. The trigger's 30 minute fallback and the 'I have connected all my accounts' button remain testable; the webhook path does not.",
+    "owner": "build",
+    "owed_to": "M13, flagged from M4",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "sandbox-transactions-create-is-inert",
+    "item": "/sandbox/transactions/create returns 200 and changes nothing on a default-user Item, and returns 400 on a user_custom Item. Proven by looking for a marker description rather than by counting, because Sandbox generates transactions on its own and a count cannot tell a mutation from natural generation. An endpoint that reports success and does nothing is the same shape as a control that cannot fail. Nothing in M4 may build a fixture on it.",
+    "owner": "build",
+    "owed_to": "standing constraint on M4 fixtures",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "sync-mutation-branch-not-deterministic",
+    "item": "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION is real and cannot be produced on demand. Plaid refuses a mid-pagination cursor when the underlying data changes, which is what a webhook landing mid-sync does, so the pipeline persists TWO cursors: the in-flight one for a crash, and the last-completed-sync one as the fallback on that error. Reproduced 3 times out of 5 against freshly created Sandbox Items still generating transactions, which is flaky and therefore not a fixture. M4 tests the HANDLER against a synthesised 400 and does not claim to have proven Plaid's behaviour; the live observation is the evidence for the branch existing.",
+    "owner": "build",
+    "owed_to": "M4 for the handler test, invariant 9 at M9 for the live behaviour",
     "raised": "2026-08-17"
   }
 ]
