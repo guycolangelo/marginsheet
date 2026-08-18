@@ -123,6 +123,14 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 
   The tell is that the check would still pass if the subject were wrong, **because the wrongness is in both halves.** A test can only distinguish a pass from a failure if its expectation was written down somewhere the failure could not reach.
 
+- **When a contract needs defending, defend it from the boundary rather than from correctness.** A correctness argument can be defeated by finding a case where the correctness does not bind, and **that case eventually exists.** A boundary argument cannot, because it is not a claim about any particular case.
+
+  The instance, 18 Aug 2026. `household-state-changed` carries no financial data, for two reasons. The correctness one: the watcher needs CURRENT state, so a payload carrying a delta makes it reason from the change about a state it should read. True, and defeasible: someone will find a rule where the delta genuinely suffices, and they will be right about that rule.
+
+  The boundary one: **a payload carrying household figures puts them outside the RLS boundary.** Every column privilege, every policy, the sync role narrowed to nine tables, `household_isolation` itself: **none of it travels with a message.** That argument does not care which rule is being optimised, because it is about where the data is rather than what anyone needs from it.
+
+  The general shape: an argument from what a component NEEDS is negotiable by changing the component. An argument from where a guarantee STOPS is not, because a guarantee's edge does not move when requirements do. So a contract's reasoning is recorded in boundary terms, and the correctness reason is supporting rather than load-bearing.
+
 - **A correct classification with a wrong priority, because the remedy was familiar and the consequence was never examined.** A different shape from everything above. Every finding in the list is a control that could not observe something. This one observed correctly, wrote the finding down accurately, gave it an owner, and filed it two module boundaries away from where it belonged.
 
   On 18 Aug 2026 `secret-inventory` was found to verify that a secret's NAME exists and nothing more, because `wrangler secret list` returns no value. The fix landed for `marginsheet-sync`. The same gap on `api` was logged as "the same shape sync already carries", owner build, triggered before M7 or M13.
