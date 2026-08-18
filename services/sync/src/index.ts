@@ -12,7 +12,7 @@
 // were the empty string and every environment reported healthy for hours.
 // Presence is the empty-string incident with a better disguise.
 
-import { readSchemaHealth } from "@marginsheet/shared/db";
+import { readSyncSchemaHealth } from "@marginsheet/shared/db";
 
 export interface Env {
   ENVIRONMENT: string;
@@ -27,7 +27,7 @@ export default {
 
     if (url.pathname === "/health") {
       const database = env.NEON_DATABASE_URL
-        ? await readSchemaHealth(env.NEON_DATABASE_URL)
+        ? await readSyncSchemaHealth(env.NEON_DATABASE_URL)
         : {
             ok: false,
             error: "NEON_DATABASE_URL is not usable",

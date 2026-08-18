@@ -111,6 +111,42 @@ function safeError(err: unknown): string {
   return scrubbed.slice(0, 200);
 }
 
+/** Schema health for the SYNC Worker, which cannot read `households`.
+ *
+ * marginsheet_sync was narrowed to nine tables by migration 0023, and
+ * `households` is deliberately not among them. Pointing the shared probe at it
+ * produced `permission denied for table households` on the first deploy after
+ * sync gained a database identity: the role was correct, the connection was
+ * fine, and the probe was reading a table this component has no business
+ * reaching.
+ *
+ * Probing `plaid_items` instead is not a workaround, it is a better check for
+ * this Worker. It proves the role can reach WHAT THE PIPELINE NEEDS rather than
+ * what the application needs, which is the thing that must be true for sync to
+ * do its job at all.
+ */
+export async function readSyncSchemaHealth(databaseUrl: string): Promise<SchemaHealth> {
+  const sql = postgres(databaseUrl, CONNECTION);
+  try {
+    const [row] = await sql<{ migrations: number; tables: number }[]>`
+      select
+        (select count(*)::int from schema_migrations) as migrations,
+        (select count(*)::int
+           from information_schema.tables
+          where table_schema = 'public' and table_type = 'BASE TABLE') as tables,
+        -- The real query against a real table the SYNC ROLE MUST REACH. Its
+        -- result is deliberately not selected into the response: the point is
+        -- that it can run at all.
+        (select count(*)::int from plaid_items) as items
+    `;
+    return { ok: true, migrations: row.migrations, tables: row.tables };
+  } catch (err) {
+    return { ok: false, migrations: null, tables: null, error: safeError(err) };
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
 export async function readSchemaHealth(databaseUrl: string): Promise<SchemaHealth> {
   const sql = postgres(databaseUrl, CONNECTION);
   try {

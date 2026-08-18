@@ -105,7 +105,8 @@ for entry in "${hosts[@]}"; do
       echo "  FAIL after $attempts attempts" >&2
       echo "  expected build=$expected environment=$want_env database.ok=true migrations=$want_migrations" >&2
       echo "  got      build=${got_build:-<none>} environment=${got_env:-<none>} database.ok=${got_ok:-<none>} migrations=${got_migrations:-<none>}" >&2
-      echo "  response: $body" >&2
+      echo "  RAW RESPONSE (trust this over the reading below): $body" >&2
+      echo "  Likely causes, ILLUSTRATIVE and not exhaustive:" >&2
       if [[ "$got_build" == "$expected" && "$got_ok" != "true" ]]; then
         echo "  The right code is deployed but it cannot query its database." >&2
       elif [[ -n "$got_migrations" && "$got_migrations" != "$want_migrations" ]]; then
@@ -159,13 +160,30 @@ for ((i = 1; i <= attempts; i++)); do
     echo "  FAIL after $attempts attempts" >&2
     echo "  expected service=marginsheet-sync build=$expected environment=$target database.ok=true migrations=$want_migrations tokenKeyPresent=true" >&2
     echo "  got      service=${got_service:-<none>} build=${got_build:-<none>} environment=${got_env:-<none>} database.ok=${got_ok:-<none>} migrations=${got_migrations:-<none>} tokenKeyPresent=${got_key:-<none>}" >&2
-    echo "  response: $body" >&2
-    # Name which half failed, because these need different fixes and a
-    # message that cannot distinguish its causes invites guessing.
+    # RAW SIGNAL FIRST, INTERPRETATION SECOND, and the interpretation is
+    # labelled illustrative rather than exhaustive. The first version of the
+    # list below named three causes for a database failure and the first real
+    # failure was a fourth: connected fine, refused a table. A reader trusting
+    # that list would have gone looking at the credential, which was the one
+    # thing that was fine, while the raw error said "permission denied for
+    # table households" and named the problem exactly.
+    echo "  RAW RESPONSE (trust this over the reading below): $body" >&2
+    echo "  Likely causes, ILLUSTRATIVE and not exhaustive:" >&2
     if [[ -z "$got_service" ]]; then
       echo "  Could not reach sync through the binding at all. Either api has no SYNC binding in this environment, or the sync Worker is not deployed." >&2
     elif [[ "$got_ok" != "true" ]]; then
-      echo "  The sync Worker is deployed and CANNOT QUERY ITS DATABASE. Its NEON_DATABASE_URL is empty, wrong, or issued for a role that cannot connect." >&2
+      echo "  The sync Worker is deployed and CANNOT QUERY ITS DATABASE." >&2
+      # Four causes, not three. "permission denied" means the role CONNECTED
+      # fine and lacks privilege on the table the probe reads, which is a
+      # different fix from a bad credential and was the actual cause the first
+      # time this check ran: the probe read households, a table migration 0023
+      # deliberately took away from marginsheet_sync.
+      case "$body" in
+        *"permission denied"*)
+          echo "  It CONNECTED and was refused a table. The credential is fine; either the probe reads a table the sync role should not have, or 0023 revoked something the pipeline needs." >&2 ;;
+        *)
+          echo "  Its NEON_DATABASE_URL is empty, wrong, or issued for a role that cannot connect." >&2 ;;
+      esac
     elif [[ "$got_key" != "true" ]]; then
       echo "  The sync Worker has no TOKEN_ENCRYPTION_KEY. It cannot decrypt any Plaid token." >&2
     elif [[ "$got_migrations" != "$want_migrations" ]]; then
