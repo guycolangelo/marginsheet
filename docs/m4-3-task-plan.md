@@ -88,8 +88,10 @@ Production Plaid credentials are Guy's paste session at 4.5b and land on **sync 
   - the unique index on `item_id` already refusing a second row by construction
   - the two-logins case, both Items surviving independently
 - **4.3.4** Reconnect in update mode, reusing the Item, `needs_reauth` cleared on success.
-- **4.3.5** Institution upsert and account creation, with the Capital One parameter note carried from the port.
-- **4.3.6** Register entries and planted failures.
+- **4.3.5** Institution upsert and account creation. **CLOSED BY INSPECTION, 18 Aug 2026, because its substance landed in 4.3.2.** The exchange handler already upserts `institutions`, creates `financial_accounts` and writes the day's `account_balance_snapshots`, each onto a unique index migration 0002 already carries. Building it again would have produced a second write path for the same rows, which is the duplication this module has spent itself removing.
+
+  **The Capital One item is not M4's.** The spec calls it *"a Link-config note"*, and Link's configuration is M8's surface. Carried there rather than closed silently.
+- **4.3.6** Register entries and planted failures. **SMALLER THAN DRAFTED, because the entries were written as each control was built rather than collected afterwards.** Seven M4 controls are registered and verified through the harness, plus the two owed reconciliation entries. Registering as you go is the better shape: a batch at the end is written by somebody reconstructing what the mutations should be, and the direction of the break is the part that needs the context.
 
 ---
 

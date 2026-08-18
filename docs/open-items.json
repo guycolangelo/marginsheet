@@ -201,5 +201,21 @@
     "trigger": "M8's Link surface",
     "owed_to": "TRIGGER: M8's Link surface. Asked ONLY on an ambiguous overlap, never by default.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "capital-one-link-parameters",
+    "item": "The ported Capital One parameter handling is a LINK-CONFIG note, per plaid-pipeline-spec section 2, and Link's configuration is M8's surface rather than M4's exchange. Carried to M8 rather than closed silently at 4.3.5. What it is: Capital One requires specific Link parameters that Base44 discovered by hitting the failure, and the fix was ported once. Nobody has re-derived WHY, so M8 should confirm the requirement against Plaid's current docs rather than copying a workaround whose reason is unrecorded.",
+    "owner": "M8",
+    "trigger": "M8's Link surface",
+    "owed_to": "TRIGGER: M8's Link surface, with the requirement re-derived rather than copied.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "exchange-idempotency-has-no-planted-failure",
+    "item": "Exchange idempotency is guarded by a DATABASE CONSTRAINT rather than by our code: the unique index on plaid_items.item_id, plus Plaid's own idempotency on the public token, proven by spike 18 Aug 2026. That is the stronger arrangement and it leaves a gap in the register. The test asserts the migration FILE contains the index, so a SQL mutation dropping the index would not redden it, and mutating the migration file is forbidden by migrations-append-only. So this control has NO usable planted failure and is deliberately unregistered rather than registered with a mutation that proves nothing. Closing it needs a test that queries pg_indexes against the live branch, which can then be reddened by a DROP INDEX in a transaction.",
+    "owner": "build",
+    "trigger": "when a database-backed sync test suite exists, likely 4.4",
+    "owed_to": "TRIGGER: a database-backed sync suite, likely at 4.4. Registered when the mutation can be real.",
+    "raised": "2026-08-18"
   }
 ]
