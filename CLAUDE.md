@@ -80,6 +80,19 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 
   **Absent-with-an-owner beats flaky.** A gap in `docs/open-items.json` is honest, it is visible in CI, and somebody owns closing it. A flaky test is a false claim of coverage that also corrodes every true claim next to it. When a fixture cannot be made deterministic, the branch is split: test our **handler** against a synthesised response and say plainly that Plaid's behaviour is not what was proven.
 
+- **THE PLANTED FAILURE COMES WITH THE TEST, NOT AFTER THE MODULE.** Planting is not a verification step performed at the end. It is the thing that establishes whether a fixture is real, and **a test that has never been planted against is an assertion nobody has confirmed can fail.**
+
+  Four fixture failures in one week, every one caught by planting, **none by review**, and every one written by someone who had just been thinking about that exact failure mode:
+
+  - the base64 helper that appended a literal `==`, where one of the two cases passed only because a Plaid token's length happened to need exactly two
+  - the reconnect stub that modelled only `where id`, so a mutation keying on `household_id` reddened the repaired row instead of the orphaned one
+  - the assertion labelled as the important one, where the other Item started HEALTHY and was asserted still healthy, so the expected value and the wrong value were the same string
+  - the set-once test returning a flat empty result, which would have passed whether or not the `WHERE` clause existed
+
+  **Knowing the trap does not prevent it**, which is what makes this a rule rather than a lapse. Each of those was written while the author was actively holding the fixture rule in mind. Review did not catch any of them, because a fixture that cannot fail reads exactly like one that can: the assertion is right, the expectation is right, and the only thing wrong is that the data can never make it false.
+
+  Practically: a control's register entry and its planted failure are written **in the same change as the test**, and a test whose mutation has never been run is not finished. Collecting mutations at the end produces them from reconstruction, and **the direction of the break is the part that needs the context**, which the author still has and a later reader does not.
+
   **A helper correct for the inputs it was written against is not a correct helper, and the tell is that its correctness depends on a property of the data rather than on its own logic.** The tamper tests in 4.2.2 decoded base64url by appending a literal `==`. The iv case threw immediately, because a 12 byte iv encodes to 16 characters and is already a multiple of 4. The ciphertext case **passed, and passed only because its length happened to need exactly two.** One of the two was going to be wrong and which one was decided by the length of a Plaid token. That is the fixture rule in miniature: the assertion was fine, the data made it look correct, and nothing in the helper's own logic was load-bearing.
 
 - **A test that decrypts with a WRONG KEY proves less than it looks, and "we test with a wrong key" reads as sufficient when it is not.** Recorded where the next person writing a crypto test will meet the claim rather than only in the test that got it right.
