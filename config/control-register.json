@@ -419,6 +419,36 @@
         "note": "MEASURES FROM SYNC START, which is the implementation somebody naturally writes: the question sounds like 'has this been running too long'. Verified 18 Aug 2026, three tests redden including BOTH DIRECTIONS, the healthy long backfill and the recently-started dead sync."
       },
       "distinction": "The fixture's failure case is a HEALTHY long backfill, and it has to exist among the values the fixture can take or nothing is proven: a suite whose syncs all start recently cannot distinguish measuring from progress from measuring from start, because both answer the same for a short sync. The damage is also not a crash. Measured from start, a large first backfill is swept mid-flight, set back to queued, restarted and swept again, so an Item working perfectly NEVER FINISHES while every status looks busy."
+    },
+    {
+      "id": "removed-flags-never-deletes",
+      "control": "the removed stream's UPDATE (M4 task 4.4.4)",
+      "guards": "A transaction Plaid stops reporting is flagged, not erased from the household's books.",
+      "test": "services/sync/test/apply-streams.test.ts",
+      "name": "issues an update and no delete",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/apply-streams.ts",
+        "find": "    update transactions\n       set removed = true, updated_at = now()\n     where",
+        "replace": "    delete from transactions\n     where",
+        "note": "DELETES INSTEAD OF FLAGGING, which is the obvious reading of 'removed' and what somebody writes without the spec open. Verified 18 Aug 2026: two tests redden."
+      },
+      "distinction": "A DELETE loses a row nobody can reconstruct, and the household sees a month's Kept figure change with no record of why. It is also irreversible in a way the flag is not: Plaid can report a transaction removed and later report it again, and a flag can be cleared where a deleted row cannot be recovered."
+    },
+    {
+      "id": "first-sync-milestone-set-once",
+      "control": "the IS NULL guard on first_sync_completed_at (M4 task 4.4.4)",
+      "guards": "A second sync cannot re-arm the intro trigger and introduce a household to MyKeeper twice.",
+      "test": "services/sync/test/apply-streams.test.ts",
+      "name": "guards on IS NULL in the WHERE clause, not by reading first",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/apply-streams.ts",
+        "find": "     where id = ${householdId}\n       and first_sync_completed_at is null",
+        "replace": "     where id = ${householdId}",
+        "note": "DROPS THE GUARD. Verified 18 Aug 2026: two tests redden, the structural one and the behavioural one. The behavioural one only catches it because the test stub MODELS the guard rather than returning a flat empty result, which would have passed whether or not the WHERE clause existed."
+      },
+      "distinction": "The guard is a WHERE clause rather than a read-then-write because a read-then-write RACES: two Items finishing their first sync together both read NULL and both write, and the second moves a timestamp M13's intro trigger and the day-3-to-5 census treat as immutable."
     }
   ]
 }
