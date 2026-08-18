@@ -1,18 +1,18 @@
 #!/bin/zsh
 # Wrangler wrapper: puts Node 22 on PATH (harness shells do not inherit
 # ~/.zshenv) and runs wrangler from the named service's directory.
-# Usage: scripts/wrangler <api|conversation|pages> <wrangler args...>
+# Usage: scripts/wrangler <api|conversation|sync|pages> <wrangler args...>
 set -eu
 export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 target="$1"; shift
 case "$target" in
-  api|conversation) cd "$root/services/$target" ;;
+  api|conversation|sync) cd "$root/services/$target" ;;
   pages)
     # wrangler lives in the service devDeps; pass absolute paths to pages deploy
     cd "$root/services/api"
     exec pnpm exec wrangler pages "$@"
     ;;
-  *) echo "unknown target: $target (want api|conversation|pages)" >&2; exit 1 ;;
+  *) echo "unknown target: $target (want api|conversation|sync|pages)" >&2; exit 1 ;;
 esac
 exec pnpm exec wrangler "$@"
