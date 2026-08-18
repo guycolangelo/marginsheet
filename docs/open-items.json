@@ -138,5 +138,12 @@
     "owner": "build",
     "owed_to": "M4 task 4.2",
     "raised": "2026-08-17"
+  },
+  {
+    "id": "auth-is-production-only",
+    "item": "BETTER_AUTH_SECRET, BETTER_AUTH_URL and AUTH_FROM_EMAIL exist on api/production and on NEITHER dev nor staging, and they are not vars in wrangler.jsonc either. Found while writing config/worker-secrets.json (4.2.3). Guy's read, 17 Aug 2026: dev and staging genuinely do not serve auth, because nothing has ever signed in there and the magic link path was only ever proven against production. NOT BLESSED INTO THE DECLARATION, because a declaration written from current state agrees with whatever was done. Two ways to close it: either those environments get their own auth config, or we state plainly that auth is production-only and accept that its tests never run outside production. The second is a real cost worth naming rather than discovering: it means every auth control is exercised in exactly one environment, and that environment is the one with households in it.",
+    "owner": "Guy",
+    "owed_to": "a ruling, then either config or a stated limitation",
+    "raised": "2026-08-17"
   }
 ]

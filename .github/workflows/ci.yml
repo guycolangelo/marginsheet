@@ -32,7 +32,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
-      - run: pnpm --filter @marginsheet/api --filter @marginsheet/conversation --filter @marginsheet/fact-packages test
+      - run: pnpm --filter @marginsheet/api --filter @marginsheet/conversation --filter @marginsheet/fact-packages --filter @marginsheet/sync test
 
   golden:
     runs-on: ubuntu-latest
@@ -57,6 +57,34 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @marginsheet/lint test
+
+  # Does each Worker hold exactly the secrets it is permitted to hold?
+  #
+  # The removal half of M4 section 2a's key move gets its own proof. A key on
+  # the sync Worker AND still on api is not a boundary, and NOTHING FAILS when
+  # that happens: every sync test passes either way. This is the only control
+  # that goes red on an un-removed key.
+  #
+  # It fails on a difference in either direction AND on a Worker it could not
+  # read, which are different answers that look identical from a green tick.
+  #
+  # EXPECTED RED until task 4.2.4 moves TOKEN_ENCRYPTION_KEY off api. That is
+  # deliberate: the check landed BEFORE the change so it could not be written to
+  # agree with whatever was done.
+  secret-inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Compare declared secrets against the live Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node .github/scripts/verify-worker-secrets.mjs
 
   gitleaks:
     runs-on: ubuntu-latest
