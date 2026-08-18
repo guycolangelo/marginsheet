@@ -138,5 +138,43 @@
     "owner": "Guy",
     "owed_to": "a ruling, then either config or a stated limitation",
     "raised": "2026-08-17"
+  },
+  {
+    "id": "canon-revision-two-registers-one-voice",
+    "item": "THE SINGLE ASSISTANT RULING'S CANON CONSEQUENCE, owed since 15 Aug 2026 and recorded only in CLAUDE.md prose until 18 Aug. The conversational spec's two registers become two MODES of one voice. That is a canon revision, not a rename: MyKeeper is the household's only named assistant, the brains stay architecturally separate behind it, and the advice gate stays enforced on advisory output exactly as specified. Until this is written, the conversational spec still describes two staff a household chooses between. TRIGGERED BY THE DESIGN TRACK COMPLETING, not by a module number (Guy, 18 Aug 2026). The reason is that the revision needs the voice to have a face: once MyKeeper has been designed as one assistant across every surface, the mode question is concrete rather than abstract. HARD DEADLINE M12, which builds golden fixtures from the canon. If the canon still describes two voices when the fixtures are written, THE FIXTURES ENCODE TWO VOICES AND THE JUDGE GETS TUNED AGAINST THEM, which is far more expensive to undo than a spec edit.",
+    "owner": "Guy",
+    "owed_to": "TRIGGER: the design track completing. HARD DEADLINE: M12.",
+    "raised": "2026-08-15",
+    "trigger": "the design track completing"
+  },
+  {
+    "id": "article-as-answer-m2-amendment",
+    "item": "The article-as-answer pattern is owed as an M2 amendment with its own plan (Guy, 15 Aug 2026), carrying two requirements. 1. The article's identity is a STABLE SLUG, never its URL or title, both of which change when an article is edited or renamed; the reference block carries the slug and resolves title and URL at assembly time, so a renamed article never strands a citation inside an artifact already sent. 2. The gate rule ships as a FIXTURE PAIR, not only as a rule: one passing example (cards ranked by rate, reference attached, no action named) and one failing example (the same list framed as 'here is where to start'). Recorded in CLAUDE.md prose since 15 Aug and tracked by nothing until now.",
+    "owner": "Guy",
+    "owed_to": "an M2 amendment plan",
+    "raised": "2026-08-15"
+  },
+  {
+    "id": "cross-brain-attribution-fact-package-review",
+    "item": "Consequence 5 of the single assistant ruling: any fact-package class existing ONLY to carry cross-brain attribution is reviewed and REPORTED, never silently deleted. Nothing has performed that review. It matters because the classes are the seam between the two brains, and deleting one quietly would remove the evidence of what the two-staff model needed.",
+    "owner": "build",
+    "owed_to": "M2, reported to Guy",
+    "raised": "2026-08-15"
+  },
+  {
+    "id": "household-state-changed-contract",
+    "item": "plaid-pipeline-spec section 4 says every sync completion fires the internal household-state-changed signal the watcher listens on, and answers task zero's 'which exists' question: we build the signal, since we own the pipeline now. WHAT THE SIGNAL CARRIES IS UNSPECIFIED. M4 task 4.4 will emit it before anyone has defined its contract, and the consumer is the conversation service's watcher, whose spec still describes the Base44 version. Define the payload before 4.4 emits, or 4.4 invents it by accident. RULED 18 Aug 2026: the contract is defined BEFORE 4.4 builds, not after. If that needs a short ruling from Guy, it is ASKED FOR at 4.4 rather than inventing a payload and having him ratify it afterwards. A payload invented by the emitter and blessed later is a contract written by whoever happened to build first.",
+    "owner": "build",
+    "owed_to": "TRIGGER: before M4 task 4.4 BUILDS. A ruling from Guy, asked for at 4.4, never a payload invented and ratified afterwards.",
+    "raised": "2026-08-18",
+    "trigger": "before 4.4 builds, not after"
+  },
+  {
+    "id": "conversation-spec-describes-dead-platforms",
+    "item": "SURVEYED 18 Aug 2026, not rewritten. SCOPE: THE ARCHITECTURE SECTIONS ONLY, being the Base44 seam and the D1 references. Not the doctrine, not the voice, not the registers. conversation-service-spec.md assumes TWO platforms that no longer exist. BASE44, 13 references, structural rather than incidental: section 7 (reads and writes household data through Base44's API; Base44 keeps the CRUD app and the sync pipeline), 14 (the Base44 data access layer), 15 (durable knowledge lives in Base44), 16 (Base44 API token as a secret), 106 to 110 (an entire section titled 'Task zero: the Base44 seam'), 118 (tag creation and membership write to Base44), 180 (MyCFO month awareness gated on build 3, which lives in Base44), 184 (every Plaid sync landing in Base44 fires household-state-changed), 514, 522 and 532. D1, 10 references, as the store for conversation state: sections 15, 36 (thread expiry via a D1 state check), 42 (members as first-class correspondents in D1), 118 (standing instructions), 168 (tombstones), 188 (condition-state memory), 337 (handoff records), 409 (session_offer). The locked stack is Neon Postgres plus Durable Objects, and data-model-spec invariant 8 says in terms 'this is why D1 died'. SECTION 514 IS THE DANGEROUS ONE AND IS CALLED OUT BY NAME. It states that all Base44 writes go through the same validated endpoints the app uses and that the service holds no direct database access. That is the opposite of the current architecture, and CRITICALLY IT READS AS A CONSTRAINT RATHER THAN A DESCRIPTION: someone building M13 would treat it as a security property to preserve and would architect around a rule that no longer applies. The other references read as stale; this one reads as a requirement. M10's channel plumbing touches the D1 assumptions directly, which is why this is owed before PHASE B opens rather than before M10 specifically. NO PLATFORM WORK IS NEEDED ON mycfo-mykeeper-conversational-spec.md. It contains ZERO references to Base44 or D1. The voice, the doctrine, the registers and the advice gate are platform independent and survive intact. RECORDED SO NOBODY RE-SURVEYS IT LATER.",
+    "owner": "Guy",
+    "owed_to": "TRIGGER: M9 completing, so it lands BEFORE M10 opens rather than during it.",
+    "raised": "2026-08-18",
+    "trigger": "M9 completing"
   }
 ]

@@ -72,7 +72,14 @@ export async function encryptToken(plaintext: string, keyMaterial: string): Prom
  *
  * AES-GCM verifies its authentication tag before returning any plaintext, so a
  * wrong key, a tampered ciphertext or a tampered IV all raise rather than
- * yielding garbage. That property is what stops a caller treating rubbish as an
+ * yielding garbage.
+ *
+ * IF YOU ARE ADDING A TEST HERE, READ THIS. "We test with a wrong key" reads as
+ * sufficient and is not. A wrong key can be refused UPSTREAM of authentication,
+ * by importKey's length check above, by the base64 check, by anything that
+ * inspects the key before the ciphertext is touched. That rejection does not
+ * establish the tag was verified, and if the tag were silently unverified the
+ * wrong-key test would still pass. That property is what stops a caller treating rubbish as an
  * access token, and it is asserted by test rather than assumed: the test that
  * proves the tag is checked flips ONE BYTE OF CIPHERTEXT and decrypts with the
  * CORRECT key, which nothing but tag verification rejects. */

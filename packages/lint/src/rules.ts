@@ -112,6 +112,32 @@ export const RULES: Rule[] = [
     pattern: /(?<!["“])\bbudgeting apps\b(?!["”])/gi,
     message: '"budgeting apps" always takes quotation marks.',
   },
+  // THE SINGLE ASSISTANT RULING'S ONE LINT-ENFORCEABLE CLAUSE.
+  //
+  // CLAUDE.md has said since 15 Aug 2026 that "MyCFO" is a banned string in
+  // composed output, "enforced by packages/lint alongside the other banned
+  // constructions". IT WAS NOT. The only rule naming MyCFO was no-ai-on-marks,
+  // which catches "MyCFO AI" and permits bare "MyCFO" everywhere.
+  //
+  // That is worse than an ordinary gap: the constitution told every reader the
+  // check existed, so nobody looked. And it would not have bitten until M10
+  // composed its first message, which is exactly when nobody is re-reading an
+  // August ruling.
+  //
+  // THE CONTEXT IS THE WHOLE RULE. MyCFO remains an internal designation and is
+  // legitimate in routing config, fact packages, instrumentation and the QA
+  // harness. The ban is on what a HOUSEHOLD receives, so this binds to
+  // composed_artifact and not to universal. A universal rule here would be
+  // wrong in the other direction and would train people to suppress it.
+  {
+    id: "no-mycfo-in-composed-output",
+    contexts: ["composed_artifact"],
+    pattern: /\bMyCFO\b/g,
+    message:
+      'MyCFO is an INTERNAL designation and must never reach a household. ' +
+      'MyKeeper is the only named assistant. Legitimate in routing config, fact ' +
+      'packages, instrumentation and the QA harness; never in composed output.',
+  },
   {
     id: "no-ai-on-marks",
     contexts: ["universal"],
