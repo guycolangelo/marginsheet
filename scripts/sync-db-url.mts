@@ -34,6 +34,19 @@ const PROJECT = "fancy-paper-35797264";
 // thing it is checking cannot disagree with it.
 const EXPECTED_TABLES = [
   "account_balance_snapshots",
+  // The tenth, added 18 Aug 2026 for the household-state-changed outbox.
+  //
+  // A LEGITIMATE TENTH RATHER THAN AN EXCEPTION, and the reasoning matters more
+  // than the entry: the sync worker must WRITE the signal, in the same
+  // transaction as the data change it describes. A signal written by anything
+  // else is a signal the sync worker's transaction cannot include, so the row
+  // and the change it announces could commit separately, which is the
+  // atomicity the outbox exists to provide.
+  //
+  // THAT REASONING IS WHAT STOPS AN ELEVENTH TABLE BEING ARGUED IN BY ANALOGY.
+  // The test is not "the pipeline touches it" but "the sync worker's own
+  // transaction must contain the write, or the guarantee is lost".
+  "household_state_signals",
   "commitments",
   "financial_accounts",
   "institutions",
