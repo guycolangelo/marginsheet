@@ -106,9 +106,15 @@ So "persist after every page" is still right, and it is **not sufficient on its 
 - **The in-flight cursor**, persisted after every page, used to resume a crash.
 - **The last-completed-sync cursor**, which is the only cursor guaranteed to still be accepted after a mutation, and the fallback the error message points at.
 
-`TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` is therefore a **normal control-flow branch, not an exception**. Handled as an error it produces a stuck Item that the watchdog sweeps and that fails again the same way.
+#### It is a control-flow branch, not an error, and that distinction is load-bearing
 
-**This is why the spike existed.** Built from the spec, 4.4 would have persisted one cursor, resumed from it, and worked in every quiet test.
+`TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` is a **normal branch of the sync state machine**. It is not an exception, not a failure, and not something to log and re-raise.
+
+**Why the distinction is worth this much space** (ruled 17 Aug 2026): the wrong shape is not merely inelegant, it is a specific bug that somebody writes later while believing they are fixing something. Classified as an error, this becomes an Item parked in `error`, the watchdog sweeps it back to `queued`, and it fails again identically. The obvious remedy for a sync that keeps failing is **a retry**, and a retry of the in-flight cursor is either refused again or, worse, succeeds against a cursor whose position no longer means what the caller thinks it does. **A retry here replays.** That is duplicate transactions in a household's ledger, arriving through a change that looked like reliability work and had a green suite behind it.
+
+So it is written as a branch, its register entry proves the branch, and this paragraph exists so the next person reaching for a retry reads why not.
+
+**This is why the spike existed.** Built from the spec as written, 4.4 would have persisted one cursor, resumed from it, and **passed every quiet test.** It would then have lost or duplicated transactions the first time a webhook landed mid-pagination in production, which is the ordinary case rather than the rare one.
 
 #### What could not be settled, and why
 

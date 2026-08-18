@@ -55,6 +55,16 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 
   The question to add when reading a suite: **what values can this fixture take, and does the failure case exist among them?** A test that can only construct the passing shape is a tautology wearing an assertion's clothes.
 
+- **A flaky fixture is worse than an absent one, and a fixture must be asserted large enough to distinguish passing from failing before anything is measured.** This is the ninth finding's rule, written down because the ninth finding recurred within an hour of the M4 plan naming it, in the spike built to avoid it.
+
+  **The case, because the abstraction alone would not have caught it.** Spike 1c exists to settle whether Plaid's cursor resumes with no gap and no replay. Its first run reported `noGap: true` and `noReplay: true`, and it was comparing **two empty sets**. The helper waited for `/transactions/sync` to stop returning an error rather than waiting for transactions to exist, so a fresh Sandbox Item that had generated nothing yet answered `200` with an empty page and every assertion passed vacuously. The spike was written by someone who had just finished writing the paragraph warning about exactly this, and it still happened, which is the argument for a rule rather than for care.
+
+  So the minimum is asserted **before** anything is measured, and the run aborts rather than reporting on sets too small to tell a pass from a failure. An assertion over an empty set is not weak evidence, it is **zero** evidence wearing a green tick.
+
+  **The flaky half is its own point, and it cuts the other way.** `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` reproduced 3 times out of 5. A test that reddens 60% of the time when the code is correct does not teach people to look, it teaches them to re-run, and that habit is how a **real** red gets ignored. The damage is not the failing run, it is what the suite comes to mean.
+
+  **Absent-with-an-owner beats flaky.** A gap in `docs/open-items.json` is honest, it is visible in CI, and somebody owns closing it. A flaky test is a false claim of coverage that also corrodes every true claim next to it. When a fixture cannot be made deterministic, the branch is split: test our **handler** against a synthesised response and say plainly that Plaid's behaviour is not what was proven.
+
 - **Guard the target, not the action.** A gate that asks "am I allowed to do this" is not a gate on "am I allowed to do this **here**", and the damage is always decided by the second question. The role-rotating test suites were gated by `AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE`, a permission to rotate that never named a place. It was set by hand against the shared dev branch on 16 Aug 2026 and dev's Workers lost their database until the secret was reissued. The operator answering that prompt is answering a question about themselves while the blast radius is a property of the target. **Any destructive operation guarded by permission rather than by place has this hole.**
 
   Two corollaries, both paid for.

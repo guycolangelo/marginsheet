@@ -94,7 +94,9 @@ Every sync completion fires the internal **household-state-changed** signal the 
    Please restart pagination from last update.
    ```
 
-   That is exactly what §3's own "queued if a webhook lands mid-sync" arrow describes, so it is **a normal control-flow branch and not an exception**. Handled as an error it produces a stuck Item that the watchdog sweeps and that fails again identically.
+   That is exactly what §3's own "queued if a webhook lands mid-sync" arrow describes, so it is **a normal control-flow branch and not an exception**.
+
+   **Do not classify it as an error, and do not answer it with a retry.** Handled as an error it parks the Item in `error`, the watchdog sweeps it back to `queued`, and it fails again identically. The obvious remedy for a sync that keeps failing is a retry, and **a retry of the in-flight cursor replays**: duplicate transactions in a household's ledger, arriving through a change that looked like reliability work.
 
    - **The in-flight cursor**, persisted after every page, resumes a crash.
    - **The last-completed-sync cursor**, the only one guaranteed to survive a mutation, is the fallback on that error.
