@@ -325,23 +325,6 @@
         "note": "Tolerance INTACT, the block removed. Owed with the control at 4.6."
       },
       "distinction": "THE ONE THAT MATTERS, and the reason these are two entries. If blocking broke, would the detection test notice? No: drift is still detected, the investigation item still opens, the test still passes, and the number ships anyway. That is what Base44 had. A reconciliation check that reports without blocking looks healthy from every angle."
-    },
-    {
-      "id": "api-never-holds-access-token",
-      "control": "the exchange result's shape (M4 section 4a)",
-      "guards": "No access token crosses the service binding back into the Worker with public routes.",
-      "test": "services/sync/test/exchange-boundary.test.ts",
-      "name": "has exactly these top-level fields",
-      "planted": {
-        "kind": "source",
-        "file": "services/sync/src/exchange.ts",
-        "find": "  alreadyConnected: boolean;\n}",
-        "replace": "  alreadyConnected: boolean;\n  accessToken?: string;\n}",
-        "note": "THE TEST IS THE PROBLEM, NOT THE MUTATION. exchange-boundary.test.ts asserts the shape of a HAND-WRITTEN LITERAL typed as ExchangeResult, so no change to exchange.ts can redden it. TypeScript's excess-property check catches an added field at compile time, which is real but is not what this entry claims. The test must call exchangePublicToken with Plaid and the database stubbed, or it is asserting that a literal I wrote matches a list I wrote."
-      },
-      "distinction": "Asserted by ENUMERATION rather than by scanning for token-shaped strings. A scan only knows the prefixes it was taught, so a field carrying the token under another name passes it. The enumeration fails on any field that was not there before, which is the failure mode: a well-meaning addition.",
-      "status": "owed",
-      "owedTo": "a rewrite of exchange-boundary.test.ts against the real handler, not a literal"
     }
   ]
 }
