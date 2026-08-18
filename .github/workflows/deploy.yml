@@ -134,6 +134,14 @@ jobs:
         working-directory: services/conversation
         run: pnpm exec wrangler deploy --var BUILD_SHA:"${SHA:0:7}"
 
+      # The sync Worker holds TOKEN_ENCRYPTION_KEY and has no public routes
+      # (M4 section 2a). Gated on the migration like the others, because all
+      # three run against one schema.
+      - name: Deploy sync to dev
+        if: always() && steps.migrate.outcome == 'success'
+        working-directory: services/sync
+        run: pnpm exec wrangler deploy --var BUILD_SHA:"${SHA:0:7}"
+
       # always(), not success(). See the WHAT GREEN MEANS note at the top.
       - name: Verify dev serves this commit against this schema
         if: always()
@@ -181,6 +189,14 @@ jobs:
       - name: Deploy conversation to staging
         if: always() && steps.migrate.outcome == 'success'
         working-directory: services/conversation
+        run: pnpm exec wrangler deploy --env staging --var BUILD_SHA:"${SHA:0:7}"
+
+      # The sync Worker holds TOKEN_ENCRYPTION_KEY and has no public routes
+      # (M4 section 2a). Gated on the migration like the others, because all
+      # three run against one schema.
+      - name: Deploy sync to staging
+        if: always() && steps.migrate.outcome == 'success'
+        working-directory: services/sync
         run: pnpm exec wrangler deploy --env staging --var BUILD_SHA:"${SHA:0:7}"
 
       - name: Deploy Pages
@@ -275,6 +291,14 @@ jobs:
       - name: Deploy conversation to production
         if: always() && steps.migrate.outcome == 'success'
         working-directory: services/conversation
+        run: pnpm exec wrangler deploy --env production --var BUILD_SHA:"${SHA:0:7}"
+
+      # The sync Worker holds TOKEN_ENCRYPTION_KEY and has no public routes
+      # (M4 section 2a). Gated on the migration like the others, because all
+      # three run against one schema.
+      - name: Deploy sync to production
+        if: always() && steps.migrate.outcome == 'success'
+        working-directory: services/sync
         run: pnpm exec wrangler deploy --env production --var BUILD_SHA:"${SHA:0:7}"
 
       # always(), not success(). See the WHAT GREEN MEANS note at the top. This

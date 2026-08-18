@@ -32,7 +32,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
-      - run: pnpm --filter @marginsheet/api --filter @marginsheet/conversation --filter @marginsheet/fact-packages test
+      - run: pnpm --filter @marginsheet/api --filter @marginsheet/conversation --filter @marginsheet/fact-packages --filter @marginsheet/sync test
 
   golden:
     runs-on: ubuntu-latest

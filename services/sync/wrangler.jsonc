@@ -1,0 +1,41 @@
+// marginsheet-sync. Top level is dev; staging and production are named envs.
+//
+// THE DEPLOYABLE WITH NO PUBLIC ROUTES. M4 section 2a ruled a third Worker so
+// the Plaid token's decryption key lives somewhere no household request can
+// reach. There is deliberately no "routes" and no custom domain in any
+// environment: reachable only over a service binding from api, and by Cron and
+// Queues later. A route added here would undo the ruling, which is why its
+// absence is asserted by a test rather than left to review.
+//
+// It authenticates as marginsheet_sync, narrowed in migration 0023 to nine
+// tables. Its credential comes from scripts/sync-db-url.mts, which refuses to
+// mint one for a role wider than that.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "marginsheet-sync-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "dev",
+    "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
+  },
+  "env": {
+    "staging": {
+      "name": "marginsheet-sync-staging",
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
+      }
+    },
+    "production": {
+      "name": "marginsheet-sync",
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {
+        "ENVIRONMENT": "production",
+        "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
+      }
+    }
+  }
+}
