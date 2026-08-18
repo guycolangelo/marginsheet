@@ -141,6 +141,12 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 
   So a finding gets **two** sentences before it gets a trigger: what it is, and what happens if nobody does anything. If the second sentence describes something already true in production, the trigger is not a module boundary.
 
+  **And the trigger itself has a validity rule, which cost three corrections in one day to learn.** A module completing is a statement about **our work**, and says nothing about whether the thing it gates can happen. So **a module number is only a valid trigger for something we control.** Anything gated on a third party, a queue, a clearance or a person outside the project needs a trigger tied to **that thing clearing**.
+
+  The instance that made it obvious: `recovery-twilio-credentials` was triggered on "3.3". 3.3 shipped, so the item read as resolved. It was not: 3.3 built a path that has never run and cannot until A2P 10DLC clears, which is a date nobody here sets. **A module number reading as a date is how a blocked thing looks finished**, and the reader has no way to tell the difference, because the trigger looks satisfied.
+
+  The other two the same day: the canon revision was triggered on a module and belongs to the design track completing, and the service-spec revision was triggered on "before M10" and belongs to M9 finishing. Three in one day is a rule rather than three fixes.
+
 - **Two hand-written statements of one requirement drift by default, and the fix is to make one derive from the other rather than to keep them agreeing.** Not a check reading its expectation from its subject, which is the rule above. This is one author writing the same fact twice, hours apart, both times correctly.
 
   `config/worker-secrets.json` declared `sync/production` as two secrets, which was right, because production Plaid credentials are deferred to task 4.5b. `REQUIRED_SECRETS` in the sync Worker demanded four in every environment, which was also right when written, because dev and staging hold four. Neither was wrong. **They were just two**, and the deploy that first exercised both failed.
