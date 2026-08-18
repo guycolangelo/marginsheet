@@ -20,7 +20,27 @@ export interface Env {
   BUILD_SHA?: string;
   NEON_DATABASE_URL?: string;
   TOKEN_ENCRYPTION_KEY?: string;
+  PLAID_CLIENT_ID?: string;
+  PLAID_SECRET?: string;
 }
+
+// THE SECRETS THIS WORKER MUST HOLD, AND MUST HOLD NON-EMPTY.
+//
+// WHY THE WORKER REPORTS THIS AND NOT THE INVENTORY. `wrangler secret list`
+// returns {name, type} and NEVER a value or a length, so secret-inventory can
+// only prove a name exists. A secret set to the empty string passes it
+// perfectly, which is exactly the 15 Aug 2026 incident: six connection-string
+// secrets held the empty string, every environment reported healthy, and
+// nothing was asking.
+//
+// The Worker is the only thing that can see the value, so the Worker answers.
+// Booleans only; no length, no prefix, no part of any value.
+const REQUIRED_SECRETS = [
+  "NEON_DATABASE_URL",
+  "TOKEN_ENCRYPTION_KEY",
+  "PLAID_CLIENT_ID",
+  "PLAID_SECRET",
+] as const;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -36,11 +56,17 @@ export default {
             length: env.NEON_DATABASE_URL?.length ?? 0,
           };
 
-      // The key's PRESENCE is reported and no part of its value ever is. This
-      // is deliberately not called proof that the key works: nothing is
-      // encrypted yet, so there is nothing to decrypt. That half is owed at
-      // 4.2.2 and is recorded as owed rather than assumed.
-      const tokenKeyPresent = Boolean(env.TOKEN_ENCRYPTION_KEY?.length);
+      // NON-EMPTY, not merely present. Three different claims, and this is the
+      // second: (1) the name exists, which secret-inventory proves from
+      // wrangler; (2) the value is not empty, which only the Worker can see and
+      // which is reported here; (3) the value WORKS, which needs a real call.
+      // TOKEN_ENCRYPTION_KEY reaches (3) at /debug/crypto-selftest and
+      // NEON_DATABASE_URL reaches it through database.ok. The Plaid pair stops
+      // at (2) until 4.3.2 makes a real exchange.
+      const secrets = Object.fromEntries(
+        REQUIRED_SECRETS.map((name) => [name, Boolean(env[name]?.length)])
+      ) as Record<(typeof REQUIRED_SECRETS)[number], boolean>;
+      const allPresent = Object.values(secrets).every(Boolean);
 
       return Response.json(
         {
@@ -48,9 +74,11 @@ export default {
           environment: env.ENVIRONMENT,
           build: env.BUILD_SHA ?? "unknown",
           database,
-          tokenKeyPresent,
+          // Kept for the existing deploy check rather than renamed under it.
+          tokenKeyPresent: secrets.TOKEN_ENCRYPTION_KEY,
+          secrets,
         },
-        { status: database.ok && tokenKeyPresent ? 200 : 503 }
+        { status: database.ok && allPresent ? 200 : 503 }
       );
     }
 

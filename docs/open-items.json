@@ -185,5 +185,13 @@
     "trigger": "the first real 429 observed from Plaid, in any environment",
     "owed_to": "TRIGGER: the first real 429 observed from Plaid. Capture the body then; do not synthesise one before.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "secret-nonempty-unchecked-on-api-conversation",
+    "item": "FOUND 18 Aug 2026 by asking whether secret-inventory proves a value is non-empty. IT DOES NOT, and cannot: wrangler secret list returns {name, type} and never a value, so a secret set to the empty string passes it perfectly. That is the 15 Aug incident's exact shape. marginsheet-sync now reports non-emptiness for all four of its secrets from its own /health, where the Worker is the only thing that can see the value, and verify-deploy asserts it. api AND conversation DO NOT. Their NEON_DATABASE_URL reaches the stronger claim through database.ok, but BETTER_AUTH_SECRET, BETTER_AUTH_URL, AUTH_FROM_EMAIL, POSTMARK_TOKEN and STRIPE_SECRET are verified only as names. An empty BETTER_AUTH_SECRET on production api is the worst case: session signing with an empty key, passing every check we have. The fix is the same shape sync already carries, a secrets block in /health reporting booleans and nothing else.",
+    "owner": "build",
+    "trigger": "before M7 touches Stripe or M13 touches Postmark, whichever comes first",
+    "owed_to": "TRIGGER: before M7 (Stripe) or M13 (Postmark), whichever is first. The api/production case is the sharpest and is not gated on either.",
+    "raised": "2026-08-18"
   }
 ]
