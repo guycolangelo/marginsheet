@@ -3,6 +3,7 @@
 import * as Sentry from "@sentry/cloudflare";
 import { scrubEvent } from "@marginsheet/shared/sentry-scrub";
 import { readDbIdentity, readSchemaHealth } from "@marginsheet/shared/db";
+import { secretPresence } from "@marginsheet/shared/required-secrets";
 
 interface Env {
   ENVIRONMENT: "dev" | "staging" | "production";
@@ -46,14 +47,22 @@ const handler = {
         ? await readSchemaHealth(env.NEON_DATABASE_URL)
         : unusableUrl(env);
 
+      // NON-EMPTY, not merely present. secret-inventory can only prove a NAME
+      // exists, because wrangler never returns a value. An empty
+      // BETTER_AUTH_SECRET means sessions signed with an empty key, and every
+      // other check we have reports green while that is true.
+      const secrets = secretPresence("conversation", env.ENVIRONMENT, env as unknown as Record<string, unknown>);
+      const allPresent = Object.values(secrets).every(Boolean);
+
       return Response.json(
         {
           service: SERVICE,
           environment: env.ENVIRONMENT,
           build: env.BUILD_SHA ?? "unknown",
           database,
+          secrets,
         },
-        { status: database.ok ? 200 : 503 }
+        { status: database.ok && allPresent ? 200 : 503 }
       );
     }
 

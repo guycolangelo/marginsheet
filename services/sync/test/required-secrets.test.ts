@@ -18,10 +18,20 @@ describe("the declaration is the single statement of what sync must hold", () =>
     const source = readFileSync(join(import.meta.dirname, "..", "src", "index.ts"), "utf8");
     // A second list would drift from the declaration exactly as the first one
     // did. The import is what makes drift impossible rather than unlikely.
+    // Either directly, or through the shared helper that does it. What is
+    // forbidden is a SECOND LIST OF NAMES, however it is spelled. The helper
+    // moved to @marginsheet/shared when a third Worker needed it, and this
+    // assertion followed rather than being deleted.
+    const derives =
+      source.includes('from "../../../config/worker-secrets.json"') ||
+      source.includes('from "@marginsheet/shared/required-secrets"');
+    expect(derives, "index.ts no longer derives its required secrets from the declaration").toBe(true);
+
+    // And no hand-written list of secret names has crept back in.
     expect(
-      source.includes('from "../../../config/worker-secrets.json"'),
-      "index.ts no longer derives its required secrets from the declaration"
-    ).toBe(true);
+      /const\s+REQUIRED_SECRETS\s*=\s*\[/.test(source),
+      "index.ts hand-writes a secret list again; that is the drift this test exists to stop"
+    ).toBe(false);
   });
 
   it("production legitimately declares fewer secrets than dev", () => {

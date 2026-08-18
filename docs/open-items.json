@@ -187,14 +187,6 @@
     "raised": "2026-08-18"
   },
   {
-    "id": "secret-nonempty-unchecked-on-api-conversation",
-    "item": "FOUND 18 Aug 2026 by asking whether secret-inventory proves a value is non-empty. IT DOES NOT, and cannot: wrangler secret list returns {name, type} and never a value, so a secret set to the empty string passes it perfectly. That is the 15 Aug incident's exact shape. marginsheet-sync now reports non-emptiness for all four of its secrets from its own /health, where the Worker is the only thing that can see the value, and verify-deploy asserts it. api AND conversation DO NOT. Their NEON_DATABASE_URL reaches the stronger claim through database.ok, but BETTER_AUTH_SECRET, BETTER_AUTH_URL, AUTH_FROM_EMAIL, POSTMARK_TOKEN and STRIPE_SECRET are verified only as names. MOVED UP 18 Aug 2026 (Guy) from a trigger behind M7 or M13. AN EMPTY BETTER_AUTH_SECRET ON PRODUCTION api MEANS FORGEABLE SESSIONS, and every check we have reports green while it is true. That is a worse failure than the Plaid case that prompted the question, and it is LIVE NOW rather than pending a module. Two module boundaries is the wrong place to leave it. Its own small task after 4.3.2, folded into nothing: the same secrets block extended to api and conversation, deploy verification requiring every one true, and a missing block failing rather than passing.",
-    "owner": "build",
-    "trigger": "immediately after M4 task 4.3.2, as its own task",
-    "owed_to": "TRIGGER: immediately after 4.3.2, as its OWN task and folded into nothing.",
-    "raised": "2026-08-18"
-  },
-  {
     "id": "exchange-boundary-test-is-vacuous",
     "item": "services/sync/test/exchange-boundary.test.ts asserts the shape of a HAND-WRITTEN LITERAL typed as ExchangeResult. No change to exchange.ts can redden it, so it proves that a literal I wrote matches a list I wrote. Found 18 Aug 2026 by running the planted-failure harness after fixing it to resolve the owning package: the mutation applied, took effect, and the test stayed green. TypeScript's excess-property check does catch a field added to the literal at compile time, which is real coverage and is NOT the claim the test makes. The register entry was REMOVED rather than marked owed, because the owed check correctly refuses a status of owed on a test that exists, and because absent-with-an-owner beats a false claim of coverage. The rewrite calls exchangePublicToken with Plaid and postgres stubbed and asserts on what the function actually returns; the entry goes back when it can go red.",
     "owner": "build",
