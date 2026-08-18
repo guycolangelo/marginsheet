@@ -76,7 +76,7 @@ describe("a failed Plaid call leaks neither the token nor the secret", () => {
     vi.stubGlobal("fetch", async () =>
       new Response(JSON.stringify(REAL_ERROR_BODY), { status: 400 })
     );
-    const error: PlaidError = await callPlaid("/x", creds, { access_token: TOKEN }).catch((e) => e);
+    const error = (await callPlaid("/x", creds, { access_token: TOKEN }).catch((e) => e)) as PlaidError;
     expect(error.errorCode).toBe("ITEM_LOGIN_REQUIRED");
     expect(error.errorType).toBe("ITEM_ERROR");
     expect(error.requestId).toBe("709d87607a2f4c0");
@@ -87,7 +87,7 @@ describe("a failed Plaid call leaks neither the token nor the secret", () => {
     vi.stubGlobal("fetch", async () =>
       new Response(JSON.stringify(REAL_ERROR_BODY), { status: 400 })
     );
-    const error: PlaidError = await callPlaid("/x", creds, { access_token: TOKEN }).catch((e) => e);
+    const error = (await callPlaid("/x", creds, { access_token: TOKEN }).catch((e) => e)) as PlaidError;
     expect(Object.keys(error.toJSON()).sort()).toEqual([
       "endpoint", "errorCode", "errorType", "name", "requestId", "status",
     ]);
