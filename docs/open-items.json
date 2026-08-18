@@ -99,9 +99,9 @@
   },
   {
     "id": "pending-to-posted-unexercised",
-    "item": "THE ONE TRACKED LOUDEST (Guy, 17 Aug 2026). Pending to posted is NOT an error path. It is the normal daily behaviour of every card transaction in the product, and categorization-spec section 10 turns on it. Plaid Sandbox cannot construct it: zero pending transactions across 48 default-user rows and across every user_custom shape tried, so no CI fixture can express the transition. M4 tests the transition against a hand-built fixture of our own rows, which proves our filing and reconciliation logic and DOES NOT prove Plaid's shape is what we assumed. Those are two different claims and only the first is made. THE SECOND CAN ONLY BE PROVEN IN ONE PLACE: invariant 9, against the founder household's real institutions. A silent double-count on this transition reaches a household's Kept figure before anyone sees it.",
+    "item": "THE ONE TRACKED LOUDEST (Guy, 17 Aug 2026). Pending to posted is NOT an error path. It is the normal daily behaviour of every card transaction in the product, and categorization-spec section 10 turns on it. Plaid Sandbox cannot construct it: zero pending transactions across 48 default-user rows and across every user_custom shape tried, so no CI fixture can express the transition. M4 tests the transition against a hand-built fixture of our own rows, which proves our filing and reconciliation logic and DOES NOT prove Plaid's shape is what we assumed. Those are two different claims and only the first is made. THE SECOND CAN ONLY BE PROVEN IN ONE PLACE: invariant 9, against the founder household's real institutions. A silent double-count on this transition reaches a household's Kept figure before anyone sees it. RESEQUENCED 17 Aug 2026: the founder household's real institutions connect at 4.5b, EARLY in M4, rather than at the end. Finding that our filing logic mishandles a settling transaction in week one of M4 is a fix; finding it at invariant 9 with the module otherwise done is a rewrite. Connecting early exercises section 10 during the build and does NOT discharge invariant 9, which still needs a full backfill across every founder institution as M9's precondition.",
     "owner": "Guy",
-    "owed_to": "invariant 9, against the founder household's real institutions",
+    "owed_to": "4.5b for the real settling transaction, invariant 9 at M9 for the full backfill",
     "raised": "2026-08-17"
   },
   {
@@ -123,6 +123,20 @@
     "item": "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION is real and cannot be produced on demand. Plaid refuses a mid-pagination cursor when the underlying data changes, which is what a webhook landing mid-sync does, so the pipeline persists TWO cursors: the in-flight one for a crash, and the last-completed-sync one as the fallback on that error. Reproduced 3 times out of 5 against freshly created Sandbox Items still generating transactions, which is flaky and therefore not a fixture. M4 tests the HANDLER against a synthesised 400 and does not claim to have proven Plaid's behaviour; the live observation is the evidence for the branch existing.",
     "owner": "build",
     "owed_to": "M4 for the handler test, invariant 9 at M9 for the live behaviour",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "production-plaid-credentials",
+    "item": "Production Plaid credentials are needed at task 4.5b, EARLIER than the deferral ledger's usual shape, because that is when the founder household's real institutions connect. Sandbox is green first for what Sandbox can prove (4.1 through 4.5), then the real connection, then 4.6 through 4.9 are built with a real settling transaction available. Blocking: without these, section 10 of the categorization spec is exercised nowhere at all.",
+    "owner": "Guy",
+    "owed_to": "M4 task 4.5b",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "token-encryption-key-on-wrong-worker",
+    "item": "TOKEN_ENCRYPTION_KEY is currently a secret on the api Worker, which is the deployable the third-Worker ruling exists to keep it out of. M4 section 2a ruled a separate marginsheet-sync Worker precisely so the token-reading surface has no public routes; a key on the deployable that serves household requests makes the role split cosmetic. 4.2 sets it on marginsheet-sync AND REMOVES IT FROM api. The removal is the half that is easy to skip, and a key merely also present elsewhere is not a boundary.",
+    "owner": "build",
+    "owed_to": "M4 task 4.2",
     "raised": "2026-08-17"
   }
 ]

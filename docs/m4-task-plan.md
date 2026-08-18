@@ -1,6 +1,35 @@
 # M4, The Plaid Pipeline
-## Drafted for Guy's approval, 17 August 2026. Nothing executes until approved.
+## APPROVED 17 August 2026. Tasks 4.1 through 4.9, as drafted, with the spike findings folded in.
 ## Governing doc: `plaid-pipeline-spec.md`. Schema from M1 migration 0002. Token custody from `data-model-spec` §2.
+
+---
+
+## The approval, and what it approved
+
+**4.1 through 4.9 as drafted**, carrying the four spike findings:
+
+1. **The grant narrows to eight tables**, enumerated rather than granted-and-subtracted, with a negative control attempting three forbidden tables from different sections of the schema.
+2. **The chain lock**, whose planted failure removes the lock and leaves the object, because a mutation that deletes the Durable Object reddens the test and proves nothing.
+3. **Two cursors**, with `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` treated as control flow and never as an error.
+4. **Invariants 2 and 8 claiming only what the spikes proved.**
+
+### The sequencing instruction that sits on top of the plan (Guy, 17 Aug 2026)
+
+**Connect the founder household's real institutions EARLY in M4, not at the end.**
+
+The plan as drafted put real institutions at invariant 9, which is M9, and that ordering was wrong for one specific reason. **Pending to posted is unconstructible in Sandbox and it is the normal daily behaviour of every card transaction.** Categorization-spec §10 turns on it. So real banks are not the final validation of M4, they are the **only place §10 is exercised at all**.
+
+The argument in Guy's words, recorded because it is the reason and not a preference: *finding that our filing logic mishandles a settling transaction in week one of M4 is a fix; finding it at invariant 9 with the module otherwise done is a rewrite.*
+
+**This amends ruling 2b.** Production Plaid credentials land **earlier** than the Postmark-style sequence implied. The revised order:
+
+1. **Sandbox green for what Sandbox can prove.** `ITEM_LOGIN_REQUIRED`, cursor resume in the quiet case, exchange idempotency, the DO lock, `provider_events`. That is 4.1 through 4.5.
+2. **Then the real connection**, on the founder household's own institutions, Capital One included.
+3. **Then the rest of the module built against both**, so 4.6 through 4.9 are written while a real settling transaction is available to test against.
+
+The Postmark reasoning still holds and is not being discarded: **a live credential against an unproven path is the wrong order.** What changed is where "unproven" ends. The path is proven far enough at the end of 4.5 to carry a real Item, and waiting past that point buys nothing while costing the only signal Sandbox cannot give.
+
+**What this does not change.** Invariant 9 stays owed: a full backfill and incremental sync across every founder institution, as M9's precondition. Connecting early exercises §10 during the build. It does not discharge the invariant.
 
 ---
 
@@ -183,9 +212,11 @@ The spec says *"decrypted only inside the sync worker"*, and there is no sync wo
 
 Guy's addition, which is the stronger half of the reasoning: **it makes the token-reading surface a deployable with no public routes at all.** That is a better boundary than a code path inside one that has them, because it cannot be reached by a request that takes a wrong turn.
 
-### 2b. Production Plaid credentials: Sandbox green, then paste, then one real connection (RULED)
+### 2b. Production Plaid credentials: Sandbox green, then paste, then one real connection (RULED, THEN RESEQUENCED)
 
 The same sequence as Postmark, for the same reason: **a live credential against an unproven path is the wrong order.**
+
+**Resequenced 17 Aug 2026: the real connection happens after 4.5, not at the end of the module.** Sandbox cannot construct pending to posted, so the founder household's real institutions are the only place categorization-spec §10 is ever exercised, and discovering a mishandled settling transaction with M4 otherwise finished is a rewrite rather than a fix. See the approval block at the top of this plan for the full ordering.
 
 ---
 
@@ -232,6 +263,7 @@ Applying the register's own test to the pair: if blocking broke, would the detec
 - **4.3** Link and exchange, with zombie prevention and reconnect.
 - **4.4** `/transactions/sync` with **two** persisted cursors (in-flight, and last-completed-sync) and the coordination state machine. `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` is handled as a control-flow branch that falls back to the last-completed cursor, never as an error that parks the Item.
 - **4.5** The DO's promise-chain lock and the webhook path through `provider_events`. Tested over HTTP against `wrangler dev`, with the collision constructed rather than hoped for.
+- **4.5b** **The founder household's real institutions connect here**, on production credentials, Capital One included. This is not a validation step at the end of the module, it is the point at which pending to posted becomes observable at all. Everything after this is built with a real settling transaction available to test against.
 - **4.6** Balances, snapshots, and the reconciliation invariant that blocks.
 - **4.7** Recurring → `commitments` at `plaid_recurring` authority.
 - **4.8** Item lifecycle: removal verified at Plaid, resync, and the no-Item-survives-cancellation rule.
@@ -241,7 +273,7 @@ Applying the register's own test to the pair: if blocking broke, would the detec
 
 ## 5. What M4 will not cover, stated now
 
-- **Invariant 9 cannot be met in M4.** The founder household's real institutions completing a full backfill is gated on production credentials and on Guy's own banks, and it is the M9 migration's precondition. It stays an open item with M9 as owner.
+- **Invariant 9 is not DISCHARGED in M4, but it is no longer untouched.** Real institutions now connect at 4.5b rather than at the end, because pending to posted is unconstructible in Sandbox and §10 needs somewhere to be exercised. What that buys is a real settling transaction to build 4.6 through 4.9 against. What it does not buy is the invariant: a full backfill and incremental sync across **every** founder institution, as M9's migration precondition, stays owed with M9 as owner.
 - **Categorization is M5.** M4 delivers transactions with `pending`/`posted` semantics and the removed stream; what they mean is the next module's.
 - **The Cash Flow engine is M6b.** M4 produces balance snapshots and the `as_of` those depend on, and computes nothing from them.
 - **Reauth nudges stay an app banner.** Spec §8 open item 1: whether it earns a message class is a canon decision, not M4's.
