@@ -71,7 +71,22 @@ Production Plaid credentials are Guy's paste session at 4.5b and land on **sync 
   **WHAT A GREEN 4.3.2 DOES NOT MEAN, stated before it is built rather than after it passes.** Sandbox mints a `public_token` through `/sandbox/public_token/create` with no browser involved, so the handler path is fully testable in CI. **Link itself is not.** The test follows the artifact as far as the token, which is where the household's journey reaches our code, and **Link's own behaviour is unproven until M8**: the accordion, the sequencing of institutions, the Capital One parameter handling, what a household actually sees when a bank is slow or refuses.
 
   A green 4.3.2 means the exchange works when handed a valid public token. It does not mean the connect flow works end to end, and it must not be read that way in any status report. This is the journey rule at its boundary: a journey test starts where the household starts, and the household starts in Link, which does not exist yet.
-- **4.3.3** Zombie prevention: idempotent per Item, proven by attempting a re-fire.
+- **4.3.3** Zombie prevention. **SPIKED 18 Aug 2026 BEFORE BUILDING, and the result moves the target.**
+
+  **Plaid is already idempotent on the public token.** Exchanging the same `public_token` twice returns the SAME `item_id` and the SAME `access_token`, and `/item/get` on both confirms one Item. So the re-fire attempt the spec describes cannot create a duplicate at Plaid, because Plaid will not.
+
+  **A second Link SESSION at the same institution creates a genuinely distinct Item.** Confirmed: different `item_id`. That is Guy's ruling holding at Plaid rather than only in our model, and it is the thing that makes this hard.
+
+  **So the billable zombie is not a re-fired exchange. It is a household that completes Link TWICE**, producing two different public tokens, two different Items, and two bills for one login. Exchange idempotency cannot prevent that, because the two exchanges are legitimately different from Plaid's side.
+
+  And it cannot be prevented by refusing a second Item at a known institution, because **that is exactly the two-logins case Guy ruled legitimate.** A personal and a business login at one bank are two Items and must both survive.
+
+  **THE DESIGN QUESTION THIS OPENS IS OWED A RULING** and is not inferred here: what distinguishes a household connecting a second login from a household connecting the same login twice? Both produce a new Item at the same institution. Candidate signals and their costs are below; none is obviously right.
+
+  What 4.3.3 builds regardless, because it is correct under any answer:
+  - the re-fire attempt, asserted against `/item/get` rather than our table, proving OUR handler writes one row when Plaid returns one Item
+  - the unique index on `item_id` already refusing a second row by construction
+  - the two-logins case, both Items surviving independently
 - **4.3.4** Reconnect in update mode, reusing the Item, `needs_reauth` cleared on success.
 - **4.3.5** Institution upsert and account creation, with the Capital One parameter note carried from the port.
 - **4.3.6** Register entries and planted failures.
@@ -99,6 +114,24 @@ The third is worth its own entry because it is the §4a boundary and nothing els
 - **Invariant 6, item removal**, is 4.8.
 
 ---
+
+## 6a. OWED: what tells a second login from the same login connected twice
+
+Both produce a new Item at the same institution, and the spike proves Plaid treats them identically. Three candidate signals, none free:
+
+| Signal | Catches the duplicate | Cost |
+|---|---|---|
+| Overlapping account masks and names | Most real cases: the same chequing account appears twice | Two logins at one bank CAN legitimately share nothing, and joint accounts can legitimately appear under two logins |
+| Asking the household at connect time | Exact, and honest | A question in the connect flow, which is M8's surface and not M4's |
+| Nothing: allow it, detect later | No false refusals | The bill arrives first, which is the failure this task exists to prevent |
+
+**RULED 18 Aug 2026: allow it, detect the overlap, act on neither in M4.**
+
+**The deciding argument is which error is recoverable.** A false refusal blocks a household from connecting their own business account and **there is no path around it**: they cannot make the product accept a legitimate second login. A duplicate costs a few dollars a month and is fixable the moment anyone notices. The failure modes are asymmetric, so **the control fails toward permitting.**
+
+**Account-mask overlap is a signal, not a rule.** Two Items sharing every mask is almost certainly one login connected twice; two sharing none is almost certainly two logins. **The middle is genuinely ambiguous, and that is exactly where a rule would be wrong.** M4 stores the overlap and surfaces it as an internal item for a human to read.
+
+Asking the household is the honest long answer and belongs to M8, **asked only when the overlap is ambiguous.** Asking every household to explain their own bank accounts is the setup cliff the product refuses.
 
 ## 7. RULED: two Items, and reconnect keys on the Item
 

@@ -185,5 +185,21 @@
     "trigger": "the first real 429 observed from Plaid, in any environment",
     "owed_to": "TRIGGER: the first real 429 observed from Plaid. Capture the body then; do not synthesise one before.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "account-overlap-recorded-not-acted-on",
+    "item": "RULED 18 Aug 2026. A household completing Link twice produces two Items at one institution and two bills, and so does a household connecting a legitimate second login. Nothing distinguishes them from Plaid's side. THE CONTROL FAILS TOWARD PERMITTING, on which error is recoverable: a false refusal blocks a household from connecting their own business account with NO PATH AROUND IT, and a duplicate costs a few dollars a month and is fixable the moment anyone notices. Asymmetric, so allow. ACCOUNT-MASK OVERLAP IS A SIGNAL, NOT A RULE: two Items sharing every mask is almost certainly one login connected twice, two sharing none is almost certainly two logins, and the middle is genuinely ambiguous which is exactly where a rule would be wrong. M4 stores the overlap and surfaces it as an internal item for a human to read, and acts on it nowhere.",
+    "owner": "build",
+    "trigger": "when insight_ledger is first written, at 4.6",
+    "owed_to": "TRIGGER: 4.6, when insight_ledger is first written and there is somewhere to put an internal item.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "ask-at-connect-when-overlap-ambiguous",
+    "item": "The honest long answer to distinguishing a second login from a double connect is ASKING THE HOUSEHOLD, and it belongs in M8 where Link's flow lives. WITH ONE CONSTRAINT THAT IS THE WHOLE POINT (Guy, 18 Aug 2026): the question is only worth asking when the overlap signal is AMBIGUOUS. Two Items sharing every account mask, or sharing none, need no question. Asking every household to explain their own bank accounts is the setup cliff the product refuses, and a question asked always is a question that teaches people to dismiss it.",
+    "owner": "Guy (Design) and M8",
+    "trigger": "M8's Link surface",
+    "owed_to": "TRIGGER: M8's Link surface. Asked ONLY on an ambiguous overlap, never by default.",
+    "raised": "2026-08-18"
   }
 ]
