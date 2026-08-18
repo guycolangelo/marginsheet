@@ -404,6 +404,21 @@
         "note": "RETRIES THE REFUSED CURSOR, which is the change a well-meaning person makes: the sync failed, so retry it. Verified 18 Aug 2026, exactly one test reddens and it is the one naming the replay. The loop still terminates, still completes, still reports sensible counts. Nothing else notices, which is the criterion for its own entry."
       },
       "distinction": "The failure this guards is not a crash. Retrying the in-flight cursor SUCCEEDS and produces duplicate transactions in a household's ledger, arriving through a change that looked like reliability work and had a green suite behind it. Tested against a SYNTHESISED 400: the real error reproduced 3 times in 5 against Sandbox, which is flaky and therefore not a fixture, so this proves our handler takes the right branch and does not claim to have proven Plaid's behaviour."
+    },
+    {
+      "id": "watchdog-measures-progress",
+      "control": "the watchdog's staleness threshold (M4 task 4.4.3)",
+      "guards": "A long backfill making steady progress is not swept as stuck.",
+      "test": "services/sync/test/watchdog-threshold.test.ts",
+      "name": "does NOT sweep a four-hour backfill that wrote a cursor a minute ago",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/sync-state.ts",
+        "find": "    const sinceProgress = now.getTime() - state.lastCursorAt.getTime();",
+        "replace": "    const sinceProgress = now.getTime() - (state.syncStartedAt ?? state.lastCursorAt).getTime();",
+        "note": "MEASURES FROM SYNC START, which is the implementation somebody naturally writes: the question sounds like 'has this been running too long'. Verified 18 Aug 2026, three tests redden including BOTH DIRECTIONS, the healthy long backfill and the recently-started dead sync."
+      },
+      "distinction": "The fixture's failure case is a HEALTHY long backfill, and it has to exist among the values the fixture can take or nothing is proven: a suite whose syncs all start recently cannot distinguish measuring from progress from measuring from start, because both answer the same for a short sync. The damage is also not a crash. Measured from start, a large first backfill is swept mid-flight, set back to queued, restarted and swept again, so an Item working perfectly NEVER FINISHES while every status looks busy."
     }
   ]
 }
