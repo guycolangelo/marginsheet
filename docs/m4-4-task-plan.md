@@ -73,7 +73,18 @@ The signal is written to an outbox table inside the sync transaction. A queue me
 - **4.4.3** The coordination state machine and the watchdog, threshold measured from cursor persistence.
 - **4.4.4** Added, modified and removed streams; `first_sync_completed_at`.
 - **4.4.5** The enqueue, the sweep for unclaimed rows, and the payload enumerations.
-- **4.4.6** Register entries, written alongside each control rather than collected.
+- **4.4.6** Register entries. **CLOSED BY INSPECTION, 18 Aug 2026, because they were written alongside each control.** Six entries, all built and all verified through the harness:
+
+  | Entry | What its mutation breaks |
+  |---|---|
+  | `mutation-branch-does-not-replay` | retries the refused cursor, which replays |
+  | `watchdog-measures-progress` | measures from sync start, sweeping healthy backfills |
+  | `removed-flags-never-deletes` | deletes instead of flagging |
+  | `first-sync-milestone-set-once` | drops the IS NULL guard, re-arming the intro |
+  | `sweep-is-blind-to-unannounced-rows` | drops the enqueued_at clause, making it a poller |
+  | `counter-sees-unannounced-rows` | inverts it, so its silence means nothing |
+
+  **This is the second module where 4.x.6 shrank to nothing**, and that is the rule working rather than a task being skipped. A batch of mutations at the end is written by somebody reconstructing what the break should be, and **the direction of the break is the part that needs the context the author still has.** Four fixture defects this week were caught by planting at the moment the test was written; none was caught by review.
 
 ---
 
