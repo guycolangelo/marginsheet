@@ -183,7 +183,7 @@ Behind that name the two brains remain architecturally separate:
 
 They keep separate system prompts, separate jurisdictions, separate golden tests, and **the advice gate stays enforced on advisory output exactly as specified**. MyKeeper routes to the right brain, sometimes both, and answers as one.
 
-**MyCFO becomes an INTERNAL DESIGNATION ONLY.** It may appear in fact packages, routing config, instrumentation, and the QA harness. It must never appear in any household-facing surface, message, email, or marketing. "MyCFO" is a banned string in composed output, enforced by `packages/lint` alongside the other banned constructions.
+**MyCFO becomes an INTERNAL DESIGNATION ONLY.** It may appear in fact packages, routing config, instrumentation, and the QA harness. It must never appear in any household-facing surface, message, email, or marketing. "MyCFO" is a banned string in composed output, enforced by `packages/lint` as `no-mycfo-in-composed-output`, bound to the `composed_artifact` context with a fixture pair. **That sentence was here from 15 Aug 2026 and was false until 18 Aug**: the only rule naming MyCFO caught "MyCFO AI" and permitted bare "MyCFO" everywhere. Worse than an ordinary gap, because the constitution told every reader the check existed and so nobody looked, and it would not have bitten until M10 composed its first message. The context binding is the whole rule: MyCFO stays legitimate in routing config, fact packages, instrumentation and the QA harness.
 
 Consequences:
 1. The conversational spec's two registers become two MODES of one voice. That is a canon revision, not a rename, and it is **owed to Guy**.

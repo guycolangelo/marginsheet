@@ -138,5 +138,40 @@
     "owner": "Guy",
     "owed_to": "a ruling, then either config or a stated limitation",
     "raised": "2026-08-17"
+  },
+  {
+    "id": "canon-revision-two-registers-one-voice",
+    "item": "THE SINGLE ASSISTANT RULING'S CANON CONSEQUENCE, owed since 15 Aug 2026 and recorded only in CLAUDE.md prose until now. The conversational spec's two registers become two MODES of one voice. That is a canon revision, not a rename: MyKeeper is the household's only named assistant, the brains stay architecturally separate behind it, and the advice gate stays enforced on advisory output exactly as specified. Until this is written, the conversational spec still describes two staff a household chooses between.",
+    "owner": "Guy",
+    "owed_to": "a canon revision to mycfo-mykeeper-conversational-spec, before M10",
+    "raised": "2026-08-15"
+  },
+  {
+    "id": "article-as-answer-m2-amendment",
+    "item": "The article-as-answer pattern is owed as an M2 amendment with its own plan (Guy, 15 Aug 2026), carrying two requirements. 1. The article's identity is a STABLE SLUG, never its URL or title, both of which change when an article is edited or renamed; the reference block carries the slug and resolves title and URL at assembly time, so a renamed article never strands a citation inside an artifact already sent. 2. The gate rule ships as a FIXTURE PAIR, not only as a rule: one passing example (cards ranked by rate, reference attached, no action named) and one failing example (the same list framed as 'here is where to start'). Recorded in CLAUDE.md prose since 15 Aug and tracked by nothing until now.",
+    "owner": "Guy",
+    "owed_to": "an M2 amendment plan",
+    "raised": "2026-08-15"
+  },
+  {
+    "id": "cross-brain-attribution-fact-package-review",
+    "item": "Consequence 5 of the single assistant ruling: any fact-package class existing ONLY to carry cross-brain attribution is reviewed and REPORTED, never silently deleted. Nothing has performed that review. It matters because the classes are the seam between the two brains, and deleting one quietly would remove the evidence of what the two-staff model needed.",
+    "owner": "build",
+    "owed_to": "M2, reported to Guy",
+    "raised": "2026-08-15"
+  },
+  {
+    "id": "household-state-changed-contract",
+    "item": "plaid-pipeline-spec section 4 says every sync completion fires the internal household-state-changed signal the watcher listens on, and answers task zero's 'which exists' question: we build the signal, since we own the pipeline now. WHAT THE SIGNAL CARRIES IS UNSPECIFIED. M4 task 4.4 will emit it before anyone has defined its contract, and the consumer is the conversation service's watcher, whose spec still describes the Base44 version. Define the payload before 4.4 emits, or 4.4 invents it by accident.",
+    "owner": "build",
+    "owed_to": "M4 task 4.4, with the consumer defined against the revised conversation-service-spec",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "conversation-spec-describes-dead-platforms",
+    "item": "SURVEYED 18 Aug 2026, not rewritten. conversation-service-spec.md assumes TWO platforms that no longer exist. BASE44, 13 references, structural rather than incidental: section 7 (reads and writes household data through Base44's API; Base44 keeps the CRUD app and the sync pipeline), 14 (the Base44 data access layer), 15 (durable knowledge lives in Base44), 16 (Base44 API token as a secret), 106 to 110 (an entire section titled 'Task zero: the Base44 seam', plus three added verifications), 118 (tag creation and membership write to Base44), 180 (MyCFO month awareness gated on build 3, which lives in Base44), 184 (every Plaid sync landing in Base44 fires household-state-changed), 514 (all Base44 writes go through the same validated endpoints the app uses; the service holds no direct database access), 522 and 532 (milestones). D1, 10 references, as the store for conversation state: section 15 (conversation state: D1), 36 (thread expiry via a D1 state check), 42 (members as first-class correspondents in D1), 118 (standing instructions in D1), 168 (tombstones in D1), 188 (condition-state memory in D1), 337 (handoff records in D1), 409 (session_offer tracked in D1). The locked stack is Neon Postgres plus Durable Objects, and data-model-spec invariant 8 says in terms 'this is why D1 died'. Section 514 is the sharpest single case: it states the service holds no direct database access, which is the opposite of the current architecture. GOOD NEWS, and it bounds the work: mycfo-mykeeper-conversational-spec.md contains ZERO references to either platform. The voice, the doctrine and the registers are platform-independent and survive intact. What needs revision is the service spec's architecture sections, not the canon.",
+    "owner": "Guy",
+    "owed_to": "a revision of conversation-service-spec before Phase B opens",
+    "raised": "2026-08-18"
   }
 ]
