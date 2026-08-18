@@ -325,6 +325,21 @@
         "note": "Tolerance INTACT, the block removed. Owed with the control at 4.6."
       },
       "distinction": "THE ONE THAT MATTERS, and the reason these are two entries. If blocking broke, would the detection test notice? No: drift is still detected, the investigation item still opens, the test still passes, and the number ships anyway. That is what Base44 had. A reconciliation check that reports without blocking looks healthy from every angle."
+    },
+    {
+      "id": "api-never-holds-access-token",
+      "control": "the exchange result's shape (M4 section 4a)",
+      "guards": "No access token crosses the service binding back into the Worker with public routes.",
+      "test": "services/sync/test/exchange-boundary.test.ts",
+      "name": "has exactly these top-level fields",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/exchange.ts",
+        "find": "  alreadyConnected: boolean;\n}",
+        "replace": "  alreadyConnected: boolean;\n  accessToken?: string;\n}",
+        "note": "WIDENS THE RESULT TYPE, which is how this would actually happen: somebody needs the token downstream, adds an optional field, and everything keeps working. A token in this response BREAKS NOTHING. The exchange succeeds, the household connects, the accounts appear, and every other test passes. Breaking the exchange itself would redden many tests and prove nothing about the boundary."
+      },
+      "distinction": "Asserted by ENUMERATION rather than by scanning for token-shaped strings. A scan only knows the prefixes it was taught, so a field carrying the token under another name passes it. The enumeration fails on any field that was not there before, which is the failure mode: a well-meaning addition."
     }
   ]
 }
