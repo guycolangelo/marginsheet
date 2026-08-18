@@ -200,6 +200,24 @@
         "restoredValue": 0,
         "note": "SUBTLY WRONG IN ONE DIRECTION, not off. An earlier version used USING (false), which proves the test fails when the policy is disabled, and the control is not guarding against disabled: off breaks loudly for everyone immediately and nobody would miss it. What it guards against is the policy being scoped PER MEMBER rather than per household, which is exactly the wrong direction that passed every isolation test for two weeks. This narrows visibility to a single member of the household while leaving cross-household isolation intact, so only the two-member assertion can detect it. Ruled by Guy, 17 Aug 2026: if this does not redden the test, the test is not proving what the register says it proves."
       }
+    },
+    {
+      "id": "sync-role-boundary",
+      "control": "marginsheet_sync's enumerated grant (migration 0023)",
+      "guards": "The Plaid sync worker cannot read a household's conversation, memory or advisory record.",
+      "test": "services/api/test/sync-role-boundary.test.ts",
+      "name": "is REFUSED a read of",
+      "planted": {
+        "kind": "sql",
+        "apply": "GRANT SELECT ON messages TO marginsheet_sync",
+        "restore": "REVOKE ALL ON messages FROM marginsheet_sync",
+        "proof": "select has_table_privilege('marginsheet_sync','messages','SELECT')::int as n",
+        "appliedValue": 1,
+        "restoredValue": 0,
+        "note": "THE DIRECTION IS THE POINT. Re-granting one forbidden table reproduces exactly the pre-0023 state: the role stays able to do its job, every pipeline test still passes, and nothing anywhere is visibly broken. That is the failure this control exists to catch, and it is the failure that sat in the schema for two weeks. Revoking a table the role NEEDS would also redden a test, and would prove almost nothing, because a sync worker that cannot read plaid_items breaks loudly on its first run."
+      },
+      "distinction": "Asserts 42501 rather than row counts. Every forbidden table carries household_isolation, so a read this role IS permitted returns zero rows when no GUC is set: a test asserting 'nothing came back' would pass with the wide grant fully intact, proving RLS works and saying nothing about the grant.",
+      "nameNote": "A SUBSTRING, deliberately. The three forbidden-table tests are generated in a loop, so no full title appears literally in the source and the register's existence check could not find one. vitest -t matches substrings, so this runs all three; the planted failure reddens one of them and the run fails, which is what the harness reads. Caught by the register check itself, which exists precisely to stop a -t filter that matches nothing being read as a pass."
     }
   ]
 }
