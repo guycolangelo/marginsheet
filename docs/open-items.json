@@ -163,14 +163,6 @@
     "raised": "2026-08-15"
   },
   {
-    "id": "household-state-changed-contract",
-    "item": "plaid-pipeline-spec section 4 says every sync completion fires the internal household-state-changed signal the watcher listens on, and answers task zero's 'which exists' question: we build the signal, since we own the pipeline now. WHAT THE SIGNAL CARRIES IS UNSPECIFIED. M4 task 4.4 will emit it before anyone has defined its contract, and the consumer is the conversation service's watcher, whose spec still describes the Base44 version. Define the payload before 4.4 emits, or 4.4 invents it by accident. RULED 18 Aug 2026: the contract is defined BEFORE 4.4 builds, not after. If that needs a short ruling from Guy, it is ASKED FOR at 4.4 rather than inventing a payload and having him ratify it afterwards. A payload invented by the emitter and blessed later is a contract written by whoever happened to build first.",
-    "owner": "build",
-    "owed_to": "TRIGGER: before M4 task 4.4 BUILDS. A ruling from Guy, asked for at 4.4, never a payload invented and ratified afterwards.",
-    "raised": "2026-08-18",
-    "trigger": "before 4.4 builds, not after"
-  },
-  {
     "id": "conversation-spec-describes-dead-platforms",
     "item": "SURVEYED 18 Aug 2026, not rewritten. SCOPE: THE ARCHITECTURE SECTIONS ONLY, being the Base44 seam and the D1 references. Not the doctrine, not the voice, not the registers. conversation-service-spec.md assumes TWO platforms that no longer exist. BASE44, 13 references, structural rather than incidental: section 7 (reads and writes household data through Base44's API; Base44 keeps the CRUD app and the sync pipeline), 14 (the Base44 data access layer), 15 (durable knowledge lives in Base44), 16 (Base44 API token as a secret), 106 to 110 (an entire section titled 'Task zero: the Base44 seam'), 118 (tag creation and membership write to Base44), 180 (MyCFO month awareness gated on build 3, which lives in Base44), 184 (every Plaid sync landing in Base44 fires household-state-changed), 514, 522 and 532. D1, 10 references, as the store for conversation state: sections 15, 36 (thread expiry via a D1 state check), 42 (members as first-class correspondents in D1), 118 (standing instructions), 168 (tombstones), 188 (condition-state memory), 337 (handoff records), 409 (session_offer). The locked stack is Neon Postgres plus Durable Objects, and data-model-spec invariant 8 says in terms 'this is why D1 died'. SECTION 514 IS THE DANGEROUS ONE AND IS CALLED OUT BY NAME. It states that all Base44 writes go through the same validated endpoints the app uses and that the service holds no direct database access. That is the opposite of the current architecture, and CRITICALLY IT READS AS A CONSTRAINT RATHER THAN A DESCRIPTION: someone building M13 would treat it as a security property to preserve and would architect around a rule that no longer applies. The other references read as stale; this one reads as a requirement. M10's channel plumbing touches the D1 assumptions directly, which is why this is owed before PHASE B opens rather than before M10 specifically. NO PLATFORM WORK IS NEEDED ON mycfo-mykeeper-conversational-spec.md. It contains ZERO references to Base44 or D1. The voice, the doctrine, the registers and the advice gate are platform independent and survive intact. RECORDED SO NOBODY RE-SURVEYS IT LATER.",
     "owner": "Guy",
@@ -216,6 +208,14 @@
     "owner": "build",
     "trigger": "when a database-backed sync test suite exists, likely 4.4",
     "owed_to": "TRIGGER: a database-backed sync suite, likely at 4.4. Registered when the mutation can be real.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "time-based-watcher-half-unbuilt",
+    "item": "THE WATCHER HAS TWO INPUTS AND M4 BUILDS ONE (Guy, 18 Aug 2026). household-state-changed is the EVENT-DRIVEN half, firing when data moves. The TIME-BASED half is a daily Cron pass: an expected commitment missed, an income stream missed, a date passing. A rule that fires because TIME moved cannot fire from a signal that fires when DATA moves, so building only the signal leaves every time-based rule PERMANENTLY SILENT rather than merely late, which is the worse of the two. Recorded so a green M4 is not read as a working watcher: THE SIGNAL EXISTING IS NOT THE WATCHER EXISTING, and the half M4 ships cannot cover the half it does not.",
+    "owner": "build",
+    "trigger": "M13, with the watcher itself",
+    "owed_to": "TRIGGER: M13, with the watcher. M4 ships the signal only, and that is half the input.",
     "raised": "2026-08-18"
   }
 ]

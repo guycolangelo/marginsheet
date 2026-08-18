@@ -65,7 +65,36 @@ All inbound through `provider_events` (unique `source, event_id`) before any pro
 | `ITEM_ERROR` (Plaid sends this as `webhook_type: ITEM`, `webhook_code: ERROR`) | `status = error`, Sentry, watchdog-visible. **Not constructible in Sandbox**: `/sandbox/item/fire_webhook` answers `webhook_type has no code ERROR`, so this handler is exercised against a synthesised payload, never against Plaid |
 | Liabilities webhooks | Refresh `liability_details` → re-run the LiabilityDetail commitment upsert (authority 3) |
 
-Every sync completion fires the internal **household-state-changed** signal the watcher listens on (the brain spec's event-driven requirement; task-zero's "which exists" question is answered: we build the signal, since we own the pipeline now).
+Every sync completion **that changed something** fires the internal **household-state-changed** signal the watcher listens on (the brain spec's event-driven requirement; task-zero's "which exists" question is answered: we build the signal, since we own the pipeline now).
+
+### The contract (ruled 18 August 2026, before 4.4 built anything)
+
+**A THIN SIGNAL. It carries no financial data.**
+
+| Field | Purpose |
+|---|---|
+| `signal_id` | Idempotency, the same reasoning as `provider_events` |
+| `household_id` | Which household to look at |
+| `occurred_at` | When |
+| `source` | The `plaid_item_id` and sync run that produced it, for traceability |
+| `changed` | Change KINDS, specific enough to route: `transactions_added`, `transactions_modified`, `transactions_removed`, `balances_updated`, `item_status_changed`, `recurring_updated`, `liabilities_updated` |
+| counts per kind | Optional. **A count is metadata; an amount is not.** |
+
+**IT MUST NEVER CARRY** amounts, balances, merchant names, dates of household activity, category names, or any transaction detail.
+
+**Two reasons, and the second is the load-bearing one.**
+
+**One: the watcher needs CURRENT state, not deltas.** "Balance versus upcoming commitment" needs the balance now. A payload carrying the change would make the watcher reason from a delta about a state it should read.
+
+**Two, and this is why it is doctrine rather than design preference: a payload carrying household financial data puts that data OUTSIDE THE RLS BOUNDARY.** Every column privilege, every policy, the sync role narrowed to nine tables in migration 0023, `household_isolation` itself: **none of it applies to a message in transit.** A fat signal would be the one place in this system where a household's figures exist unprotected, and it would exist for convenience.
+
+So the watcher reads state from the database as `marginsheet_app` with the household GUC set. **The signal says "look again, at this household, because these kinds of things moved."**
+
+**A sync that changed nothing does not fire.** A watcher waking for nothing is how a watcher becomes noise.
+
+**TWO INPUTS, STATED SO NOBODY CONFLATES THEM.** This signal is the **event-driven** half. The **time-based** half is the daily Cron: an expected commitment missed, an income stream missed, a date passing. **A rule that fires because time moved cannot fire from a signal that fires when data moves**, and building only the signal would leave those rules permanently silent.
+
+**WHY THIS REASONING IS RECORDED AND NOT JUST THE SHAPE.** The pressure to widen the payload will come from a real place: some future rule will be cheaper to evaluate with the delta already in hand, and **that will read as an optimisation rather than as moving household figures outside the boundary.** It is the second. The privacy argument also gets stronger the further the payload travels, so a queue transport makes the thin payload do more work than an in-database outbox would.
 
 ---
 
