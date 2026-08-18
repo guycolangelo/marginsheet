@@ -1,12 +1,18 @@
 // marginsheet-sync: the deployable that holds TOKEN_ENCRYPTION_KEY.
 //
-// 4.2.1 gives it existence, a database identity and /health. It does no
-// syncing: /transactions/sync is 4.4 and the Durable Object lock is 4.5.
+// NO PUBLIC ROUTES, BY RULING (M4 section 2a). Reachable only over a service
+// binding from api, so a household request cannot arrive at the Worker that can
+// decrypt Plaid tokens.
 //
-// NO PUBLIC ROUTES, BY RULING (M4 section 2a). Everything here is reachable
-// only over a service binding from api, so a household request cannot arrive
-// at the Worker that can decrypt Plaid tokens. /health is the single fetch
-// handler and reports no secret material.
+// /health RUNS A REAL QUERY, and that is the whole point of this file's second
+// version. The first reported {databaseUrl: true, tokenEncryptionKey: true},
+// which says the secrets are PRESENT and says nothing about whether they WORK.
+// Those are different claims and the first is the kind that reports green while
+// the second is false: on 15 Aug 2026 six Workers held connection strings that
+// were the empty string and every environment reported healthy for hours.
+// Presence is the empty-string incident with a better disguise.
+
+import { readSchemaHealth } from "@marginsheet/shared/db";
 
 export interface Env {
   ENVIRONMENT: string;
@@ -20,23 +26,33 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
-      // Deliberately reports PRESENCE of the key and never any part of it, so
-      // the deploy check can tell a Worker that received its secrets from one
-      // that silently did not. The empty-string incident of 15 Aug was six
-      // secrets that existed and held nothing while every environment
-      // reported healthy.
-      return Response.json({
-        service: "marginsheet-sync",
-        environment: env.ENVIRONMENT,
-        build: env.BUILD_SHA ?? "unknown",
-        secrets: {
-          databaseUrl: Boolean(env.NEON_DATABASE_URL?.length),
-          tokenEncryptionKey: Boolean(env.TOKEN_ENCRYPTION_KEY?.length),
+      const database = env.NEON_DATABASE_URL
+        ? await readSchemaHealth(env.NEON_DATABASE_URL)
+        : {
+            ok: false,
+            error: "NEON_DATABASE_URL is not usable",
+            present: env.NEON_DATABASE_URL !== undefined,
+            length: env.NEON_DATABASE_URL?.length ?? 0,
+          };
+
+      // The key's PRESENCE is reported and no part of its value ever is. This
+      // is deliberately not called proof that the key works: nothing is
+      // encrypted yet, so there is nothing to decrypt. That half is owed at
+      // 4.2.2 and is recorded as owed rather than assumed.
+      const tokenKeyPresent = Boolean(env.TOKEN_ENCRYPTION_KEY?.length);
+
+      return Response.json(
+        {
+          service: "marginsheet-sync",
+          environment: env.ENVIRONMENT,
+          build: env.BUILD_SHA ?? "unknown",
+          database,
+          tokenKeyPresent,
         },
-      });
+        { status: database.ok && tokenKeyPresent ? 200 : 503 }
+      );
     }
 
-    // Anything else is a request that should not have reached this Worker.
     return new Response("not found", { status: 404 });
   },
 };

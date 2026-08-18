@@ -163,6 +163,9 @@ importers:
 
   services/sync:
     dependencies:
+      '@marginsheet/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       postgres:
         specifier: ^3
         version: 3.4.9

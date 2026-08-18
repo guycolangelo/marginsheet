@@ -17,6 +17,9 @@ import rateLimitConfig from "../../../config/rate-limits.json";
 import postgres from "postgres";
 
 export interface Env {
+  // The sync Worker, reachable only from here. M4 section 4a: api proxies the
+  // token exchange and never sees an access token. A binding is not a route.
+  SYNC?: { fetch: (request: Request) => Promise<Response> };
   ENVIRONMENT: "dev" | "staging" | "production";
   BUILD_SHA?: string;
   SENTRY_DSN?: string;
@@ -60,6 +63,31 @@ const handler = {
     // It returns 503 when the database half fails, and deploy verification
     // fails on that, so code can no longer land against a schema it does not
     // match.
+    // GET /debug/sync-health: the ONLY way to see marginsheet-sync from outside.
+    //
+    // The sync Worker has no public routes by ruling, so deploy verification
+    // cannot curl it directly. It reaches it over the service binding instead,
+    // which is the same path the token exchange will use at 4a, so this proves
+    // the binding works as well as proving sync is healthy.
+    //
+    // Reports no secret material: sync's own /health returns a boolean for the
+    // key's presence and never any part of its value.
+    if (url.pathname === "/debug/sync-health") {
+      if (!env.SYNC) {
+        return Response.json(
+          { error: "no SYNC service binding on this Worker" },
+          { status: 503 }
+        );
+      }
+      const response = await env.SYNC.fetch(new Request("https://sync.internal/health"));
+      // Pass the status through. A 503 from sync must not become a 200 here,
+      // which would be a proxy reporting health it did not receive.
+      return new Response(await response.text(), {
+        status: response.status,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     if (url.pathname === "/health") {
       const database = env.NEON_DATABASE_URL
         ? await readSchemaHealth(env.NEON_DATABASE_URL)
