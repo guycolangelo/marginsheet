@@ -117,4 +117,63 @@ for entry in "${hosts[@]}"; do
   done
 done
 
+# marginsheet-sync, reached through api's service binding because it has no
+# public route of its own (M4 section 2a).
+#
+# WHY THIS BLOCK EXISTS. The sync Worker holds a production database credential
+# and the key that decrypts every household's Plaid token, and until this was
+# written NOTHING PROVED IT COULD USE EITHER. Its /health reported that the
+# secrets were PRESENT, which is a different claim from "the Worker can connect",
+# and the first reports green while the second is false. That is the 15 Aug
+# empty-string incident with a better disguise: six Workers held connection
+# strings that were the empty string and every environment reported healthy.
+#
+# SPLIT DELIBERATELY. Connection is proven here. DECRYPTION IS NOT, because
+# nothing is encrypted yet, and a check that asserted the key "works" today
+# would be asserting over an empty set. That half is owed at 4.2.2 and carried
+# in docs/open-items.json rather than assumed.
+api_origin="$(python3 -c "
+import json, sys
+print(json.load(open('config/environments.json'))[sys.argv[1]]['api'])
+" "$target")"
+
+echo "verifying marginsheet-sync via $api_origin/debug/sync-health"
+for ((i = 1; i <= attempts; i++)); do
+  body="$(curl -sS --max-time 15 "$api_origin/debug/sync-health" || echo '{}')"
+
+  got_service="$(field "$body" service)"
+  got_build="$(field "$body" build)"
+  got_env="$(field "$body" environment)"
+  got_ok="$(field "$body" database.ok)"
+  got_migrations="$(field "$body" database.migrations)"
+  got_key="$(field "$body" tokenKeyPresent)"
+
+  if [[ "$got_service" == "marginsheet-sync" && "$got_build" == "$expected" \
+     && "$got_env" == "$target" && "$got_ok" == "true" \
+     && "$got_migrations" == "$want_migrations" && "$got_key" == "true" ]]; then
+    echo "  ok: sync build=$got_build database.ok=true migrations=$got_migrations tokenKeyPresent=true"
+    break
+  fi
+
+  if (( i == attempts )); then
+    echo "  FAIL after $attempts attempts" >&2
+    echo "  expected service=marginsheet-sync build=$expected environment=$target database.ok=true migrations=$want_migrations tokenKeyPresent=true" >&2
+    echo "  got      service=${got_service:-<none>} build=${got_build:-<none>} environment=${got_env:-<none>} database.ok=${got_ok:-<none>} migrations=${got_migrations:-<none>} tokenKeyPresent=${got_key:-<none>}" >&2
+    echo "  response: $body" >&2
+    # Name which half failed, because these need different fixes and a
+    # message that cannot distinguish its causes invites guessing.
+    if [[ -z "$got_service" ]]; then
+      echo "  Could not reach sync through the binding at all. Either api has no SYNC binding in this environment, or the sync Worker is not deployed." >&2
+    elif [[ "$got_ok" != "true" ]]; then
+      echo "  The sync Worker is deployed and CANNOT QUERY ITS DATABASE. Its NEON_DATABASE_URL is empty, wrong, or issued for a role that cannot connect." >&2
+    elif [[ "$got_key" != "true" ]]; then
+      echo "  The sync Worker has no TOKEN_ENCRYPTION_KEY. It cannot decrypt any Plaid token." >&2
+    elif [[ "$got_migrations" != "$want_migrations" ]]; then
+      echo "  Schema drift: this commit carries $want_migrations migrations, sync sees $got_migrations." >&2
+    fi
+    exit 1
+  fi
+  sleep "$delay"
+done
+
 echo "all $target endpoints serve $expected against a schema of $want_migrations migrations"

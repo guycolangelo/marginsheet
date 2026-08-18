@@ -8,7 +8,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "postgres": "^3"
+    "postgres": "^3",
+    "@marginsheet/shared": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5",

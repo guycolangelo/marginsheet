@@ -10,6 +10,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "marginsheet-api-dev",
+  "services": [{ "binding": "SYNC", "service": "marginsheet-sync-dev" }],
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -20,6 +21,7 @@
   "env": {
     "staging": {
       "name": "marginsheet-api-staging",
+  "services": [{ "binding": "SYNC", "service": "marginsheet-sync-staging" }],
       "compatibility_flags": ["nodejs_compat"],
       "vars": {
         "ENVIRONMENT": "staging",
@@ -28,6 +30,7 @@
     },
     "production": {
       "name": "marginsheet-api",
+  "services": [{ "binding": "SYNC", "service": "marginsheet-sync" }],
       "compatibility_flags": ["nodejs_compat"],
       // The custom domain, in the repo rather than only in the dashboard, so
       // it survives future deploys and is reviewable. BETTER_AUTH_URL is set
