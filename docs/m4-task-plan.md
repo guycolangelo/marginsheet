@@ -61,23 +61,105 @@ Two things do serialise, and both were measured rather than assumed:
 - **`blockConcurrencyWhile()`** holds everything, including status reads, and is documented for initialisation. A Plaid sync held under it makes the object unresponsive for the whole sync.
 - **An explicit promise-chain lock**, where each request awaits the previous one's completion. Serialises the work while leaving other paths responsive.
 
-**Recommendation: the promise-chain lock**, with `blockConcurrencyWhile` reserved for the object's own initialisation. Invariant 1's test then attempts the violation properly: fire concurrent webhooks for one household and assert only one sync ran, which is a test that would have passed against the naive implementation only by luck of timing.
+**RULED 17 Aug 2026: the promise-chain lock**, with `blockConcurrencyWhile` reserved for the object's own initialisation. And **the spec is amended rather than quietly built around**: `plaid-pipeline-spec.md` §3 now records what a Durable Object actually provides (single-threaded execution, not mutual exclusion), why the chain is the fix, and that the DO is the right HOME for the lock without being one. The next person reading "the DO owns sync execution" must not infer a lock from it.
+
+#### Invariant 1's test, and the direction its planted failure has to break
+
+Two requirements, both ruled 17 Aug 2026.
+
+**The test constructs the collision rather than hoping for one.** Two webhooks fired at genuinely the same moment against one household, asserting exactly one sync ran. Fired in sequence, or relying on timing, it passes against a completely unlocked handler most of the time. That is the ninth finding in a new costume: a fixture that cannot express the failure case, so the assertion is honest and the coverage is degenerate.
+
+**The planted failure removes the LOCK, not the DO.** Deleting the Durable Object binding reddens the test and proves nothing, because a missing DO breaks loudly and immediately for everyone, exactly like `USING (false)` on the two-member policy. The mutation that means something leaves the object, the routing and the coordination state intact and removes only the chain await, which is the failure that ships silently and only bites under concurrency. **A test that only reddens when the DO is gone is proving the wrong thing.**
+
+| Entry | Mutation | Must go red |
+|---|---|---|
+| `do-sync-lock` | remove the `await` on the previous request's promise, leaving the DO and its routing intact | the constructed-collision test, because two syncs now run |
 
 ### 1b-bis. Whether a DO can be driven in the test harness
 
 **Not by the current suite, and that is structural.** The existing tests run in Node and talk TCP to Neon; workerd cannot. Driving a DO in-process needs `@cloudflare/vitest-pool-workers`, which is not installed and would be a second vitest project rather than a setting.
 
-Options for 4.5, needing a ruling when we get there: add the workers pool as a separate project for DO tests only, or drive the DO over HTTP against `wrangler dev` the way this spike did. The spike proves the second works and needs no new dependency.
+**RULED 17 Aug 2026: drive the DO over HTTP against `wrangler dev`**, the way this spike did. No new dependency, and the spike has already proven it works. `@cloudflare/vitest-pool-workers` as a second vitest project stays unadopted.
 
-### 1c. Plaid's cursor semantics### 1c. Plaid's cursor semantics
+The consequence worth naming: the collision test is an integration test against a running `wrangler dev`, not a unit test, so 4.5 owns starting and tearing that process down in CI. That is the cost of the ruling and it is smaller than a second test runner.
 
-Invariant 2 requires a mid-sync crash to resume from the persisted cursor *"with no gap and no replay."* The spec says persist after every page. **Whether Plaid's cursor actually behaves that way is a claim about Plaid, and Sandbox can settle it**: sync, persist, kill mid-stream, resume, and compare the union against a clean run.
+### 1c. Plaid's cursor semantics (SPIKE COMPLETE, 17 Aug 2026)
+
+Invariant 2 requires a mid-sync crash to resume from the persisted cursor *"with no gap and no replay."* That is a claim about **Plaid**, not about our code, and it had never been executed. Run against Sandbox with a 48 transaction Item:
+
+**In the quiet case the invariant holds exactly.** One page of 16, simulated crash, resume from the persisted cursor: 32 more, `overlap 0`, `missing 0`, `extra 0`. Union equals the reference drain. The cursor is also **idempotent**: presenting the same persisted cursor a second time returns the identical set, which matters because a worker that crashes after persisting and before finishing shows Plaid the same bookmark twice. A fully drained cursor synced again returns nothing and **does not move**.
+
+**And the quiet case is not the interesting one.**
+
+#### The finding: a cursor can be REFUSED mid-pagination
+
+```
+400 TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION
+Underlying transaction data changed since last page was fetched.
+Please restart pagination from last update.
+```
+
+**An intermediate cursor is not a durable resume point.** If the underlying data changes while a pagination is in flight, Plaid rejects the mid-pagination cursor and requires restarting from the last COMPLETED sync. That is not an exotic case: it is precisely what the spec's own state machine describes when it says *"queued if a webhook lands mid-sync"*. The arrow is already drawn; what was missing is that Plaid can invalidate the bookmark underneath it.
+
+So "persist after every page" is still right, and it is **not sufficient on its own**. The pipeline needs two cursors, not one:
+
+- **The in-flight cursor**, persisted after every page, used to resume a crash.
+- **The last-completed-sync cursor**, which is the only cursor guaranteed to still be accepted after a mutation, and the fallback the error message points at.
+
+`TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` is therefore a **normal control-flow branch, not an exception**. Handled as an error it produces a stuck Item that the watchdog sweeps and that fails again the same way.
+
+**This is why the spike existed.** Built from the spec, 4.4 would have persisted one cursor, resumed from it, and worked in every quiet test.
+
+#### What could not be settled, and why
+
+**Deliberate reproduction of the mutation error is unresolved.** It was observed by accident on the first run, against an Item still generating transactions. Reproducing it on demand needs the ability to change an Item's transactions while holding an open pagination, and **Sandbox provides no such lever**: `/sandbox/transactions/create` returns `200` and does nothing on a default-user Item (proven by marker description, not by counting), and returns `400` on a `user_custom` Item. An endpoint that reports success and changes nothing is the same shape as a control that cannot fail, and a test built on it would be worthless.
+
+The natural race was then measured over five runs against freshly created Items paginated one row at a time while Sandbox was still generating: **reproduced 3 times out of 5.**
+
+**Flaky, therefore not a fixture.** A test that goes red 60% of the time when the code is correct is worse than an absent one, because it teaches people to re-run rather than to look, and after a fortnight nobody reads it at all.
+
+So the branch is split the same way as pending to posted, and for the same reason:
+
+- **Our handler is tested against a synthesised 400** carrying `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION`, asserting the sync falls back to the last-completed-sync cursor and completes rather than parking the Item in `error`. That is a real test of a real branch.
+- **That Plaid actually emits it in the shape we assume** is not proven by that test, and the test must not be described as though it were. It was observed live on three of five runs, which is why the branch exists at all.
+
+Recorded as an open item with an owner rather than dressed up as coverage.
+
+#### A note on method
+
+The first run of this spike reported `noGap: true, noReplay: true` **against two empty sets**. Sandbox had not finished generating, the helper waited for a `200` rather than for transactions, and every assertion passed vacuously. That is the ninth finding, produced by the spike written to avoid it, inside an hour of it being named in this plan. The helper now waits for a minimum count and the spike aborts rather than reporting on a fixture too small to distinguish passing from failing.
 
 ### 1d. Whether Sandbox can produce the error states
 
 Invariant 8 lists the fixtures: `ITEM_LOGIN_REQUIRED`, item error, removed transactions, pending→posted, reversal. Sandbox has `/sandbox/item/reset_login` and `/sandbox/item/fire_webhook`, and the rest are less certain.
 
 **This is the ninth finding waiting to happen.** If a fixture cannot construct an error state, the test for that error state is honest and vacuous, exactly like every isolation test before a household had two members. So the spike enumerates which states Sandbox can actually produce. **Any it cannot becomes a named gap with an owner on the open-items list, never a test written against a fixture that cannot fail** (ruled 17 Aug 2026).
+
+#### The inventory (SPIKE COMPLETE, 17 Aug 2026)
+
+**One of the five is constructible. Invariant 8 as written cannot be met.**
+
+| Invariant 8 fixture | Constructible | Evidence |
+|---|---|---|
+| `ITEM_LOGIN_REQUIRED` | **YES** | `/sandbox/item/reset_login`, then `/transactions/sync` returns `ITEM_LOGIN_REQUIRED` and `/item/get` carries it in `item.error` |
+| item error (`ITEM_ERROR`) | **NO** | `webhook_type has no code ERROR`. Sandbox will not fire it |
+| removed transactions | **NO** | `TRANSACTIONS_REMOVED` is not a fireable code, and the `removed` stream was empty in every run against every fixture shape |
+| pending to posted | **NO** | 48 transactions from the default user, **0 pending**. A `user_custom` transaction with no `date_posted` did not come back `pending` either |
+| reversal | **NO** as an event | A negative amount is expressible as seed data. A Plaid reversal is not constructible |
+
+Two mechanics worth recording, because both cost time to establish:
+
+**Firing any webhook requires `options.webhook` on the Item.** Without it every fire returns `SANDBOX_WEBHOOK_INVALID`, which reads like an unsupported code and is not. With a webhook configured, these fire: `TRANSACTIONS:SYNC_UPDATES_AVAILABLE`, `TRANSACTIONS:DEFAULT_UPDATE`, `TRANSACTIONS:RECURRING_TRANSACTIONS_UPDATE`, `ITEM:PENDING_DISCONNECT`, `ITEM:USER_PERMISSION_REVOKED`, `ITEM:LOGIN_REPAIRED`.
+
+**`HISTORICAL_UPDATE` is not fireable**, and spec §4 gives it real work: it *"marks backfill-complete for the intro trigger"*. That trigger is M13's, it has a 30 minute fallback, and **the webhook half of it cannot be exercised in Sandbox at all.**
+
+#### What this does to invariant 8
+
+Invariant 8 says these fixtures are *"all green in CI"*. Four of the five cannot be constructed, so it is not an invariant, it is a wish. Rewriting it to claim less is the honest move, and the four become named gaps.
+
+**The one that should worry us most is pending to posted**, because unlike the other three it is not an error path. It is the **normal daily behaviour of every card transaction in the product**, categorization-spec §10 turns on it, and Sandbox cannot produce it. It will first be exercised against the founder household's real Items, which is invariant 9, which is M9. A silent double-count on the pending-to-posted transition is exactly the class of bug that reaches a household's Kept figure before anyone sees it.
+
+**Recommendation for the register:** the pending-to-posted transition gets a test against a **hand-built fixture of our own transaction rows**, not against Plaid. It proves our reconciliation and filing logic handles the transition; it does not prove Plaid's shape is what we assumed. Those are two different claims and the test must only make the first, or it becomes the ninth finding again.
 
 ---
 
@@ -108,9 +190,9 @@ Every one gets a register entry and a planted failure, per 3.6. Named here so th
 | Control | Proven by attempting |
 |---|---|
 | `provider_events` check-and-insert | a webhook retry storm produces **one** sync and zero duplicate transactions (invariant 1) |
-| The DO lock | two concurrent webhooks for one household; the second must wait, not run |
+| The DO's promise-chain lock | two concurrent webhooks for one household, **fired simultaneously**; the second must wait, not run. Planted failure removes the chain await, never the DO |
 | Cursor persistence | a crash mid-sync, then resume: no gap, no replay (invariant 2) |
-| **Reconciliation blocking** | induced drift beyond tolerance **blocks** that account's numbers and opens an investigation item; drift inside the settle window does not (invariant 3) |
+| **Cursor fallback on mutation** | a synthesised `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` mid-pagination: the sync restarts from the last-completed cursor and finishes, rather than parking the Item in `error` for the watchdog to sweep and re-break || **Reconciliation blocking** | induced drift beyond tolerance **blocks** that account's numbers and opens an investigation item; drift inside the settle window does not (invariant 3) |
 | Exchange idempotency | a re-fired exchange creates no second Item; reconnect creates none (invariant 4) |
 | Commitment authority | a `plaid_recurring` upsert must not overwrite a census, liability or household-stated row (invariant 5) |
 | Item removal | `/item/remove` called on every path, verified by a follow-up `/item/get` **expecting failure** (invariant 6) |
@@ -142,8 +224,8 @@ Applying the register's own test to the pair: if blocking broke, would the detec
 - **4.1** `marginsheet_sync`: the provisioning path that does not exist, and the grant narrowed from 39 tables to the 8 the pipeline needs. Enumerated, never granted-and-subtracted. The negative control attempts `messages`, `known_context` and `decision_journal`, three sections apart, because one refusal proves a boundary exists and three prove it is not a single lucky revoke.
 - **4.2** Token custody: encrypt, decrypt in the sync path only, and both halves of invariant 7.
 - **4.3** Link and exchange, with zombie prevention and reconnect.
-- **4.4** `/transactions/sync` with cursor persistence and the coordination state machine.
-- **4.5** The DO lock and the webhook path through `provider_events`.
+- **4.4** `/transactions/sync` with **two** persisted cursors (in-flight, and last-completed-sync) and the coordination state machine. `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` is handled as a control-flow branch that falls back to the last-completed cursor, never as an error that parks the Item.
+- **4.5** The DO's promise-chain lock and the webhook path through `provider_events`. Tested over HTTP against `wrangler dev`, with the collision constructed rather than hoped for.
 - **4.6** Balances, snapshots, and the reconciliation invariant that blocks.
 - **4.7** Recurring → `commitments` at `plaid_recurring` authority.
 - **4.8** Item lifecycle: removal verified at Plaid, resync, and the no-Item-survives-cancellation rule.
