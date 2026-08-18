@@ -355,6 +355,40 @@
         "note": "WIDENS THE UPDATE from one Item to every Item the household owns, which is the shape of keying on anything but the Item. Verified 18 Aug 2026: both orphaning assertions go red, the three structural assertions stay green, all green on restore."
       },
       "distinction": "THE ASSERTION IS ON THE ITEM NOBODY ASKED ABOUT. From the reconnected Item's side, a correct reconnect and one keyed on the institution are IDENTICAL: it returns healthy, updated and syncing in both worlds. Only the other Item shows the difference. The other Item also starts BROKEN in the fixture, because an earlier version left it healthy and asserted it was still healthy, where the expected value and the wrong value were the same string."
+    },
+    {
+      "id": "sweep-is-blind-to-unannounced-rows",
+      "control": "the repair sweep's enqueued_at predicate (M4 task 4.4.5)",
+      "guards": "The repair sweep cannot become a poller for unannounced work.",
+      "status": "owed",
+      "owedTo": "M4 task 4.4.5, with the sweep itself",
+      "test": "services/sync/test/outbox-sweep.test.ts",
+      "name": "the sweep does not return a row that was never announced",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/outbox.ts",
+        "find": "SWEEP_PREDICATE_PLACEHOLDER",
+        "replace": "claimed_at is null",
+        "note": "DROPS THE enqueued_at CLAUSE, which is exactly the change that turns the sweep into a poller. It would still work, still repair dropped notifications, and additionally pick up work no notification ever announced. Nothing else would notice, which is why this needs its own entry."
+      },
+      "distinction": "A comment claiming 'this is not polling' is the section 514 shape: a sentence that reads as a constraint and enforces nothing. This control makes the difference CHECKABLE. Paired with counter-sees-unannounced-rows, which points the opposite way at the same column."
+    },
+    {
+      "id": "counter-sees-unannounced-rows",
+      "control": "the never-announced counter (M4 task 4.4.5)",
+      "guards": "A crash in the commit-to-enqueue window is observable rather than silent.",
+      "status": "owed",
+      "owedTo": "M4 task 4.4.5, with the counter itself",
+      "test": "services/sync/test/outbox-sweep.test.ts",
+      "name": "the counter sees a row that was never announced",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/outbox.ts",
+        "find": "COUNTER_PREDICATE_PLACEHOLDER",
+        "replace": "enqueued_at is not null",
+        "note": "INVERTS THE COUNTER so it looks at announced rows instead. It then reads zero forever and its silence means nothing, which is indistinguishable from the window never being hit."
+      },
+      "distinction": "THE OPPOSITE DIRECTION FROM sweep-is-blind-to-unannounced-rows, ON THE SAME COLUMN. The sweep must not see unannounced rows; the counter must. Together they make the sweep's blindness deliberate rather than accidental: a blindness with nothing watching it is a loss nobody can observe, and a counter without a blind sweep is just a poller in two parts. If the window is truly a millisecond the counter reads zero forever AND ITS SILENCE MEANS SOMETHING."
     }
   ]
 }

@@ -36,11 +36,21 @@ CREATE TABLE "household_state_signals" (
 	"changed" text[] NOT NULL,
 	-- Counts per kind. Metadata, never amounts.
 	"counts" jsonb,
-	-- Claimed by the consumer. NULL means the notification has not been acted
-	-- on, which is what the repair sweep looks for: an enqueue happens after
-	-- commit and can fail, leaving an unclaimed row rather than a lost change.
-	-- That sweep is a repair path for a dropped notification, NOT polling for
-	-- changes, and the distinction is the whole reason the queue exists.
+	-- SET AFTER THE DATA COMMITS, and that ordering is the entire point.
+	--
+	-- enqueued_at NULL means NO NOTIFICATION WAS EVER ANNOUNCED for this row.
+	-- The repair sweep is structurally blind to those rows, which is what makes
+	-- it a repair path rather than a poller:
+	--
+	--   a poller would ask:  WHERE claimed_at IS NULL
+	--   the sweep asks:      WHERE enqueued_at IS NOT NULL AND claimed_at IS NULL
+	--
+	-- A comment claiming "this is not polling" is the section 514 shape: a
+	-- sentence that reads as a constraint and enforces nothing. This column makes
+	-- the difference CHECKABLE. A sweep that can pick up work no notification
+	-- announced IS a poller regardless of what any comment says.
+	"enqueued_at" timestamp with time zone,
+	-- Claimed by the consumer. Unclaimed AND announced is the repair case.
 	"claimed_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );--> statement-breakpoint
@@ -75,10 +85,27 @@ ALTER TABLE "household_state_signals"
 CREATE UNIQUE INDEX "household_state_signals_run_item_unique"
 	ON "household_state_signals" ("source_sync_run_id", "source_plaid_item_id");--> statement-breakpoint
 
--- The repair sweep's index: unclaimed rows, oldest first.
-CREATE INDEX "household_state_signals_unclaimed"
+-- THE SWEEP'S INDEX: announced, unclaimed, oldest first. The predicate matches
+-- the sweep's query exactly, so an index scan cannot reach a row the sweep is
+-- meant to be blind to.
+CREATE INDEX "household_state_signals_repairable"
 	ON "household_state_signals" ("occurred_at")
-	WHERE "claimed_at" IS NULL;--> statement-breakpoint
+	WHERE "claimed_at" IS NULL AND "enqueued_at" IS NOT NULL;--> statement-breakpoint
+
+-- THE COUNTER'S INDEX, pointing the opposite way at the same column.
+--
+-- A row with enqueued_at NULL and created_at old is NOT WORK TO BE DONE. It is
+-- EVIDENCE OF A CRASH in the commit-to-enqueue window. A separate check counts
+-- these and raises an internal item: it does not deliver them, does not claim
+-- them, and is not the sweep.
+--
+-- That keeps the loss observable without making the sweep a poller. If the
+-- window is truly a millisecond this counter reads zero forever AND ITS SILENCE
+-- MEANS SOMETHING. If it ever reads non-zero we learn the window is wider than
+-- we think, which is the only way we would ever learn it.
+CREATE INDEX "household_state_signals_never_announced"
+	ON "household_state_signals" ("created_at")
+	WHERE "enqueued_at" IS NULL;--> statement-breakpoint
 
 ALTER TABLE "household_state_signals" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 -- FORCE as well as ENABLE. Without FORCE the table OWNER bypasses every policy,
@@ -97,4 +124,4 @@ GRANT SELECT, INSERT ON "household_state_signals" TO marginsheet_sync;--> statem
 GRANT SELECT, UPDATE ON "household_state_signals" TO marginsheet_app;--> statement-breakpoint
 
 COMMENT ON TABLE "household_state_signals" IS
-	'The household-state-changed outbox. Contract ruled 18 Aug 2026: a THIN signal carrying no financial data. Never add a column for an amount, a balance, a merchant name, a household activity date, a category name, or any transaction detail. The reason is a boundary rather than a preference: no column privilege, no policy and no role grant travels with a message, so a payload carrying household figures would be the one place in this system where they exist unprotected. The queue notification carries signal_id alone; the consumer reads this row as marginsheet_app with the household GUC set.';--> statement-breakpoint
+	'The household-state-changed outbox. Contract ruled 18 Aug 2026: a THIN signal carrying no financial data. Never add a column for an amount, a balance, a merchant name, a household activity date, a category name, or any transaction detail. The reason is a boundary rather than a preference: no column privilege, no policy and no role grant travels with a message, so a payload carrying household figures would be the one place in this system where they exist unprotected. The queue notification carries signal_id alone; the consumer reads this row as marginsheet_app with the household GUC set. enqueued_at is set AFTER the data commits, so NULL means no notification was ever announced: the repair sweep is structurally blind to those rows, which is what makes it a repair path rather than a poller, and a separate counter sees them as evidence of a crash in the commit-to-enqueue window. Two controls, opposite directions, same column.';--> statement-breakpoint
