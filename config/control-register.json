@@ -44,7 +44,18 @@
     "A near-miss is also kept: invitation-token-prefix's absence IS noticed, but",
     "as the wrong problem. The consumer refuses the value and the failure reads as",
     "a bug in redemption rather than in minting, and 'noticed as the wrong",
-    "problem' is close enough to not noticed."
+    "problem' is close enough to not noticed.",
+    "",
+    "OWED ENTRIES (status: owed). A control that is DESIGNED but not yet BUILT",
+    "gets an entry naming the test it owes, rather than being omitted until it",
+    "exists. An enumeration that silently omits what is not built is how three",
+    "unguarded things arrive later, which is the SENSITIVE_ACTIONS precedent:",
+    "unbuilt actions carry built:false and a test asserts each has NO route, so",
+    "building one without flipping the flag fails.",
+    "",
+    "Here the same shape: an owed entry's named test must NOT yet exist. Writing",
+    "it without clearing the status fails, which sends the author to the entry",
+    "where the planted failure and the reasoning are already written."
   ],
   "controls": [
     {
@@ -218,6 +229,102 @@
       },
       "distinction": "Asserts 42501 rather than row counts. Every forbidden table carries household_isolation, so a read this role IS permitted returns zero rows when no GUC is set: a test asserting 'nothing came back' would pass with the wide grant fully intact, proving RLS works and saying nothing about the grant.",
       "nameNote": "A SUBSTRING, deliberately. The three forbidden-table tests are generated in a loop, so no full title appears literally in the source and the register's existence check could not find one. vitest -t matches substrings, so this runs all three; the planted failure reddens one of them and the run fails, which is what the harness reads. Caught by the register check itself, which exists precisely to stop a -t filter that matches nothing being read as a pass."
+    },
+    {
+      "id": "sync-grant-enumeration",
+      "control": "marginsheet_sync holds exactly nine tables (migration 0023)",
+      "guards": "A tenth table granted to the sync role is noticed, even when nobody named it.",
+      "test": "services/api/test/sync-role-boundary.test.ts",
+      "name": "holds grants on exactly the 9 tables",
+      "planted": {
+        "kind": "sql",
+        "apply": "GRANT SELECT ON receivables TO marginsheet_sync",
+        "restore": "REVOKE ALL ON receivables FROM marginsheet_sync",
+        "proof": "select has_table_privilege('marginsheet_sync','receivables','SELECT')::int as n",
+        "appliedValue": 1,
+        "restoredValue": 0,
+        "note": "A table NOBODY NAMED, deliberately. sync-role-boundary attempts messages, known_context and decision_journal and requires three refusals, and all three still pass when a fourth table is granted. receivables is in none of those lists, so only the count notices. That is why this entry exists separately from sync-role-boundary."
+      },
+      "distinction": "A COUNT CATCHES A WIDENING A NAMED-ITEM CHECK CANNOT. sync-role-boundary proves three specific tables are refused; this proves the set is exactly nine. Grant a fourth table nobody thought to name and the three refusals still pass while the count goes to ten. The deployed Worker reports the same number independently: sync/health returns tables:9 from information_schema, which only shows tables the connecting role holds privilege on, against api's 46."
+    },
+    {
+      "id": "token-crypto-tag",
+      "control": "AES-GCM authentication tag verification",
+      "guards": "A tampered ciphertext cannot be decrypted into something a caller treats as a token.",
+      "test": "services/sync/test/token-crypto.test.ts",
+      "name": "rejects a single flipped byte of ciphertext, under the correct key",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/token-crypto.ts",
+        "find": "    plaintext = await crypto.subtle.decrypt({ name: \"AES-GCM\", iv }, key, b64urlDecode(ctPart));",
+        "replace": "    plaintext = await crypto.subtle.decrypt({ name: \"AES-CTR\", counter: iv, length: 64 }, key, b64urlDecode(ctPart));",
+        "note": "THE DIRECTION IS THE POINT. Switching the mode to AES-CTR removes authentication while leaving decryption working, which is precisely the silent failure: a wrong key still fails, the round trip still succeeds, and a tampered ciphertext now returns corrupted bytes instead of throwing. Deleting the try/catch would also redden the test and would prove almost nothing, because a decrypt that throws on everything breaks loudly on the first real call."
+      },
+      "distinction": "The wrong-key test is NOT this control. A wrong key can be refused upstream of authentication, by importKey's length check or the base64 check, so it passes whether or not the tag is verified. Only a flipped ciphertext byte under the correct key isolates the tag."
+    },
+    {
+      "id": "token-never-escapes",
+      "control": "PlaidError carries no request material",
+      "guards": "A failed Plaid call cannot leak the access token into a log, a Sentry payload or a serialised error.",
+      "test": "services/sync/test/token-never-escapes.test.ts",
+      "name": "throws without the token when the TRANSPORT fails",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/plaid-client.ts",
+        "find": "  } catch (cause) {",
+        "replace": "  } catch (cause) {\n    if (cause) (globalThis as Record<string, unknown>).__lastCause = cause;",
+        "note": "Mutating the TRANSPORT path rather than the 400 path, because that is where the danger is: fetch rejects with an error whose shape we do not control, and the postgres incident of 17 Aug is exactly a library formatting what you sent into an exception. The planted line is the shape a well-meaning wrapper adds to keep context."
+      },
+      "distinction": "Amended 18 Aug 2026 from Plaid's RESPONSE shape to our REQUEST envelope. Seven Plaid error classes captured from Sandbox return an identical seven-key envelope with no request echo, so a scrubber aimed at Plaid's errors would pass forever guarding nothing. The token is in the request."
+    },
+    {
+      "id": "plaid-call-sites",
+      "control": "one module constructs Plaid requests",
+      "guards": "The leak probe's coverage stays total rather than becoming partial when somebody adds a second call site.",
+      "test": "services/sync/test/plaid-call-sites.test.ts",
+      "name": "finds Plaid request construction in exactly one place",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "export interface Env {",
+        "replace": "async function __plantedPlaidCall(token: string) {\n  return fetch(\"https://production.plaid.com/item/get\", {\n    method: \"POST\",\n    body: JSON.stringify({ client_id: \"x\", secret: \"y\", access_token: token }),\n  });\n}\n\nexport interface Env {",
+        "note": "ADDS A SECOND CALL SITE RATHER THAN BREAKING THE SCANNER (Guy, 18 Aug 2026). A broken scanner is a defect somebody notices; a second call site in services/api is the thing that could genuinely happen in M5 or M13, and it makes the leak probe's coverage partial while every test stays green. Breaking the scanner would redden the test and prove only that the scanner runs."
+      },
+      "distinction": "This is the coverage-degenerate failure rather than a control failure. token-never-escapes guards one module and nothing else enforced that the module was the only one. Direction 2 of this test binds the pair together: it asserts the probe imports from the module this scan names, so a rename cannot empty either."
+    },
+    {
+      "id": "reconciliation-detects",
+      "control": "drift tolerance (plaid-pipeline invariant 3)",
+      "guards": "Balance drift beyond tolerance is noticed rather than absorbed.",
+      "status": "owed",
+      "owedTo": "M4 task 4.6",
+      "test": "services/sync/test/reconciliation.test.ts",
+      "name": "drift beyond tolerance opens an investigation item",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/reconciliation.ts",
+        "find": "TOLERANCE_PLACEHOLDER",
+        "replace": "Infinity",
+        "note": "Widening the tolerance to infinity. Owed with the control at 4.6."
+      },
+      "distinction": "Registered BEFORE it is built, deliberately. An enumeration that silently omits what is not built is how unguarded things arrive later: the precedent is SENSITIVE_ACTIONS, where three unbuilt actions carry built:false and a test asserts each has no route. Proves only that the test notices a DISABLED tolerance; the blocking half is a separate entry."
+    },
+    {
+      "id": "reconciliation-blocks",
+      "control": "the block on a drifting account's numbers",
+      "guards": "No customer-visible number ships from an account with an open drift investigation.",
+      "status": "owed",
+      "owedTo": "M4 task 4.6",
+      "test": "services/sync/test/reconciliation.test.ts",
+      "name": "an account with an open investigation ships no numbers",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/reconciliation.ts",
+        "find": "BLOCK_PLACEHOLDER",
+        "replace": "false",
+        "note": "Tolerance INTACT, the block removed. Owed with the control at 4.6."
+      },
+      "distinction": "THE ONE THAT MATTERS, and the reason these are two entries. If blocking broke, would the detection test notice? No: drift is still detected, the investigation item still opens, the test still passes, and the number ships anyway. That is what Base44 had. A reconciliation check that reports without blocking looks healthy from every angle."
     }
   ]
 }

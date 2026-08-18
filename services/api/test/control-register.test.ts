@@ -26,16 +26,25 @@ const register = JSON.parse(
     guards: string;
     test: string;
     name: string;
+    status?: "owed";
+    owedTo?: string;
     planted: { kind: "source" | "sql"; file?: string; find?: string; apply?: string };
   }[];
 };
+
+// An entry for a control that is DESIGNED but not yet BUILT. Registered rather
+// than omitted, because an enumeration that silently omits what is not built is
+// how unguarded things arrive later. Same shape as SENSITIVE_ACTIONS, where
+// unbuilt actions carry built:false and a test asserts each has NO route.
+const owed = register.controls.filter((c) => c.status === "owed");
+const built = register.controls.filter((c) => c.status !== "owed");
 
 describe("every registered control names a test that exists", () => {
   it("has controls at all, so this suite is not vacuous", () => {
     expect(register.controls.length).toBeGreaterThan(8);
   });
 
-  for (const control of register.controls) {
+  for (const control of built) {
     it(`${control.id} points at a real test`, () => {
       const path = join(ROOT, control.test);
       expect(existsSync(path), `${control.test} does not exist`).toBe(true);
@@ -59,7 +68,7 @@ describe("every registered control names a test that exists", () => {
 });
 
 describe("every planted failure is applicable", () => {
-  for (const control of register.controls.filter((c) => c.planted.kind === "source")) {
+  for (const control of built.filter((c) => c.planted.kind === "source")) {
     it(`${control.id}'s mutation still applies to ${control.planted.file}`, () => {
       // The find text going missing means the control was refactored. The
       // register must then be updated rather than the entry deleted, and this
@@ -72,7 +81,7 @@ describe("every planted failure is applicable", () => {
     });
   }
 
-  for (const control of register.controls.filter((c) => c.planted.kind === "sql")) {
+  for (const control of built.filter((c) => c.planted.kind === "sql")) {
     it(`${control.id} carries a proof query, so its mutation can be verified`, () => {
       // Non-negotiable per Guy: a harness that cannot prove it broke something
       // cannot prove the test noticed.
@@ -87,4 +96,33 @@ describe("no control is registered twice, and none is missing an id", () => {
     const ids = register.controls.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+});
+
+describe("owed entries are honest about being owed", () => {
+  it("there are some, or this suite is decoration", () => {
+    // Not an assertion that owed entries must exist forever. If M4 closes all
+    // of them this becomes a one-line edit, and the edit is the point at which
+    // somebody confirms they were built rather than deleted.
+    expect(owed.length).toBeGreaterThan(0);
+  });
+
+  for (const control of owed) {
+    it(`${control.id} names what it is owed to`, () => {
+      expect(control.owedTo, `${control.id} is owed to nobody in particular`).toBeTruthy();
+    });
+
+    // THE DIRECTION THAT MATTERS. An owed entry's test must NOT yet exist.
+    // Writing it without clearing the status fails here, which sends the
+    // author to the entry where the planted failure and the reasoning are
+    // already written, rather than letting a built control keep an owed label
+    // and never be exercised by the harness.
+    it(`${control.id}'s test does not exist yet, so the status is true`, () => {
+      expect(
+        existsSync(join(ROOT, control.test)),
+        `${control.test} EXISTS but ${control.id} is still marked owed. If the ` +
+          `control was built, remove the status and the harness will start ` +
+          `exercising it. An owed label on a built control is a control nobody runs.`
+      ).toBe(false);
+    });
+  }
 });
