@@ -185,13 +185,5 @@
     "trigger": "the first real 429 observed from Plaid, in any environment",
     "owed_to": "TRIGGER: the first real 429 observed from Plaid. Capture the body then; do not synthesise one before.",
     "raised": "2026-08-18"
-  },
-  {
-    "id": "exchange-boundary-test-is-vacuous",
-    "item": "services/sync/test/exchange-boundary.test.ts asserts the shape of a HAND-WRITTEN LITERAL typed as ExchangeResult. No change to exchange.ts can redden it, so it proves that a literal I wrote matches a list I wrote. Found 18 Aug 2026 by running the planted-failure harness after fixing it to resolve the owning package: the mutation applied, took effect, and the test stayed green. TypeScript's excess-property check does catch a field added to the literal at compile time, which is real coverage and is NOT the claim the test makes. The register entry was REMOVED rather than marked owed, because the owed check correctly refuses a status of owed on a test that exists, and because absent-with-an-owner beats a false claim of coverage. The rewrite calls exchangePublicToken with Plaid and postgres stubbed and asserts on what the function actually returns; the entry goes back when it can go red.",
-    "owner": "build",
-    "trigger": "before 4.3.3, since it guards the boundary 4.3.3's attempts depend on",
-    "owed_to": "TRIGGER: before 4.3.3. The register entry returns when the test can go red.",
-    "raised": "2026-08-18"
   }
 ]

@@ -325,6 +325,21 @@
         "note": "Tolerance INTACT, the block removed. Owed with the control at 4.6."
       },
       "distinction": "THE ONE THAT MATTERS, and the reason these are two entries. If blocking broke, would the detection test notice? No: drift is still detected, the investigation item still opens, the test still passes, and the number ships anyway. That is what Base44 had. A reconciliation check that reports without blocking looks healthy from every angle."
+    },
+    {
+      "id": "api-never-holds-access-token",
+      "control": "the exchange result's shape (M4 section 4a)",
+      "guards": "No access token crosses the service binding back into the Worker with public routes.",
+      "test": "services/sync/test/exchange-boundary.test.ts",
+      "name": "no serialisation of the REAL result contains the token",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/exchange.ts",
+        "find": "        alreadyConnected: !itemRow.inserted,",
+        "replace": "        alreadyConnected: !itemRow.inserted,\n        accessToken,",
+        "note": "RETURNS THE TOKEN FROM THE REAL HANDLER, which is how this would actually happen: somebody needs it downstream and adds a field. Verified 18 Aug 2026: both leak assertions go red, the two structural assertions stay green, everything green on restore. The entry was REMOVED on 18 Aug when the harness showed the old test asserted a hand-written literal and could not fail; it returns now that the test calls the real function."
+      },
+      "distinction": "Asserted by ENUMERATION on the real return value rather than by scanning for token-shaped strings. A scan only knows the prefixes it was taught, so a field carrying the token under another name passes it; the enumeration fails on any field that was not there before, which is the actual failure mode. The token demonstrably ENTERS the function under test, so this proves it did not leave rather than that it was never present."
     }
   ]
 }
