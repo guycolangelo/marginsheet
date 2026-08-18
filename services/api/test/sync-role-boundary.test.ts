@@ -130,7 +130,7 @@ describe.skipIf(!configured)("the sync role can still do its actual job", () => 
 });
 
 describe.skipIf(!configured)("the narrowing is enumerated, so a new table is not silently reachable", () => {
-  it("holds grants on exactly the 9 tables 0023 names", async () => {
+  it("holds grants on exactly the 10 tables 0023 and 0024 name", async () => {
     // The shape assertion. If somebody adds a table and grants it broadly,
     // this goes red and sends them to 0023's comment, which explains why the
     // list is a list.
@@ -144,6 +144,7 @@ describe.skipIf(!configured)("the narrowing is enumerated, so a new table is not
       "account_balance_snapshots",
       "commitments",
       "financial_accounts",
+      "household_state_signals",
       "institutions",
       "liability_details",
       "plaid_items",
