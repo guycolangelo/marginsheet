@@ -179,14 +179,6 @@
     "trigger": "M9 completing"
   },
   {
-    "id": "plaid-credentials-still-on-api",
-    "item": "PLAID_CLIENT_ID and PLAID_SECRET are stored on api/dev and api/staging. The custody doc says they belong to marginsheet_sync after the third-Worker ruling: the token exchange happens where the encryption key lives, and after 4a api proxies the exchange over a service binding and never sees an access token. Credentials that mint access tokens sitting on the deployable with public routes is the same shape as TOKEN_ENCRYPTION_KEY before 4.2.4, and nothing fails while it is wrong. Move them to sync in dev and staging, declare them in config/worker-secrets.json, and REMOVE THEM FROM api, with the removal proven separately from the setting exactly as 4.2.4 did.",
-    "owner": "build",
-    "trigger": "before 4.5b, because the production paste targets sync and the declaration must exist first",
-    "owed_to": "TRIGGER: before 4.5b. The production paste targets sync, so the declaration and the dev/staging move land first.",
-    "raised": "2026-08-18"
-  },
-  {
     "id": "plaid-rate-limit-shape-uncaptured",
     "item": "Seven Plaid error classes were captured from Sandbox for invariant 7 and RATE LIMITING IS NOT AMONG THEM. Sandbox did not produce a 429 under normal use, and hammering it to force one is a poor trade for one data point. NAMED AS A GAP RATHER THAN SYNTHESISED (Guy, 18 Aug 2026): a fabricated 429 would prove our handler copes with the shape we imagined. WHY THIS PARTICULAR GAP MATTERS MORE THAN THE OTHER SIX: a 429 is the class most likely to arrive with a retry envelope, and a retry envelope is the exact shape that would carry the request, and the request is where the access token is. The one class we could not capture is the one whose shape the amended invariant 7 most wants to see. First real 429 in production is the moment to capture it.",
     "owner": "build",
