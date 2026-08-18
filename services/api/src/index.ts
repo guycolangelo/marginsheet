@@ -72,14 +72,19 @@ const handler = {
     //
     // Reports no secret material: sync's own /health returns a boolean for the
     // key's presence and never any part of its value.
-    if (url.pathname === "/debug/sync-health") {
+    // Both sync debug routes go through the one binding. Listed explicitly
+    // rather than prefix-forwarded: a prefix would forward anything somebody
+    // later adds to sync, including something that should not be public.
+    if (url.pathname === "/debug/sync-health" || url.pathname === "/debug/sync-crypto") {
       if (!env.SYNC) {
         return Response.json(
           { error: "no SYNC service binding on this Worker" },
           { status: 503 }
         );
       }
-      const response = await env.SYNC.fetch(new Request("https://sync.internal/health"));
+      const target =
+        url.pathname === "/debug/sync-crypto" ? "/debug/crypto-selftest" : "/health";
+      const response = await env.SYNC.fetch(new Request(`https://sync.internal${target}`));
       // Pass the status through. A 503 from sync must not become a 200 here,
       // which would be a proxy reporting health it did not receive.
       return new Response(await response.text(), {

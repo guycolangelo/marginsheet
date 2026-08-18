@@ -47,11 +47,21 @@ Asked the standing question: **if `api` still held the key, would this go red?**
 ## 2. Sub-tasks
 
 - **4.2.1** `marginsheet-sync` exists as a deployable: `wrangler.toml`, three environments, no public routes, `/health` only. Its `NEON_DATABASE_URL` comes from `scripts/sync-db-url.mts`, which refuses to mint a credential for an over-broad role.
-- **4.2.2** The AES-GCM encrypt and decrypt, in one module that only the sync Worker imports. Round-trip tested, and tested against a wrong key expecting failure rather than silence.
+- **4.2.2** The AES-GCM encrypt and decrypt, in one module that only the sync Worker imports. Two requirements from Guy, 17 Aug 2026:
+
+  **The wrong-key test asserts FAILURE, not difference.** Decrypting with a wrong key must fail loudly rather than returning garbage a caller could treat as a token. AES-GCM's authentication tag gives that for free, so **the test proves the tag is actually verified rather than assumed.**
+
+  The sharp form of that, because a wrong-key test alone does not prove it: a wrong key could fail for reasons unrelated to the tag. **The test that proves the tag is a single flipped byte of ciphertext decrypted with the CORRECT key.** Nothing but tag verification rejects that. Same for a flipped byte of the IV.
+
+  **The owed proof is a DEPLOYED round trip using the key sync actually holds.** A unit test supplying its own key proves the algorithm and says nothing about the value in the secret store: malformed, truncated and wrong-length keys all pass a round trip against a value the test generated itself. That is the independent-expectation rule reaching a secret.
 - **4.2.3** `config/worker-secrets.json` and the `secret-inventory` CI job. **Lands BEFORE the move**, so it is red on the un-removed key rather than written afterwards to agree with whatever was done.
 - **4.2.4** The move itself: set on sync, then remove from `api`, with 4.2.3 going green only after the removal.
 - **4.2.5** Invariant 7, both halves. The static scan for the token in any log line, plus a behavioural probe that a Plaid error object carrying a token in a nested field does not reach Sentry with it intact.
-- **4.2.6** Register entries and planted failures.
+- **4.2.6** Register entries and planted failures, including **the table count**.
+
+  `sync/health` reports `tables: 9`, counting `information_schema.tables`, which shows only tables the connecting role holds some privilege on. api reports 46. So the deployed Worker's own connection independently confirms the narrowing every time it runs.
+
+  **A count catches a widening that a named-item check cannot** (Guy, 17 Aug 2026). The boundary test attempts `messages`, `known_context` and `decision_journal` and requires three refusals. All three still pass if somebody grants a fourth table nobody thought to name. The count goes to 10 and the count is what notices. The named refusals and the count are therefore two controls, not one, and both get entries.
 
 **4.2.3 landing before 4.2.4 is deliberate, and it is what makes it a proof rather than a description** (Guy, 17 Aug 2026). A check written after the change it is meant to verify **agrees with whatever was done**, which is the same reasoning as the planted failures: a control nobody has watched fail is a control nobody should trust. Written first, it is red on the un-removed key, and the move is what makes it pass.
 
