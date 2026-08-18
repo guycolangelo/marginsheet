@@ -18,6 +18,12 @@ const emDashCount = (name: string) =>
 describe("spec corpus: em dash detection", () => {
   // Counts frozen 15 Aug 2026, spec phase complete. A change here means a
   // spec changed; verify with Guy before updating.
+  //
+  // plaid-pipeline-spec 8 -> 7, 17 Aug 2026. The section 3 serialization line
+  // was rewritten under Guy's approved amendment (a Durable Object is not a
+  // lock) and the replacement prose carries no em dash. The ratchet moved the
+  // right way and the change is the approved one, which is exactly the case
+  // this fixture exists to make somebody look at.
   const KNOWN: Record<string, number> = {
     "app-ui-spec.md": 33,
     "categorization-spec.md": 19,
@@ -27,7 +33,7 @@ describe("spec corpus: em dash detection", () => {
     "ledger-spec.md": 0,
     "migration-spec.md": 15,
     "mycfo-mykeeper-conversational-spec.md": 0,
-    "plaid-pipeline-spec.md": 8,
+    "plaid-pipeline-spec.md": 7,
     "projection-spec.md": 20,
     "spec-manifest-final.md": 1,
   };
