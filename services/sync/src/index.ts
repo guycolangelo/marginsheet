@@ -31,18 +31,39 @@ export interface Env {
 // WHY THE WORKER REPORTS THIS AND NOT THE INVENTORY. `wrangler secret list`
 // returns {name, type} and NEVER a value or a length, so secret-inventory can
 // only prove a name exists. A secret set to the empty string passes it
-// perfectly, which is exactly the 15 Aug 2026 incident: six connection-string
-// secrets held the empty string, every environment reported healthy, and
-// nothing was asking.
+// perfectly, which is exactly the 15 Aug 2026 incident. The Worker is the only
+// thing that can see the value, so the Worker answers. Booleans only; no
+// length, no prefix, no part of any value.
 //
-// The Worker is the only thing that can see the value, so the Worker answers.
-// Booleans only; no length, no prefix, no part of any value.
-const REQUIRED_SECRETS = [
-  "NEON_DATABASE_URL",
-  "TOKEN_ENCRYPTION_KEY",
-  "PLAID_CLIENT_ID",
-  "PLAID_SECRET",
-] as const;
+// DERIVED FROM THE DECLARATION, PER ENVIRONMENT, NOT HAND-WRITTEN HERE. The
+// first version listed all four unconditionally and production went red on the
+// Plaid pair, which is deferred to task 4.5b and legitimately absent. That was
+// two hand-maintained statements of one requirement disagreeing on their first
+// contact with reality.
+//
+// This is not the independent-expectation rule being broken. That rule forbids
+// a CHECK reading its expectation from its SUBJECT. Here the declaration is the
+// single statement of what should be present, and two different checks verify
+// two different properties of it: secret-inventory compares the declared NAMES
+// against what Cloudflare holds, and this compares the declared names against
+// what is NON-EMPTY at runtime. Neither reads its expectation from the thing it
+// is checking.
+//
+// It also means 4.5b cannot be half-done. Adding the Plaid pair to
+// sync/production in the declaration makes this Worker require them too, so a
+// paste that is declared and never performed fails the next deploy.
+import workerSecrets from "../../../config/worker-secrets.json";
+
+function requiredSecrets(environment: string): string[] {
+  const declared = (workerSecrets as { workers: Record<string, Record<string, string[]>> })
+    .workers.sync?.[environment];
+  if (!declared) {
+    // An environment the declaration does not know about. Fails closed: better
+    // a deploy that stops than one that verifies nothing.
+    throw new Error(`config/worker-secrets.json declares no sync secrets for "${environment}"`);
+  }
+  return declared;
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -65,9 +86,10 @@ export default {
       // TOKEN_ENCRYPTION_KEY reaches (3) at /debug/crypto-selftest and
       // NEON_DATABASE_URL reaches it through database.ok. The Plaid pair stops
       // at (2) until 4.3.2 makes a real exchange.
+      const required = requiredSecrets(env.ENVIRONMENT);
       const secrets = Object.fromEntries(
-        REQUIRED_SECRETS.map((name) => [name, Boolean(env[name]?.length)])
-      ) as Record<(typeof REQUIRED_SECRETS)[number], boolean>;
+        required.map((name) => [name, Boolean((env as unknown as Record<string, string | undefined>)[name]?.length)])
+      );
       const allPresent = Object.values(secrets).every(Boolean);
 
       return Response.json(
