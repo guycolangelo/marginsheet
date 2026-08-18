@@ -340,6 +340,21 @@
         "note": "RETURNS THE TOKEN FROM THE REAL HANDLER, which is how this would actually happen: somebody needs it downstream and adds a field. Verified 18 Aug 2026: both leak assertions go red, the two structural assertions stay green, everything green on restore. The entry was REMOVED on 18 Aug when the harness showed the old test asserted a hand-written literal and could not fail; it returns now that the test calls the real function."
       },
       "distinction": "Asserted by ENUMERATION on the real return value rather than by scanning for token-shaped strings. A scan only knows the prefixes it was taught, so a field carrying the token under another name passes it; the enumeration fails on any field that was not there before, which is the actual failure mode. The token demonstrably ENTERS the function under test, so this proves it did not leave rather than that it was never present."
+    },
+    {
+      "id": "reconnect-keys-on-item",
+      "control": "reconnect's lookup and status update (M4 task 4.3.4)",
+      "guards": "Repairing one login at a bank does not orphan the household's other login at the same bank.",
+      "test": "services/sync/test/reconnect-keys-on-item.test.ts",
+      "name": "leaves the OTHER Item at the same institution untouched",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/reconnect.ts",
+        "find": "         where id = ${itemRowId}\n      `;\n    });\n  } finally {\n    await sql.end({ timeout: 5 });\n  }\n}",
+        "replace": "         where household_id = ${householdId}\n      `;\n    });\n  } finally {\n    await sql.end({ timeout: 5 });\n  }\n}",
+        "note": "WIDENS THE UPDATE from one Item to every Item the household owns, which is the shape of keying on anything but the Item. Verified 18 Aug 2026: both orphaning assertions go red, the three structural assertions stay green, all green on restore."
+      },
+      "distinction": "THE ASSERTION IS ON THE ITEM NOBODY ASKED ABOUT. From the reconnected Item's side, a correct reconnect and one keyed on the institution are IDENTICAL: it returns healthy, updated and syncing in both worlds. Only the other Item shows the difference. The other Item also starts BROKEN in the fixture, because an earlier version left it healthy and asserted it was still healthy, where the expected value and the wrong value were the same string."
     }
   ]
 }
