@@ -319,6 +319,29 @@ jobs:
           CHANGED=$(git diff --name-only FETCH_HEAD...HEAD)
           REGISTERED=$(node -e "console.log(JSON.parse(require('fs').readFileSync('config/control-register.json','utf8')).controls.map(c=>c.test).join('\n'))")
           HITS=$(comm -12 <(echo "$CHANGED" | sort -u) <(echo "$REGISTERED" | sort -u) || true)
+
+          # AN ENTRY LEAVING `owed` MUST BE EXERCISED, even when its test file
+          # is untouched. `owed` is an EXEMPTION: the register skips the name
+          # check and the harness skips the entry entirely. Clearing the status
+          # is a claim that the control now exists, and an exemption that
+          # expires without anything checking AT THE MOMENT IT EXPIRES is an
+          # exemption that outlives its reason. Same shape as a trigger tied to
+          # a module number: the thing that made it safe stops being true and
+          # nothing notices.
+          git show FETCH_HEAD:config/control-register.json > /tmp/register-base.json 2>/dev/null || echo '{"controls":[]}' > /tmp/register-base.json
+          FORMERLY_OWED=$(node -e "
+            const fs = require('fs');
+            const owed = (j) => new Set(JSON.parse(fs.readFileSync(j,'utf8')).controls.filter(c => c.status === 'owed').map(c => c.id));
+            const head = JSON.parse(fs.readFileSync('config/control-register.json','utf8'));
+            const wasOwed = owed('/tmp/register-base.json');
+            const cleared = head.controls.filter(c => c.status !== 'owed' && wasOwed.has(c.id));
+            console.log(cleared.map(c => c.test).join('\n'));
+          ")
+          if [ -n "$FORMERLY_OWED" ]; then
+            echo "Entries left 'owed' in this PR, so their controls must be exercised:"
+            echo "$FORMERLY_OWED"
+            HITS=$(printf '%s\n%s' "$HITS" "$FORMERLY_OWED" | sed '/^$/d' | sort -u)
+          fi
           if [ -n "$HITS" ]; then
             echo "This PR touches registered control tests:"
             echo "$HITS"
