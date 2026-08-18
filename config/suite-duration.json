@@ -1,0 +1,32 @@
+{
+  "_doc": [
+    "The database-backed suite's wall-clock budget, and the band it actually runs in.",
+    "",
+    "WHY THIS FILE EXISTS. On 17 Aug 2026 the api suite's testTimeout was raised",
+    "from vitest's 5s default to 20s. The default describes LOCAL latency and",
+    "these tests make real TLS round trips to a remote Postgres, so 5s was",
+    "refusing at random rather than refusing to proceed, and a random red teaches",
+    "re-running, which is the habit that eventually swallows a real one.",
+    "",
+    "Raising a timeout hides a genuine performance regression. THIS FILE IS WHAT",
+    "KEEPS THAT DISTINCTION CHECKABLE: the per-test budget got looser, and a",
+    "budget on the whole run replaced what it gave up.",
+    "",
+    "The band is written down rather than computed from the run, because a check",
+    "that reads its expectation from the thing it is checking cannot disagree",
+    "with it. When a failure fires, the message quotes this band so the reader",
+    "can tell a regression from the top of the spread.",
+    "",
+    "UPDATING IT: if the band genuinely moves, change observedBand and say why in",
+    "the commit. Raising maxMs to make a red go away is the thing this file",
+    "exists to make visible."
+  ],
+  "maxMs": 600000,
+  "observedBand": {
+    "minMs": 170000,
+    "maxMs": 370000,
+    "runs": "10+",
+    "characterisedOn": "2026-08-17",
+    "cause": "variance in Neon branch provisioning, not in any one test"
+  }
+}
