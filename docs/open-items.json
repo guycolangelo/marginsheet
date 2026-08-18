@@ -17,8 +17,9 @@
     "id": "twilio-trial-caller-id",
     "item": "The Twilio account is a trial, so Verify reaches only allowlisted numbers. The refusal PATH is now built and tested against a refusing sender (honest message naming the number, no hang, no 500), and it is permanent because Twilio refuses numbers for reasons that outlive the trial. What is still owed is one LIVE send to a non-allowlisted number, because only the real account produces the real error body.",
     "owner": "Guy",
-    "owed_to": "a live send by Guy, then a plan upgrade",
-    "raised": "2026-08-16"
+    "owed_to": "TRIGGER: A2P 10DLC clearance, late Aug 2026 at the earliest, then a live send by Guy.",
+    "raised": "2026-08-16",
+    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest"
   },
   {
     "id": "provider-events-handler-half",
@@ -57,10 +58,11 @@
   },
   {
     "id": "recovery-twilio-credentials",
-    "item": "The recovery path fails closed without Twilio credentials: with no OTP sender the phone half cannot be met, so /auth/recovery returns 503 rather than completing on one factor. Correct behaviour, and it means recovery is not usable in any environment until Twilio credentials land with 3.3.",
+    "item": "The recovery path fails closed without Twilio credentials: with no OTP sender the phone half cannot be met, so /auth/recovery returns 503 rather than completing on one factor. Correct behaviour, and it means recovery is NOT USABLE IN ANY ENVIRONMENT until Twilio credentials land. TIMELINE CORRECTED 18 Aug 2026 (Guy): A2P clearance is LATE AUGUST AT THE EARLIEST. The EIN was registered 12 Aug and brand registration needs it propagated into the verification databases first, so this is at least another week. THE ORIGINAL TRIGGER OF '3.3' IS MISLEADING AND IS CORRECTED HERE: 3.3 built the path, and the path has never run, and it stays that way longer than a module boundary implies. Anything that assumes SMS is available should be read against this date rather than against 3.3 being done.",
     "owner": "Guy",
-    "owed_to": "3.3",
-    "raised": "2026-08-17"
+    "owed_to": "TRIGGER: A2P 10DLC clearance, late Aug 2026 at the earliest. NOT 3.3, which only built the path.",
+    "raised": "2026-08-17",
+    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest"
   },
   {
     "id": "second-credential-write-path",
@@ -127,7 +129,7 @@
   },
   {
     "id": "production-plaid-credentials",
-    "item": "IN GUY'S HANDS AS OF 18 Aug 2026, held deliberately rather than outstanding. Not a blocker to chase: the approved sequence is Sandbox green through 4.5, then the real connection at 4.5b, then 4.6 through 4.9 built against both. Claude flags on reaching 4.5b and Guy runs the paste session, PRODUCTION ONLY. Dev and staging keep their Sandbox pair. PREREQUISITE THAT IS NOT YET DONE, and it changes where the paste goes: Plaid credentials are currently declared and stored on api/dev and api/staging, and the custody doc already says they belong to SYNC after the third-Worker ruling, because the exchange happens where the encryption key lives. sync declares no Plaid credentials in any environment. So the paste at 4.5b targets marginsheet-sync production, NOT api, and config/worker-secrets.json must declare it there first or the secret-inventory job refuses the paste as an undeclared secret. The dev and staging move from api to sync is owed alongside it.",
+    "item": "IN GUY'S HANDS AND READY FOR THE PASTE, confirmed 18 Aug 2026. Held deliberately rather than outstanding. Not a blocker to chase: the approved sequence is Sandbox green through 4.5, then the real connection at 4.5b, then 4.6 through 4.9 built against both. Claude flags on reaching 4.5b and Guy runs the paste session, PRODUCTION ONLY. Dev and staging keep their Sandbox pair. PREREQUISITE THAT IS NOT YET DONE, and it changes where the paste goes: Plaid credentials are currently declared and stored on api/dev and api/staging, and the custody doc already says they belong to SYNC after the third-Worker ruling, because the exchange happens where the encryption key lives. sync declares no Plaid credentials in any environment. So the paste at 4.5b targets marginsheet-sync production, NOT api, and config/worker-secrets.json must declare it there first or the secret-inventory job refuses the paste as an undeclared secret. The dev and staging move from api to sync is owed alongside it.",
     "owner": "Guy",
     "owed_to": "TRIGGER: Claude FLAGS on reaching 4.5b, then Guy runs the paste session. PRODUCTION ENVIRONMENT ONLY.",
     "raised": "2026-08-17",
@@ -216,6 +218,14 @@
     "owner": "build",
     "trigger": "M13, with the watcher itself",
     "owed_to": "TRIGGER: M13, with the watcher. M4 ships the signal only, and that is half the input.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "sms-dependent-work-blocked-until-a2p",
+    "item": "ANYTHING ASSUMING SMS IS UNAVAILABLE UNTIL LATE AUGUST 2026 AT THE EARLIEST (Guy, 18 Aug 2026). A2P 10DLC brand registration is waiting on the EIN registered 12 Aug to propagate into the verification databases. This does not touch M4. It DOES touch M10's channel work and the recovery path, and the risk is that a module boundary reads as a date: recovery-twilio-credentials was triggered on '3.3', which made it look resolved once 3.3 shipped, when 3.3 only built a path that has never run. Recorded separately so the dependency is visible from the outside rather than only inside the items it constrains.",
+    "owner": "Guy",
+    "trigger": "A2P 10DLC clearance",
+    "owed_to": "TRIGGER: A2P 10DLC clearance. Read any SMS assumption against this rather than against a module number.",
     "raised": "2026-08-18"
   }
 ]
