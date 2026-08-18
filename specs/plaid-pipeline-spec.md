@@ -105,6 +105,20 @@ Every sync completion fires the internal **household-state-changed** signal the 
 5. `plaid_recurring` commitment upserts never overwrite higher-authority rows.
 6. Item removal verified at Plaid (billing actually stops), every path including guarantee redemption.
 7. Access token never appears in any log, error report, or client payload (scanned, asserted).
+
+   **AMENDED 18 Aug 2026. The behavioural half moves from Plaid's RESPONSE shape to our REQUEST-side envelope.** This is a change to what the control guards, not to how it is built.
+
+   **The evidence, captured against Sandbox before anything was built.** Seven error classes: `INVALID_API_KEYS`, `INVALID_ACCESS_TOKEN`, `MISSING_FIELDS`, `INVALID_FIELD`, `NOT_FOUND`, `INVALID_PRODUCT`, `ITEM_LOGIN_REQUIRED`. Every one returned an **identical seven-key envelope**: `display_message`, `documentation_url`, `error_code`, `error_message`, `error_type`, `request_id`, `suggested_action`. No nesting, no populated `causes`, **no echo of the request**, and **no credential even in the error whose entire subject is a bad secret**.
+
+   The original concern was whether Sentry scrubbing survives a Plaid error object carrying a token in a nested field. **That describes a shape Plaid does not produce.** A scrubber pointed there would pass forever while proving nothing, which is the standing question answered before building rather than after.
+
+   **The redirected control, stated plainly: the token is in the REQUEST, not the response.** So the exposure is anything of ours that serialises what we sent. A retry wrapper attaching the failed request for context. A debug line logging `init`. An error whose serialised form carries the body.
+
+   **The behavioural probe forces a failure on a call that genuinely carries a token** and asserts it appears in no log line, no Sentry payload, and no thrown error's serialised form.
+
+   **Prior art, not hypothesis.** On 17 Aug 2026 the `postgres` driver formatted a failed connection into an exception and printed a database password in full into a transcript. Same class, already observed in this codebase, once. A library that puts what you sent into an error message is not a theoretical risk here.
+
+   The static scan is unchanged.
 8. **AMENDED 17 Aug 2026, because four of the five could not be built.** The original text claimed Sandbox fixtures cover login-required, item-error, removed transactions, pending to posted and reversal, all green in CI. Spike 1d attempted each. **Only `ITEM_LOGIN_REQUIRED` is constructible** (`/sandbox/item/reset_login`, after which `/transactions/sync` returns the error and `/item/get` carries it). Sandbox will not fire `ITEM:ERROR`, will not fire `TRANSACTIONS_REMOVED`, never populated the `removed` stream under any fixture shape, and **produced zero pending transactions** across 48 default-user rows and every `user_custom` shape tried.
 
    So the invariant now claims what can actually be proven: **`ITEM_LOGIN_REQUIRED` is exercised against Sandbox in CI without touching production.** The other four are named gaps carrying owners in `docs/open-items.json`, and none of them gets a test written against a fixture that cannot fail.

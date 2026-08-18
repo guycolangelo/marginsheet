@@ -251,7 +251,11 @@ Applying the register's own test to the pair: if blocking broke, would the detec
 | `reconciliation-detects` | tolerance widened to infinity | the drift test, because nothing is ever out of tolerance |
 | `reconciliation-blocks` | tolerance intact, the block removed | a test asserting the account's numbers do **not** ship while an investigation item is open |
 
-**Invariant 7 needs both halves.** A static scan catches the token being logged in code somebody writes. A behavioural probe catches it arriving in a Sentry payload through a path nobody wrote deliberately, which is how it would actually happen. M3's Sentry scrubbing exists; whether it survives a Plaid error object carrying a token in a nested field is a question for a test, not for reading.
+**Invariant 7 needs both halves, and the behavioural half was pointed at the wrong thing until 18 Aug 2026.** A static scan catches the token being logged in code somebody writes. A behavioural probe catches it arriving somewhere through a path nobody wrote deliberately, which is how it would actually happen.
+
+The plan said the question was whether Sentry scrubbing survives a Plaid error object carrying a token in a nested field. **Seven error classes captured from Sandbox say Plaid produces no such shape**: an identical seven-key envelope every time, no nesting, no request echo, and no credential even in the error whose subject is a bad secret. A scrubber aimed there passes forever and proves nothing.
+
+**Amended: the token is in the REQUEST, not the response**, so the probe points at our own envelope. A retry wrapper attaching the failed request, a debug line logging `init`, an error whose serialised form carries the body. Prior art rather than hypothesis: the `postgres` driver printed a password in full into a transcript on 17 Aug, same class, already observed here.
 
 ---
 
