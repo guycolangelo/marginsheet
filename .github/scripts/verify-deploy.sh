@@ -95,9 +95,26 @@ for entry in "${hosts[@]}"; do
     got_ok="$(field "$body" database.ok)"
     got_migrations="$(field "$body" database.migrations)"
 
+    # EVERY declared secret must be NON-EMPTY. wrangler never returns a value,
+    # so secret-inventory can only prove a name exists: an empty
+    # BETTER_AUTH_SECRET means sessions signed with an empty key while every
+    # other check reports green. The Worker is the only thing that can see it.
+    empty_secrets="$(printf '%s' "$body" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print('UNREADABLE'); raise SystemExit
+s = d.get('secrets')
+if not isinstance(s, dict) or not s:
+    print('NO_SECRETS_BLOCK'); raise SystemExit
+print(','.join(sorted(k for k, v in s.items() if not v)))
+" 2>/dev/null || echo UNREADABLE)"
+
     if [[ "$got_build" == "$expected" && "$got_env" == "$want_env" \
-       && "$got_ok" == "true" && "$got_migrations" == "$want_migrations" ]]; then
-      echo "  ok: build=$got_build environment=$got_env database.ok=true migrations=$got_migrations"
+       && "$got_ok" == "true" && "$got_migrations" == "$want_migrations" \
+       && -z "$empty_secrets" ]]; then
+      echo "  ok: build=$got_build environment=$got_env database.ok=true migrations=$got_migrations, every declared secret non-empty"
       break
     fi
 
@@ -111,6 +128,12 @@ for entry in "${hosts[@]}"; do
         echo "  The right code is deployed but it cannot query its database." >&2
       elif [[ -n "$got_migrations" && "$got_migrations" != "$want_migrations" ]]; then
         echo "  Schema drift: this commit carries $want_migrations migrations, the database has $got_migrations." >&2
+      elif [[ "$empty_secrets" == "NO_SECRETS_BLOCK" ]]; then
+        echo "  This Worker reported no secrets block. Either it runs code older than this check, or the block was removed, in which case NOTHING is verifying that any secret is non-empty. That is not a pass." >&2
+      elif [[ -n "$empty_secrets" && "$empty_secrets" != "UNREADABLE" ]]; then
+        echo "  SECRETS PRESENT BUT EMPTY: $empty_secrets" >&2
+        echo "  The names exist, so secret-inventory passes. The VALUES are empty strings." >&2
+        echo "  An empty BETTER_AUTH_SECRET means sessions signed with an empty key." >&2
       fi
       exit 1
     fi

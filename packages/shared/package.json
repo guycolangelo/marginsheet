@@ -9,7 +9,8 @@
     "./merchant": "./src/merchant.ts",
     "./models": "./src/models.ts",
     "./routing": "./src/routing.ts",
-    "./sentry-scrub": "./src/sentry-scrub.ts"
+    "./sentry-scrub": "./src/sentry-scrub.ts",
+    "./required-secrets": "./src/required-secrets.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
