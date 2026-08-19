@@ -357,6 +357,22 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: **when a number describes a set the repo defines, read it from the repo before acting on it**, and treat an agreed figure that nobody has re-derived as a quotation rather than a fact.
 
+- **A WRITE KEYED ON A PROVIDER-SUPPLIED VALUE MUST NAME THE HOUSEHOLD. A write keyed on our own primary key is scoped by the key itself.**
+
+  **The provider's namespace is shared across every household and none of it is ours.** Plaid issues one `item_id` per Item, one `plaid_account_id` per account, one `plaid_transaction_id` per transaction, and two households linking the same bank login see **the same values**. Our own `uuidv7` primary keys cannot collide across households, because we mint them.
+
+  **All four cross-household findings of 19 August 2026 were reachable through the first case, and none through the second.** `plaid_items.item_id`, `financial_accounts.plaid_account_id`, `transactions.plaid_transaction_id`, and `applyRemoved`'s `where plaid_transaction_id = any(...)`. Meanwhile `outbox.markEnqueued` on `signal_id` and `reconnect` on `id` were audited in the same pass and left alone, deliberately, because the key already scopes them.
+
+  **THE CHECK IS ONE QUESTION AND IT IS CHEAP: whose namespace does this key belong to?** If the answer is **Plaid, Stripe, Twilio or Postmark**, the statement names the household or it is a finding waiting to happen. If the answer is ours, the key is the scope.
+
+  This is why 4e fixed one statement and stopped rather than adding predicates everywhere on principle. **Adding them everywhere would have obscured why `applyRemoved` was different**, and a rule applied uniformly to cases that differ teaches nobody which case mattered.
+
+  **It does not depend on RLS being right, which is the point.** It was written because RLS was wrong: `sync_worker_access` is `USING (true)` for `marginsheet_sync`, so on that path the household GUC constrains nothing. **A statement should be correct even when the policy is wrong.**
+
+- **RETURN WHAT HAPPENED, NOT WHAT WAS ASKED FOR.** `applyRemoved` returned `plaidTransactionIds.length`, the count of ids it was handed. It now returns the rows actually updated.
+
+  **Those two numbers differ exactly when an id belongs to somebody else**, which is the case the function exists to get right. Returning the input length **reports success for work that did not happen**, and that is the shape of a control that cannot fail: no input produces a discrepancy, so no caller can ever detect one.
+
 - **AN EMPTY LIST IS A STATEMENT; SILENCE IS AN INHERITANCE.** Recorded as one rule rather than three incidents, because it produced three in a single day, two of them in the same file, and every one resolved to something other than what its absence suggested.
 
   | Key | What absence looked like | What absence meant |
