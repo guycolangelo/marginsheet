@@ -164,11 +164,19 @@ not collide on any index. Skipping the duplicate is a product choice about what
 the household should see, and the constraint work in this plan neither helps nor
 hinders it.
 
-**One consequence to decide with it, not after:** if the shared card is skipped on
-the second login and the household later disconnects the first, the card leaves
-with it. Whether the skipped account should be recorded as *seen and skipped* so
-it can be re-offered is an M8 question, and it is the difference between a tidy
-list and a household silently losing an account.
+**RULED 19 AUGUST 2026 (Guy): a skipped account is RECORDED as seen-and-skipped,
+with which Item it was skipped in favour of.**
+
+Because otherwise a household that connects a card through two logins and later
+disconnects the first **silently loses the card, having done nothing wrong.** A
+tidy list is not worth that.
+
+**And that decides disconnect too, as the same decision rather than a follow-on.**
+Disconnecting an Item must check whether anything it holds was the **winner** of a
+skip, and offer the alternative rather than dropping the account. The record has
+to name the winning Item for that to be answerable at all, which is why it is one
+ruling and not two: a skip log that does not say what won cannot be read at
+disconnect time.
 
 ### Case 3: same login, different households. The isolation failure.
 
