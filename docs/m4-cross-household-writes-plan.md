@@ -97,17 +97,91 @@ Two tests, and the second is not optional:
 
 ---
 
-## 3. The joint-account question, argued rather than resolved
+## 3. Three cases, not one question
 
-**This is a product decision wearing a schema costume, and it is Guy's to rule.**
-The collision is not an attack and not an error: `item_id` is Plaid's, and two
-households linking the same bank login produce the same Item. A shared account, a
-couple who separated, an adult child on a parent's account. **Ordinary use.**
+The first draft treated overlap as a single problem. It is three, **with
+different fixes, different surfaces and different failure modes**, and the split
+is what makes each one tractable (Guy, 19 August 2026).
 
-Whatever we do to the constraint decides what happens to those households, so the
-constraint cannot be chosen without deciding this first.
+**Cases 1 and 2 are within-household data quality. Case 3 is authorization.**
+Only case 3 is a security finding, and only case 3 is what this plan was opened
+for. The other two are recorded here because they share a symptom and would
+otherwise be solved by the same wrong mechanism.
 
-### Option A: two Items, one per household
+### Case 1: same login, same household. Refuse and say so.
+
+The household connects a Chase login they already have. **Exact `item_id` match,
+no heuristic anywhere.**
+
+**CHECKED AGAINST THE CODE BEFORE DESIGNING ANYTHING, and it is already handled at
+the data level.** The 4.3.3 spike established that Plaid is idempotent on a public
+token: re-exchanging returns **the same `item_id` and the same access token**.
+`exchange.ts` upserts on `item_id` and distinguishes insert from update with
+`(xmax = 0)`, returning **`alreadyConnected`** without a second query. Two
+exchanges produce one row, one Item at Plaid, and one billable connection.
+
+**So there is no mechanism to build. The open question is only whether the
+household is TOLD**, and today nothing tells them: `alreadyConnected` is consumed
+by no surface, because the connect UI is M8's and does not exist. It is computed,
+correct, and unread.
+
+**Owed to M8**, as one sentence in the connect flow: *"You've already connected
+this Chase login."* Not a new field, not a new check. A field that already exists
+finding a reader.
+
+### Case 2: different logins, overlapping account, same household
+
+Two people in one household each have their own login at the same bank, and one
+account is visible to both. A spouse who is an additional user on a card. Her
+login should connect, the shared card should not be added twice, **and her
+checking and savings should be added.**
+
+**The duplicate is the ACCOUNT, not the login.** The login is entirely legitimate
+and carries accounts nothing else can see.
+
+**Matching is a heuristic, not an identity, and the plan must not pretend
+otherwise.** `plaid_account_id` is issued **per Item**, so the same physical card
+reached through two logins arrives with **two different ids**. Nothing in the
+payload identifies the underlying account. What actually matches is **mask, plus
+type, plus institution** — and two different cards ending 1234 at one bank is
+uncommon rather than impossible.
+
+Three consequences, and the first is the rule:
+
+- **It tells the household rather than silently dropping.** *"The Visa ending 1234
+  is already connected. We'll skip it and add your checking and savings."* A
+  heuristic that acts silently is a heuristic that is wrong invisibly, and the
+  household is the only party who can say *"no, that's a different card."*
+- **It is per ACCOUNT at selection time, not per Item at exchange time.** One
+  duplicate account among three is still a login worth connecting. A check that
+  refuses the Item because one account overlaps throws away two good accounts.
+- **That places it in Link's account picker, which is M8's surface**, not M4's.
+  M4 owns the exchange; the decision happens before the exchange, on a list of
+  accounts the household is looking at.
+
+**Not a schema problem.** Two ids for one physical card inside one household do
+not collide on any index. Skipping the duplicate is a product choice about what
+the household should see, and the constraint work in this plan neither helps nor
+hinders it.
+
+**One consequence to decide with it, not after:** if the shared card is skipped on
+the second login and the household later disconnects the first, the card leaves
+with it. Whether the skipped account should be recorded as *seen and skipped* so
+it can be re-offered is an M8 question, and it is the difference between a tidy
+list and a household silently losing an account.
+
+### Case 3: same login, different households. The isolation failure.
+
+**This is not deduplication at all.** Two households linking the same bank login
+is the case this plan was opened for: it is where the confirmed cross-household
+writes came from, and the households are strangers to each other by definition of
+the boundary.
+
+**Both households need their own Item, their own token and their own sync, and
+neither may reach the other's rows.** This is where Option A applies, and where
+the double-billing cost is paid.
+
+#### Option A: two Items, one per household
 
 Each household exchanges its own public token and holds its own Item and its own
 access token. The unique index becomes `(household_id, item_id)`.
@@ -123,7 +197,7 @@ access token. The unique index becomes `(household_id, item_id)`.
 - **Failure mode:** none that is visible. The cost is invisible to the household
   and lands on us.
 
-### Option B: one Item, shared, boundary drawn elsewhere
+#### Option B: one Item, shared, boundary drawn elsewhere
 
 The Item is stored once. Households reference it. The household boundary moves from
 the connection to the rows derived from it.
@@ -142,7 +216,7 @@ the connection to the rows derived from it.
   questions, and `household_isolation` stops being expressible as a predicate on a
   column for the connection tables.
 
-### Option C: refuse the second connection
+#### Option C: refuse the second connection
 
 The constraint stays global and a second household linking the same Item is told
 the account is already connected elsewhere.
@@ -153,7 +227,7 @@ the account is already connected elsewhere.
   global phone uniqueness inside a policy: an inconvenience to us is not a reason
   to refuse a household.
 
-### What the plan recommends, and why it is a recommendation
+#### The ruling (case 3)
 
 **Option A**, on the boundary argument rather than the cost one. **Approved by Guy, 19 August 2026.** Two Items is more
 expensive and it keeps the household boundary exactly where every other rule in
@@ -167,7 +241,7 @@ the cost one. Option B moves an isolation boundary into a shape no existing
 control can express, and **a boundary nothing can check is one that erodes
 silently.**
 
-### The double billing is accepted knowingly. Read this before optimising it.
+#### The double billing is accepted knowingly. Read this before optimising it.
 
 **Two billable Plaid Items for one bank login is not waste. It is the price of
 the household boundary**, and it was chosen with the cost in front of us.
@@ -191,7 +265,7 @@ Item. It is whether Plaid's billing shape can be addressed some other way, or
 whether the boundary can be kept while the Item is shared. Anyone proposing the
 latter is proposing Option B and should read this section as its rebuttal.
 
-### What Option A leaves unresolved, and it is owed rather than solved
+#### What Option A leaves unresolved, and it is owed rather than solved
 
 **Two households syncing the same account means the same transaction appears in
 two ledgers.** That is CORRECT for a joint account: both households genuinely
@@ -240,6 +314,9 @@ something to improvise when it first appears in a real household's books.
   should keep their global unique indexes. They are shared or provider-global by
   nature and are **not** in scope here; naming them is so the next reader does not
   assume they were missed.
-- Anything about M8's connect UI. If Option A is chosen, the second household's
-  Link flow is unchanged; if Option B, it is not, and that becomes M8's problem
-  with this plan as its input.
+- **Case 1's message and case 2's account-level dedup are M8's**, not this plan's.
+  Case 1 needs no mechanism at all, only a reader for a field that already exists.
+  Case 2 needs a heuristic that TELLS rather than drops, applied per account in
+  Link's picker, and it carries its own open question about whether a skipped
+  account is recorded so it can be re-offered. This plan states them so they are
+  not solved here by the wrong mechanism, and hands them over intact.
