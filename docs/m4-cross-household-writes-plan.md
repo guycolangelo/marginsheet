@@ -155,17 +155,64 @@ the account is already connected elsewhere.
 
 ### What the plan recommends, and why it is a recommendation
 
-**Option A**, on the boundary argument rather than the cost one. Two Items is more
+**Option A**, on the boundary argument rather than the cost one. **Approved by Guy, 19 August 2026.** Two Items is more
 expensive and it keeps the household boundary exactly where every other rule in
 this system assumes it is: a household's data is a household's, derived from a
 connection they own. Option B is cheaper and moves an isolation boundary into a
 shape no existing control can express, which is the kind of change that makes
 every downstream control approximately right.
 
-**The cost is real and should be accepted knowingly, not discovered.** If a
-material share of households share logins, this is a recurring bill that grows
-with engagement, and the honest time to notice is now rather than in a Plaid
-invoice. **Guy rules; this plan makes the case.**
+**RULED 19 AUGUST 2026: OPTION A.** Guy, on the boundary argument rather than
+the cost one. Option B moves an isolation boundary into a shape no existing
+control can express, and **a boundary nothing can check is one that erodes
+silently.**
+
+### The double billing is accepted knowingly. Read this before optimising it.
+
+**Two billable Plaid Items for one bank login is not waste. It is the price of
+the household boundary**, and it was chosen with the cost in front of us.
+
+Whoever finds this line later will find it the way costs are always found: as a
+duplicate, on an invoice, with an obvious-looking fix. The fix is Option B above,
+and the reason it was rejected is not that it is hard. It is that it puts one
+Plaid Item under two households, which makes reauth and disconnect
+multi-household questions and makes `household_isolation` inexpressible as a
+predicate on a column for the connection tables. **One household would be able to
+affect another household's ledger by acting on their own screen.**
+
+**And the cost grows with exactly the customers who are most engaged**, because
+the households most likely to share a login are couples and families running
+their money together, which is this product's centre rather than its edge. So the
+line gets more conspicuous as the product succeeds, and it will look worse at the
+moment it is most worth paying.
+
+If this is ever revisited, the thing to change is **not** which household owns the
+Item. It is whether Plaid's billing shape can be addressed some other way, or
+whether the boundary can be kept while the Item is shared. Anyone proposing the
+latter is proposing Option B and should read this section as its rebuttal.
+
+### What Option A leaves unresolved, and it is owed rather than solved
+
+**Two households syncing the same account means the same transaction appears in
+two ledgers.** That is CORRECT for a joint account: both households genuinely
+share that money, and neither ledger is wrong.
+
+But it is **the first case in this system where one transaction is legitimate in
+two places**, and nothing downstream has met it:
+
+- **Categorisation (M5):** two households can file the same spend differently, and
+  both filings are right. `source_renames` and `merchant_corrections` are
+  household-scoped, so this works, but nothing has confirmed it.
+- **Questions and the close (M10 to M13):** two households may ask about the same
+  transaction and receive different answers, correctly. The composer has never
+  been asked to hold that.
+- **Kept and Margin:** the same dollar reduces two households' Margin. Correct,
+  because both households really did have that money leave. It has never been
+  stated out loud, and it will read as a double count to the first person who
+  notices.
+
+**Flagged as owed, not solved.** It is not a blocker for Option A, and it is not
+something to improvise when it first appears in a real household's books.
 
 ---
 

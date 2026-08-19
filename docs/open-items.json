@@ -251,5 +251,21 @@
     "trigger": "BEFORE A SECOND HOUSEHOLD CONNECTS ANYTHING, IN ANY ENVIRONMENT. Not a module number: 4.5b is when real Items first exist, but the condition that produces this is a second household linking an account, which can happen in dev or staging or twice on Guy's own logins, and a module completing says nothing about whether that has occurred. The trigger is the condition, not the milestone.",
     "owed_to": "TRIGGER: the condition above. Confirmed 19 Aug 2026 by the harness with the GUC read back inside the transaction, which is what separated a genuine cross-household write from an unrestored planted mutation. THE PLAN IS THE BUILD'S TO DRAFT AND GUY'S TO APPROVE, same as every other task; it was first recorded as owned by Guy, which would have left him owning a plan he was never going to write. Evidence lives on branch finding/cross-household-upsert and PR #113.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "one-transaction-legitimate-in-two-ledgers",
+    "item": "OPTION A MEANS THE SAME TRANSACTION APPEARS IN TWO HOUSEHOLDS' LEDGERS, AND THAT IS CORRECT. Ruled 19 Aug 2026: two households sharing one bank login each hold their own Plaid Item, so a joint account's spending syncs into both. Both households genuinely share that money and neither ledger is wrong. IT IS THE FIRST CASE IN THIS SYSTEM WHERE ONE TRANSACTION IS LEGITIMATE IN TWO PLACES, and nothing downstream has met it. Categorisation: two households may file the same spend differently and both filings are right; source_renames and merchant_corrections are household-scoped so this should work, and nothing has confirmed it. Questions and the close: two households may ask about the same transaction and correctly receive different answers, which the composer has never been asked to hold. Kept and Margin: the same dollar reduces two households' Margin, which is correct because both households really did have that money leave, and it will read as a double count to the first person who notices. WHAT HAPPENS IF NOBODY DOES ANYTHING: it is improvised the first time it appears in a real household's books, most likely during a close, which is the worst moment to be deciding what a shared transaction means. NOT A BLOCKER for Option A.",
+    "owner": "build, gated on Guy's approval where it touches doctrine",
+    "trigger": "when a second household connects an account another household already holds, or M5 categorisation, whichever comes first",
+    "owed_to": "TRIGGER: the first shared connection, or M5. Raised by Guy 19 Aug 2026 with the Option A ruling.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "sync-grant-is-the-only-boundary-on-that-path",
+    "item": "THE ENUMERATED GRANT IS CURRENTLY THE ONLY BOUNDARY ON THE SYNC WRITE PATH, AND IT WAS BUILT AS DEFENCE IN DEPTH. marginsheet_sync carries `sync_worker_access` as USING (true) WITH CHECK (true) on 36 tables, so row-level security constrains it nowhere. Migrations 0023 and 0024 narrow its GRANTS to ten tables. THE GRANT IS THEREFORE LOAD-BEARING RATHER THAN BELT-AND-BRACES: 4.1's narrowing from 39 tables to 10 is the reason today's confirmed cross-household writes are bounded to the Plaid pipeline rather than reaching messages, threads, known_context, decision_journal and every LLM log. WHAT HAPPENS IF NOBODY KNOWS THIS: somebody widens a grant on the argument that RLS covers it, which is the exact argument that is false for this role, and the widening is invisible because nothing fails. Anyone touching a marginsheet_sync grant must read this first. The authorization fix is task 4c of docs/m4-cross-household-writes-plan.md; until it lands, treat every GRANT to marginsheet_sync as a security boundary rather than a convenience.",
+    "owner": "build",
+    "trigger": "any change to a marginsheet_sync grant, and closed by task 4c of the cross-household plan",
+    "owed_to": "TRIGGER: task 4c, or sooner if any grant to marginsheet_sync is proposed. Raised by Guy 19 Aug 2026 on reading the plan.",
+    "raised": "2026-08-19"
   }
 ]
