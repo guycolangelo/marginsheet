@@ -71,6 +71,25 @@
     "production": {
       "name": "marginsheet-sync",
       "compatibility_flags": ["nodejs_compat"],
+      // EXPLICITLY EMPTY, BECAUSE OMITTING IT INHERITS THE TOP-LEVEL LIST.
+      //
+      // The delete-class migration was written for dev and staging, which have
+      // an orphaned HouseholdSync namespace from a hand-deploy. Production
+      // never had one, so it was left out. LEAVING IT OUT IS NOT SCOPING:
+      // wrangler inherits top-level keys into named environments, so
+      // production received the v2 delete anyway and the deploy failed with
+      //
+      //   Cannot apply delete-class migration to class 'HouseholdSync' which
+      //   was not exported in the previous version of the script [code: 10074]
+      //
+      // which also answers the question this file declined to guess at.
+      // Deleting a never-created class is an ERROR, not a no-op, so scoping was
+      // the right call and omission was the wrong mechanism for it.
+      //
+      // SAME SHAPE AS workers_dev: an absent key does not mean "none", it means
+      // "take the default", and here the default is the parent's value. An
+      // empty list is a statement; silence is an inheritance.
+      "migrations": [],
       "vars": {
         "ENVIRONMENT": "production",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
