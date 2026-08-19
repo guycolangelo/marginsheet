@@ -47,8 +47,13 @@ envs = json.load(open('config/environments.json'))
 target = sys.argv[1]
 if target not in envs or target.startswith('_'):
     sys.exit('unknown target: ' + target)
-for origin in envs[target].values():
-    print(origin + '|' + target)
+for name, service in envs[target].items():
+    # EVERY ENTRY HAS THE SAME SHAPE: an origin that answers, and a path per
+    # purpose. This branches on nothing. The previous version did
+    # origin + '|' + target against values that had become objects, and threw
+    # TypeError on dev and staging, which would have failed verification on the
+    # very deploy that shipped the change.
+    print(service['origin'] + service['paths']['health'] + '|' + target + '|' + name)
 " "$target")
 
 if [ "${#hosts[@]}" -eq 0 ]; then
@@ -80,15 +85,17 @@ attempts=${VERIFY_ATTEMPTS:-20}
 delay=${VERIFY_DELAY:-6}
 
 for entry in "${hosts[@]}"; do
-  origin="${entry%%|*}"
-  want_env="${entry##*|}"
-  echo "verifying $origin/health"
+  probe="${entry%%|*}"
+  rest="${entry#*|}"
+  want_env="${rest%%|*}"
+  service="${rest##*|}"
+  echo "verifying $service at $probe"
 
   for ((i = 1; i <= attempts; i++)); do
     # Deliberately NOT curl -f: /health answers 503 when the database half
     # fails, and that body carries the reason. Discarding it would leave the
     # most useful failure message unread.
-    body="$(curl -sS --max-time 15 "$origin/health" || echo '{}')"
+    body="$(curl -sS --max-time 15 "$probe" || echo '{}')"
 
     got_build="$(field "$body" build)"
     got_env="$(field "$body" environment)"
@@ -158,7 +165,7 @@ done
 # in docs/open-items.json rather than assumed.
 api_origin="$(python3 -c "
 import json, sys
-print(json.load(open('config/environments.json'))[sys.argv[1]]['api'])
+print(json.load(open('config/environments.json'))[sys.argv[1]]['api']['origin'])
 " "$target")"
 
 echo "verifying marginsheet-sync via $api_origin/debug/sync-health"

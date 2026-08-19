@@ -124,17 +124,25 @@ const handler = {
       });
     }
 
-    // conversation's identity, over the binding rather than over the internet.
+    // conversation's health and identity, over the binding rather than over the
+    // internet.
     // db-identity used to fetch https://marginsheet-conversation*.workers.dev
     // directly, which worked only because that Worker was publicly reachable.
     // It is not any more, so the check reaches it the way everything else does.
     // Enumerated like the sync routes above, never prefix-forwarded.
-    if (url.pathname === "/debug/conversation-identity") {
+    if (
+      url.pathname === "/debug/conversation-identity" ||
+      url.pathname === "/debug/conversation-health"
+    ) {
       if (!env.CONVERSATION) {
         return Response.json({ error: "no CONVERSATION service binding on this Worker" }, { status: 503 });
       }
+      // Enumerated, never prefix-forwarded, matching the sync routes above: a
+      // prefix would publish anything anybody later adds to conversation.
+      const target =
+        url.pathname === "/debug/conversation-health" ? "/health" : "/debug/db-identity";
       const response = await env.CONVERSATION.fetch(
-        new Request("https://conversation.internal/debug/db-identity")
+        new Request(`https://conversation.internal${target}`)
       );
       // Status passed through: a 503 from conversation must not become a 200
       // here, which would be a proxy reporting health it did not receive.
