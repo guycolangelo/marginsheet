@@ -1,9 +1,34 @@
-# Destroys the PR's ephemeral Neon branch when the PR closes (merged or not).
+# Destroys ephemeral Neon branches.
+#
+# THREE TRIGGERS, AND THE SWEEP IS THE ONE THAT ACTUALLY HOLDS.
+#
+# The close event alone leaked, and it leaked in two independent ways that
+# both showed up on 19 Aug 2026 when the project hit "branches limit exceeded"
+# and CI could not create a scratch branch at all:
+#
+#   1. GITHUB'S AUTO-CLOSE DOES NOT EMIT THIS EVENT. When #109 merged with
+#      --delete-branch, GitHub closed #110 because its base branch was gone.
+#      No `pull_request: closed` run exists for it, and pr-110 outlived the PR.
+#   2. `|| true` MADE EVERY FAILED DELETE REPORT SUCCESS. A control that
+#      cannot go red is documentation, and this one was hiding leaks by design.
+#
+# Enumerating leak causes is the wrong shape, because the next one will be a
+# third thing nobody predicted. THE SWEEP ASKS THE CONDITION INSTEAD: is there
+# an ephemeral branch whose reason to exist is gone? That catches auto-close,
+# a failed delete, a cancelled run, and whatever comes next.
 name: neon-pr-cleanup
 
 on:
   pull_request:
     types: [closed]
+  schedule:
+    # Hourly. The ceiling is reached in hours, not days: one run per PR push.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Ephemeral branch to delete (pr-<n>). Leave blank to sweep."
+        required: false
 
 env:
   NEON_PROJECT_ID: fancy-paper-35797264
@@ -19,7 +44,20 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Delete the PR's Neon branch
+
+      - name: Delete this PR's Neon branch
+        if: github.event_name == 'pull_request'
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-        run: scripts/neon-pr-branch.sh delete ${{ github.event.pull_request.number }} || true
+        # NO `|| true`. A delete that fails is a leak, and a leak that reports
+        # success is how the ceiling arrived unannounced. The script already
+        # tolerates an absent branch; anything else is a real failure.
+        run: scripts/neon-pr-branch.sh delete ${{ github.event.pull_request.number }}
+
+      - name: Sweep ephemeral branches whose reason to exist is gone
+        if: github.event_name != 'pull_request'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          ONLY: ${{ github.event.inputs.branch }}
+        run: node .github/scripts/sweep-neon-branches.mjs
