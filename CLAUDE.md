@@ -82,6 +82,47 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **Absent-with-an-owner beats flaky.** A gap in `docs/open-items.json` is honest, it is visible in CI, and somebody owns closing it. A flaky test is a false claim of coverage that also corrodes every true claim next to it. When a fixture cannot be made deterministic, the branch is split: test our **handler** against a synthesised response and say plainly that Plaid's behaviour is not what was proven.
 
+- **THE OMISSION FAILURE: a sentence where every word is permitted, every rule is satisfied, and it still misleads by what is missing.** Named 18 Aug 2026, because it is a different kind of failure from everything the advice gate was designed for and no vocabulary layer will ever reach it.
+
+  The example that named it: **"This costs $104 a month."** True. Complete-sounding. Contains no banned word. And the category canon's own description of it is *"the cleanest lie by omission"*, because $104 looks like nothing and 24 months of a decision you no longer get to make is the actual price.
+
+  **The advice gate as designed checks what is SAID. This is a failure of what is NOT said.** So the gate needs two layers rather than one:
+
+  - **The vocabulary layer.** Deterministic, `packages/lint`, and it bans words. It cannot reach an omission by construction, because there is nothing there to match.
+  - **The completeness layer.** Enforced by **required-field presence in the fact package**, not by the judge. The composer cannot state what it cannot cite, so a field that must be present is a sentence that must be written.
+
+  **Completeness is a contract property rather than a judgement**, which is why it does not belong to M11's model. A judge asked "is anything missing" is guessing; a contract asked "is this field populated" is not.
+
+  **THE FORCING FIELD IS THE MECHANISM, and the codebase already has three of them, none enforced.** The shape is a flag plus a nullable that the flag obligates:
+
+  | Class | Flag | Obligates | State |
+  |---|---|---|---|
+  | `ScenarioAnswer` | `ledgers_diverge: true` | `cash_ledger` non-null | comment says "true FORCES the two-ledger answer shape". Nothing checks it. |
+  | `PreferenceConfirm` | `honored_fully: false` | `not_honored_part` non-null | a confirmation that omits what was NOT honored reads as full agreement |
+  | `ScenarioAnswer` | `tender: installment` | term and total | **the fields do not exist**, so the financing verdict is uncomposable |
+
+  M2 named the first without enforcing it, which is the safe direction to be wrong in and is still short of a control. `NULL_BEHAVIOR` is a completeness mechanism **pointed the other way**: it governs what a null composes, and says nothing about what a populated flag obligates. The two are duals and only one has a mechanism.
+
+  **Consequence recorded now so M11 does not rediscover it:** the adversarial set for omission failures cannot be tested until the forcing fields exist and are checked, which makes the owed `tender` and term fields a prerequisite for testing the class at all rather than a nicety.
+
+  **And the sweep is not finished.** Three were found by reading every boolean in the contract. `Correction.verdict_changed`, `Correction.band_demoted` and `Alert.first_flag` all carry compose obligations in their own comments and none is enforced either.
+
+- **State the positive fact and let the absence follow.** Absence assertions are usually a positive fact written backwards, and **the rewrite is almost always cheaper than the field.**
+
+  Canonical exchange #7b said *"the cash leaves when the statement is paid on September 15"* and then *"Checking is not touched this month."* The second restates the first in negative form, and **the negative form is the one nothing traces to**: there is no fact for the absence of an event. Cutting the line cost no field and left the exchange correct.
+
+  So when a claim resists tracing, check first whether it is a positive fact inverted. Adding a field to carry an absence is the expensive answer to a question that usually has a free one.
+
+- **A banned-word rule bans a PROHIBITION, not a spelling, and its fixture is the sentence doctrine names.** Two rules from one failure, both paid for on 18 Aug 2026.
+
+  `no-burden-verbs` was written from the canon's literal list, which says `tied up`. **It shipped passing "this TIES up your Margin for two years", which is the exact sentence the canon quotes as the thing the ban exists to stop.**
+
+  The audit that followed found **eleven gaps across six of the seven advice rules**, every one in place since M0: `should` permitted `shouldn't`; `need to` permitted `needs to` and `needed to`; `afford` permitted `affording`; `recommend` permitted `recommending` and `recommendations`; `cut back` permitted `cuts back`; `delta` permitted `deltas`; `reminder` permitted `reminding`. **One gap was masked**, because "reminding you again" fired on `again` and looked like coverage.
+
+  So: **banned-word patterns are written inflected**, and **where doctrine supplies its own example of the failure, that example IS the fixture.** A synthetic string built from the banned list tests the list. The doctrine's own sentence tests the ban, and it is the one the rule shipped passing.
+
+  This is the second-order version of the planted-failure rule: planting proves a test can fail, and this proves the test is aimed at the failure the doctrine actually named.
+
 - **THE PLANTED FAILURE COMES WITH THE TEST, NOT AFTER THE MODULE.** Planting is not a verification step performed at the end. It is the thing that establishes whether a fixture is real, and **a test that has never been planted against is an assertion nobody has confirmed can fail.**
 
   Four fixture failures in one week, every one caught by planting, **none by review**, and every one written by someone who had just been thinking about that exact failure mode:

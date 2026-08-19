@@ -66,9 +66,14 @@ CLAUDE.md requires every number in an outbound message to trace to a fact-packag
 
 **No fields were added.** Owed to M2.
 
-### What I would propose
+### What I would propose, revised after the ruling of 18 August
+
+**The echo was accepted and amendment 13 will be revised.** It had provenance right and traceability wrong: a field existing only on the request cannot be cited by a composer that cites answer fields, so *"assuming debit"* was uncitable by construction.
+
+**The refinement is the important half, and it is Guy's.** The echo carries the tender **and how we know it**, because *"you said debit"* and *"assuming debit"* are two different sentences and the reply has to tell them apart. **Stated and assumed are separate values, not a boolean on a shared field.**
 
 ```ts
+/** Supplied on the scenario REQUEST by the household. */
 export type Tender =
   | "debit_or_cash"
   | "credit_card"
@@ -77,7 +82,20 @@ export type Tender =
    *  states the assumption it made. */
   | "unspecified";
 
-/** Present ONLY where tender is "installment". */
+/** ECHOED into the ScenarioAnswer block, so the reply can cite it.
+ *
+ *  Provenance is a VALUE, not a flag on Tender. "You said debit" and
+ *  "assuming debit" are different sentences, and a boolean beside a
+ *  shared field invites composing one from the other. */
+export type TenderBasis = "household_stated" | "system_assumed";
+
+export interface TenderFact {
+  tender: Tender;
+  basis: TenderBasis;
+}
+
+/** Present ONLY where tender is "installment". The union makes the
+ *  illegal state unrepresentable rather than merely discouraged. */
 export interface InstallmentTerm {
   monthly_amount: string;      // "$104"
   payment_count: number;       // 24
@@ -88,15 +106,15 @@ export interface InstallmentTerm {
 }
 ```
 
-**Four notes, and the third is a disagreement worth surfacing.**
+**Why provenance is a value and not a boolean, stated because the boolean is the tempting version.** A boolean named `assumed` sits beside `tender` and reads as a modifier of it. Two values make the reply's two sentences two distinct facts, with no third state to invent. Same reasoning that makes `unspecified` a value rather than a null: **a shape that cannot express the ambiguity forces the composer to resolve it, and resolving it is guessing.**
 
-**Interest gets no field, and the absence is the enforcement.** A separate finance-charge field invites a separate sentence, and the ruling is that interest is folded into the total. This is the cheapest kind of enforcement: the composer cannot say what it cannot cite. Same shape as withholding `access_token_ciphertext` from `marginsheet_app` by column grant.
+**Interest gets no field, and the absence is the enforcement.** A separate finance-charge field invites a separate sentence, and the ruling is that interest is folded into the total. The composer cannot say what it cannot cite. Same shape as withholding `access_token_ciphertext` by column grant: the control is the missing capability, not a rule about restraint.
 
-**`unspecified` is a value, not a null.** A null invites the composer to skip the beat. A value forces the reply to name what it assumed. Same shape as `built: false` in `SENSITIVE_ACTIONS`, where the flag exists so the unbuilt case has to be handled rather than forgotten.
+**These are forcing fields, and that is now a named pattern.** `tender: "installment"` obligates the term block exactly as `ledgers_diverge: true` obligates the cash ledger. See the omission-failure entry in `CLAUDE.md`: the completeness layer is enforced by required-field presence rather than by the judge, which makes **these fields the prerequisite for testing the omission class at all.**
 
-**Where I would differ from the drafted amendment 13: `tender` on the request alone is not enough.** The amendment puts it on the scenario request rather than the answer, because it is an input the household supplies. That is right about provenance and I think it leaves a hole: **the reply must name the tender it assumed, and the composer can only cite fact-package fields.** If `tender` lives only on the request, *"assuming debit"* is an uncited assertion in an outbound message. My proposal is that it is supplied on the request **and echoed into the `ScenarioAnswer` block**, so the assumption is traceable like every other claim. Flagged as a question for M2 rather than a correction, because M2 owns the contract.
+**The second question is ruled, and the answer cost no field.** Exchange #7b said *"Checking is not touched this month"*, an assertion about absence. **Ruled: cut the line.** It restates the sentence before it, which already says the cash leaves at the September 15 statement, and **the negative form is the one nothing traces to.** The exchange is correct without it.
 
-**A second question, smaller.** Exchange #7b says *"the cash leaves when the statement is paid on September 15"* and *"Checking is not touched this month."* The first is plausibly a `clearing_dates` entry. The second is an assertion about **absence**, and I am not sure what field it traces to. Worth M2 confirming rather than discovering at composition.
+The general rule went to `CLAUDE.md`: **state the positive fact and let the absence follow.** Absence assertions are usually a positive fact written backwards, and the rewrite is almost always cheaper than the field.
 
 ### The constraint I would add to the four already listed
 
@@ -143,6 +161,32 @@ The judge is M11 and this engine is only its deterministic layer. **Fixtures wri
 | "Two dates, same purchase, different low point. Your call." | The tradeoff handed back. |
 
 ---
+
+## 4a. The omission sweep, and it found a third instance
+
+**Swept every boolean in the fact-package contract**, since the guess was that omission failures live in scenario answers. They do not live only there.
+
+**The shape is a flag plus a nullable the flag obligates.** Three exist. **None is enforced by anything.**
+
+| Class | Flag | Obligates | Evidence it is a forcing field |
+|---|---|---|---|
+| `ScenarioAnswer` | `ledgers_diverge: true` | `cash_ledger` non-null | its own comment: *"true FORCES the two-ledger answer shape"* |
+| `PreferenceConfirm` | `honored_fully: false` | `not_honored_part` non-null | `not_honored_part` composes *"that one I don't split"* |
+| `ScenarioAnswer` | `tender: installment` | term and total | **the fields do not exist** |
+
+**`PreferenceConfirm` is the new one and it is the cleanest after the archetype.** A confirmation with `honored_fully: false` and a null `not_honored_part` says the preference was recorded and omits the part that was not. **True, permitted, and the household reads it as full agreement.** Exactly the shape of answering one ledger.
+
+### The mechanism that exists points the other way
+
+`NULL_BEHAVIOR` is a completeness mechanism, and it governs **what a null composes**: a fallback, or omit the topic. Its own entry for `ScenarioAnswer.cash_ledger` reads *"The two-ledger answer shape is forced by ledgers_diverge"* and **points at an enforcement that does not exist.**
+
+**The two are duals and only one has a mechanism.** `NULL_BEHAVIOR` answers *"data is absent, what do we say"*. The omission failure asks *"data is present, what must we say"*. Nothing answers the second.
+
+### Three more carry compose obligations and are unchecked
+
+`Correction.verdict_changed` (*"true = highest-stakes fixture"*), `Correction.band_demoted` (*"composes 'I've started asking again'"*) and `Alert.first_flag` (*"false = follow-up register plus the follow-up banned list"*). Each states an obligation in a comment and nothing enforces it. **A correction whose verdict flipped and does not say so is the same failure as a monthly figure without its term.**
+
+Not proposed as fields here. Recorded so the completeness layer is scoped to the pattern rather than to the two instances that prompted it.
 
 ## 5. What the canon does not answer
 

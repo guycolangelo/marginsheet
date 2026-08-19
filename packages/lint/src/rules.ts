@@ -272,43 +272,50 @@ export const RULES: Rule[] = [
   {
     id: "no-should",
     contexts: ["analytical"],
-    pattern: /\byou should\b|\bshould\b/gi,
+    // INFLECTED, not literal. Audited 18 Aug 2026 after no-burden-verbs shipped
+    // matching "tied up" and passing "TIES up", which is the exact sentence the
+    // doctrine names as its failure. The audit found ELEVEN gaps across six of
+    // the seven advice rules: every one of them banned a word and permitted its
+    // own inflections.
+    //
+    // A banned-word rule bans a PROHIBITION, not a spelling.
+    pattern: /\bshouldn['\u2019]?t\b|\bshould\b/gi,
     message: '"should" is banned in analytical replies.',
   },
   {
     id: "no-need-to",
     contexts: ["analytical"],
-    pattern: /\bneed to\b/gi,
+    pattern: /\bneed(?:s|ed|ing)? to\b/gi,
     message: '"need to" is banned in analytical replies.',
   },
   {
     id: "no-afford",
     contexts: ["analytical"],
-    pattern: /\bafford(s|ed|ability)?\b/gi,
+    pattern: /\bafford(?:s|ed|ing|able|ability)?\b/gi,
     message: "Affordability verdicts are banned. The brains state facts and costs.",
   },
   {
     id: "no-cut-instruction",
     contexts: ["analytical"],
-    pattern: /\b(cut|cutting) (back|down|your|the|spending|out)\b/gi,
+    pattern: /\bcut(?:s|ting)? (?:back|down|your|the|spending|out)\b/gi,
     message: '"cut" as instruction is banned.',
   },
   {
     id: "no-recommend",
     contexts: ["analytical"],
-    pattern: /\brecommend(s|ed|ation)?\b/gi,
+    pattern: /\brecommend(?:s|ed|ing|ations?)?\b/gi,
     message: '"recommend" is banned in analytical replies.',
   },
   {
     id: "no-delta-variance",
     contexts: ["correction"],
-    pattern: /\b(delta|variance|discrepanc(y|ies))\b/gi,
+    pattern: /\b(?:deltas?|variances?|discrepanc(?:y|ies))\b/gi,
     message: 'No "delta", "variance", or "discrepancy" in corrections.',
   },
   {
     id: "no-nagging",
     contexts: ["follow_up"],
-    pattern: /\bagain\b|\bstill haven'?t\b|\breminder\b/gi,
+    pattern: /\bagain\b|\bstill haven['\u2019]?t\b|\bremind(?:er|ers|ing)\b/gi,
     message: 'No "again", "still haven\'t", or "reminder" in follow-up alerts.',
   },
   {

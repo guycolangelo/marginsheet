@@ -307,5 +307,37 @@
     "trigger": "the tender field landing on ScenarioAnswer",
     "owed_to": "TRIGGER: the tender field. Then the fixture declares a tender and divergence is derived rather than assumed.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "completeness-layer-for-omission-failures",
+    "item": "NAMED 18 Aug 2026: the OMISSION FAILURE, a sentence where every word is permitted, every rule is satisfied, and it still misleads by what is missing. 'This costs $104 a month' is the example that named it. THE ADVICE GATE AS DESIGNED CHECKS WHAT IS SAID and no vocabulary layer will ever reach this. Structural consequence for M11, recorded now rather than left to be discovered: THE GATE NEEDS A COMPLETENESS LAYER SEPARATE FROM THE VOCABULARY LAYER, and completeness is enforced by REQUIRED-FIELD PRESENCE IN THE FACT PACKAGE rather than by the judge, because a judge asked 'is anything missing' is guessing while a contract asked 'is this field populated' is not. THE FORCING FIELD IS THE MECHANISM and three exist, NONE ENFORCED: ledgers_diverge true obligates cash_ledger, honored_fully false obligates not_honored_part, and tender installment obligates term and total whose fields do not exist. NULL_BEHAVIOR is a completeness mechanism pointed the OTHER WAY: it governs what a null composes and says nothing about what a populated flag obligates. Three more carry compose obligations in their own comments and are unchecked: Correction.verdict_changed, Correction.band_demoted, Alert.first_flag.",
+    "owner": "build",
+    "trigger": "M11, and the forcing-field checks are buildable before it",
+    "owed_to": "TRIGGER: M11 for the gate's shape. The forcing-field assertions need no judge and can land any time.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "forcing-fields-unenforced",
+    "item": "Three flag-plus-nullable pairs in the fact package where the flag obligates the nullable, and NOTHING CHECKS ANY OF THEM. ScenarioAnswer.ledgers_diverge true requires cash_ledger non-null, and its own comment says 'true FORCES the two-ledger answer shape'. PreferenceConfirm.honored_fully false requires not_honored_part non-null, or a confirmation says the preference was recorded and omits the part that was not, which the household reads as full agreement. The third, tender installment requiring term and total, cannot be enforced because the fields do not exist. TWO OF THE THREE ARE ENFORCEABLE TODAY with no new fields and no owned canon text: they assert the contract, not composed output. Found by sweeping every boolean in classes.ts after the omission failure was named.",
+    "owner": "build",
+    "trigger": "on request; independent of M11 and of exchange #7",
+    "owed_to": "TRIGGER: on request. Two of the three are one commit and need nothing that does not exist.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "banned-word-inflection-audit-done-keep-the-rule",
+    "item": "AUDITED AND FIXED 18 Aug 2026, recorded so the rule survives the fix. no-burden-verbs shipped matching the canon's literal 'tied up' and PASSING 'this TIES up your Margin for two years', the exact sentence the canon quotes as the thing the ban exists to stop. The audit found ELEVEN GAPS ACROSS SIX OF THE SEVEN ADVICE RULES, every one in place since M0: should permitted shouldn't, need to permitted needs to and needed to, afford permitted affording, recommend permitted recommending and recommendations, cut back permitted cuts back, delta permitted deltas, reminder permitted reminding. ONE GAP WAS MASKED because 'reminding you again' fired on 'again' and looked like coverage. All fixed and fixtured. THE STANDING RULES ARE IN CLAUDE.md: a banned-word rule bans a prohibition rather than a spelling, and where doctrine supplies its own example of the failure that example IS the fixture. Any NEW banned-word rule is audited the same way before it ships.",
+    "owner": "build",
+    "trigger": "standing constraint, applied whenever a banned-word rule is added",
+    "owed_to": "TRIGGER: standing. Every new banned-word rule gets the inflection audit and doctrine's own sentence as its fixture.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "category-self-description-sweep-outside-the-repo",
+    "item": "'Premium household financial operating system' was corrected in CLAUDE.md, and FIXING IT IN THE CONSTITUTION FIXES THE AUTHORITY, NOT THE COPIES. It has been the project's standing self-description and is almost certainly in the investor deck plan, the influencer materials, the marketing site and elsewhere outside this repository. The phrase carries two violations at once: the banned word, and a competitor's category. Guy runs the sweep. Recorded here because a correction whose copies are untouched is a correction that will be quoted back from the copies.",
+    "owner": "Guy",
+    "trigger": "Guy's sweep of materials outside this repository",
+    "owed_to": "TRIGGER: Guy's external sweep. The repo half is done; the copies are not.",
+    "raised": "2026-08-18"
   }
 ]
