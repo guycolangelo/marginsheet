@@ -66,6 +66,8 @@ const PROBES = Object.fromEntries(
 // The application connects as this role, and only this role.
 const EXPECTED_ROLE = "marginsheet_app";
 
+const PROBE_TOKEN = process.env.DEBUG_PROBE_TOKEN ?? "";
+
 // The response is allowed to carry these keys and nothing else.
 const ALLOWED_KEYS = ["current_user", "bypassrls"] as const;
 
@@ -86,7 +88,13 @@ type Identity = { current_user?: unknown; bypassrls?: unknown };
 async function identity(
   url: string
 ): Promise<{ status: number; body: Identity; note: string }> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  // /debug is gated by credential. Absent, every probe answers 404 and this
+  // suite would report "could not report its database identity" for a healthy
+  // Worker, so the missing token is named rather than diagnosed.
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(15_000),
+    headers: { "x-probe-token": PROBE_TOKEN },
+  });
   const text = await res.text();
 
   try {

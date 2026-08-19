@@ -95,7 +95,7 @@ for entry in "${hosts[@]}"; do
     # Deliberately NOT curl -f: /health answers 503 when the database half
     # fails, and that body carries the reason. Discarding it would leave the
     # most useful failure message unread.
-    body="$(curl -sS --max-time 15 "$probe" || echo '{}')"
+    body="$(curl -sS --max-time 15 -H "x-probe-token: ${DEBUG_PROBE_TOKEN:-}" "$probe" || echo '{}')"
 
     got_build="$(field "$body" build)"
     got_env="$(field "$body" environment)"
@@ -170,7 +170,7 @@ print(json.load(open('config/environments.json'))[sys.argv[1]]['api']['origin'])
 
 echo "verifying marginsheet-sync via $api_origin/debug/sync-health"
 for ((i = 1; i <= attempts; i++)); do
-  body="$(curl -sS --max-time 15 "$api_origin/debug/sync-health" || echo '{}')"
+  body="$(curl -sS --max-time 15 -H "x-probe-token: ${DEBUG_PROBE_TOKEN:-}" "$api_origin/debug/sync-health" || echo '{}')"
 
   got_service="$(field "$body" service)"
   got_build="$(field "$body" build)"
@@ -262,7 +262,7 @@ done
 # ciphertext under the CORRECT key is rejected by nothing else.
 echo "verifying sync crypto via $api_origin/debug/sync-crypto"
 for ((i = 1; i <= attempts; i++)); do
-  body="$(curl -sS --max-time 15 "$api_origin/debug/sync-crypto" || echo '{}')"
+  body="$(curl -sS --max-time 15 -H "x-probe-token: ${DEBUG_PROBE_TOKEN:-}" "$api_origin/debug/sync-crypto" || echo '{}')"
   got_round="$(field "$body" roundTrip)"
   got_wrong="$(field "$body" wrongKeyRejected)"
   got_tamper="$(field "$body" tamperRejected)"
