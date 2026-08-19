@@ -139,6 +139,25 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So the question to ask of any refusal, alongside the standing one: **what else was reaching through here, and does it still get through?** Gate by credential and the probes present it; gate by environment and they cannot.
 
+- **SHARED ENVIRONMENTS ARE REACHED THROUGH THE PIPELINE OR NOT AT ALL, AND A BYPASS IS GUY'S CALL RATHER THAN ONE MADE IN FLIGHT.** (Guy, 19 Aug 2026.)
+
+  This is the second time durable state has outlived a hand-deploy, and **both times the reasoning was sound in the moment**, which is why the rule is about the route rather than about care.
+
+  - 16 Aug: `AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE` was set by hand against shared dev, and dev's Workers lost their database until the secret was reissued.
+  - 19 Aug: the chain lock was deployed to dev and staging from a feature branch to close a live exposure quickly. That registered a `HouseholdSync` **Durable Object namespace** on both, and **a DO namespace outlives the deploy that made it.** Every later deploy from main was then refused with `10064`, because main does not export the class. A redeploy cannot undo it; only a migration can.
+
+  **The damage is not the mistake, it is the residue.** A bad deploy that only serves bad code is fixed by the next deploy. A deploy that creates a namespace, a role password, or any other durable object leaves something the pipeline cannot reach, and the fix costs a migration and a ruling instead of a revert.
+
+  If an exposure is urgent enough to justify bypassing the pipeline, that urgency is **a decision, not an inference**, and it is made by Guy before the bypass rather than justified after it.
+
+- **A `try` THAT SWALLOWS THROWS TURNS A SCHEMA ERROR INTO A PASSING TEST.** Its own line in the record, because it is the ninth finding in the most deceptive form yet: **it appeared in a test written specifically to prove the property it failed to prove.**
+
+  `cross-household-upsert.test.ts` attempts a forbidden write inside `try { } catch { }`, then asserts the victim's row survived. Correct in shape. But its insert omitted `financial_accounts.plaid_item_id`, which is `NOT NULL`, **so the statement would have thrown for a SCHEMA reason before reaching any policy.** The catch swallows it, the victim's row survives trivially, the assertions pass, and the test proves nothing whatever about isolation.
+
+  **Found by reading the schema, not by the red.** The test was green on that half.
+
+  The general form: **when a test tolerates an exception, the exception is part of the fixture and has to be identified.** A swallowed throw is an unasserted branch, and an unasserted branch is where a fixture stops being able to tell a pass from a failure. If a `catch` is load-bearing, assert **which** error arrived.
+
 - **CAPTURE THE BASELINE BEFORE THE PROBE, NOT AFTER.** A probe's result is a DIFFERENCE, and a difference needs two measurements. Running the probe first and comparing against a baseline you assume is clean measures nothing.
 
   Paid for on 18 Aug 2026: a probe on the herald subset reported six typecheck errors, which looked like the probe biting. They were pre-existing, they were mine, and I had reported a clean typecheck minutes earlier. **The probe caught the prober.** The finding was still correct, and it was correct by luck rather than by method.
