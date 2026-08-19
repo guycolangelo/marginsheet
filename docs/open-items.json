@@ -235,5 +235,69 @@
     "trigger": "the first customer, partner or investor who requires it",
     "owed_to": "TRIGGER: the first customer, partner or investor who REQUIRES it. Not a module and not a date: per the trigger rule, this is gated on someone outside the project.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "two-ledger-spec-amendment-owed",
+    "item": "The two-ledger rule is doctrine in category canon v3.1 and is NOT in mycfo-mykeeper-conversational-spec under that name. No canonical exchange demonstrates it: #2, the car decision, answers on the Margin ledger alone. Golden tests were built against the CONTRACT invariant the fact package already carries (ledgers_diverge forces the two-ledger shape) rather than against composed text, because asserting on invented output certifies whatever a model produced against words nobody wrote. THE SPEC TEXT IS OWED: the named ledgers (Cash Choreography, the MarginSheet Verdict), the divergence-by-tender table, and at least one canonical exchange showing both halves. Until it exists the rule is enforced structurally and not in voice.",
+    "owner": "Guy",
+    "trigger": "the conversational spec revision, alongside the canon revision the single-assistant ruling already owes",
+    "owed_to": "TRIGGER: the conversational spec revision. Rides with the two-registers-become-two-modes revision rather than being a separate pass.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "scenario-tender-not-in-fact-package",
+    "item": "The canon makes TENDER the thing that decides whether the two ledgers diverge: debit is a gap of zero, a credit card is a one-cycle gap, an installment has no lump at all. ScenarioAnswer carries no tender field, so 'establish the tender before making a cash-timing claim' cannot be tested and cannot be composed: the composer never computes, and a cash claim with no tender fact is a hard failure. Adding the field is a fact-package contract change, which the language task refused by default. FLAGGED RATHER THAN ROUTED AROUND. Related: the-car-decision declares ledgers_diverge false for a car, the archetypal financed purchase, which is internally consistent and rests on an assumption nobody stated.",
+    "owner": "Guy",
+    "trigger": "a ruling on whether M2's fact-package contract gains a tender field",
+    "owed_to": "TRIGGER: a ruling on the fact-package contract. Blocks the tender half of the two-ledger rule.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "financing-term-not-in-fact-package",
+    "item": "The canon: '$104 a month for 24 months is not 3 points this month. It is $2,496 through August 2028', and interest is folded into the total, never separated. MarginLedger carries kept_before, kept_after, margin_before, margin_after and nothing else: no term, no total of payments. CLAUDE.md says every number traces to a fact-package field or it is a hard failure. THOSE TWO CANNOT BOTH HOLD with this contract, so the financing verdict is currently uncomposable rather than merely untested. The lint layer covers the LECTURE half (burden verbs) and cannot cover the OMISSION half: 'this costs $104 a month' contains no banned token and is the canon's cleanest lie by omission.",
+    "owner": "Guy",
+    "trigger": "a ruling on whether M2's fact-package contract gains term and total fields",
+    "owed_to": "TRIGGER: a ruling on the fact-package contract. Blocks the financing verdict entirely.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "tender-clarifying-question-beat",
+    "item": "The canon states it directly: a purchase question cannot be answered correctly without knowing the tender, the tender cannot be inferred before the fact, and asking is a clarifying question rather than advice, which makes it permitted. THE BEAT DOES NOT EXIST IN THE CONVERSATIONAL SPEC and the canon says so itself. It needs a canonical exchange, because a clarifying question that reads as a stall or as due diligence on the household's judgment fails the same spec that permits it.",
+    "owner": "Guy",
+    "trigger": "the conversational spec revision",
+    "owed_to": "TRIGGER: the conversational spec revision, with the two-ledger text.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "competitive-line-trips-ai-rule",
+    "item": "The canon's own competitive line, 'Budgeting apps track. Dashboards organize. AI assistants answer. Money Intelligence understands', trips no-ai-category-language, which bans 'AI assistant'. RECORDED RATHER THAN ACCOMMODATED. The rule is not weakened for one sentence that has no home in the product yet: the line is marketing copy, apps/site is empty, and a carve-out written before the sentence has a surface is a carve-out nobody can scope. When the line ships, either it is quoted, or the rule gains a narrow exemption for the contrast construction, or the line is reworded. That is a decision with a real trade and it belongs to whoever writes the page.",
+    "owner": "Guy",
+    "trigger": "the first marketing surface that carries the competitive line",
+    "owed_to": "TRIGGER: the first marketing surface carrying the line. Not before: an exemption written now cannot be scoped.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "margin-integrity-conditions-unbuilt",
+    "item": "The canon requires Margin to hold itself back under two known incompleteness conditions: an unconnected spending account, detected from card payments leaving for an account we do not hold, and material uncategorized inflow. Both overstate Margin in the FLATTERING direction, which is the one direction the number must never err in, and the product states the condition plainly rather than rendering a confident figure with a caveat beneath it. NEITHER IS BUILT AND NEITHER IS A LANGUAGE CHANGE: the first needs payment-destination analysis over transactions, the second needs a materiality threshold against uncategorized inflow. Both are engine work and were refused by the language task's scope fence. Recorded here because a canon requirement with no owner is the eighth finding.",
+    "owner": "build",
+    "trigger": "M6a for detection, M6b for the Margin surface's behaviour",
+    "owed_to": "TRIGGER: M6a and M6b. Engine work, not language work.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "bnpl-shape-lookup",
+    "item": "The canon: 'Affirm and BNPL: the shape determines the answer with no special case needed. Which shape they arrive in is an open lookup against real Plaid data.' Whether a BNPL arrangement surfaces as a card transaction (recognized at full amount) or as an installment loan the lender pays directly (recognized per payment) decides which recognition rule applies, and it is an empirical question about Plaid rather than a doctrine question. Answerable against the founder household's real Items at 4.5b, which is the first place real institutions connect.",
+    "owner": "build",
+    "trigger": "4.5b, when real institutions connect and real BNPL rows are visible",
+    "owed_to": "TRIGGER: M4 task 4.5b. An empirical lookup, not a ruling.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "advice-gate-judge-half-untestable",
+    "item": "The category task asked for fixtures smuggling recommendations through intelligence-flavoured phrasing. THEY SPLIT IN TWO AND ONLY ONE HALF IS BUILDABLE. 'Your Money Intelligence indicates you should move the car payment' contains 'should' and the deterministic layer already catches it. 'The intelligence suggests', 'the analysis points to', 'this commits $104 a month' contain NO BANNED TOKEN: they are advisory or misleading by construction, not by vocabulary. Those need the LLM judge, which is M11 and does not exist; packages/lint describes itself as 'the deterministic layer of M11's advice gate'. Recorded so a green lint suite is not read as a covered advice gate.",
+    "owner": "build",
+    "trigger": "M11, when the judge exists",
+    "owed_to": "TRIGGER: M11's advice-gate judge. The deterministic half is done; the construction half cannot be linted.",
+    "raised": "2026-08-18"
   }
 ]
