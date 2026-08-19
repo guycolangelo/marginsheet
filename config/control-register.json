@@ -487,6 +487,21 @@
         "note": "A new endpoint returning a household id, which is the shape that would actually occur: somebody adds a surface, not somebody edits the scanner. Verified red 19 Aug 2026, reporting services/api/src/index.ts and the planted line."
       },
       "distinction": "THIS GUARDS A MITIGATION, NOT A BOUNDARY, AND THAT IS WHY IT EXISTS. The severity of anything taking a household id as input rests on a stranger being unable to obtain one, which was true when traced and was maintained by NOTHING. The first feature to put one in a link would have removed it silently. It scans SOURCE rather than payloads because a household id is a bare UUID with no structure to recognise at runtime. Two false positives on the first run, an internal service-binding forward and an error message naming the field, and THE DETECTOR WAS FIXED RATHER THAN THE CODE: rewriting an error message to satisfy a scanner is the ceremony that teaches people to suppress a rule."
+    },
+    {
+      "id": "removed-stream-names-the-household",
+      "control": "applyRemoved's household predicate (services/sync/src/apply-streams.ts)",
+      "guards": "The removed stream cannot flag a transaction belonging to another household, without relying on RLS.",
+      "test": "services/sync/test/apply-streams.test.ts",
+      "name": "scopes the update by household_id, not by plaid_transaction_id alone",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/apply-streams.ts",
+        "find": "     where household_id = ${householdId}\n       and plaid_transaction_id = any(${plaidTransactionIds})",
+        "replace": "     where plaid_transaction_id = any(${plaidTransactionIds})",
+        "note": "Removes the household predicate, restoring EXACTLY the statement that was confirmed on 19 Aug 2026 to flag another household's transaction with threw=nothing. The mutation is the historical defect rather than an invented one, which is the strongest form available: the direction of the break is known to occur because it did."
+      },
+      "distinction": "TASK 4e, AND IT LANDED BEFORE THE AUTHORIZATION FIX ON PURPOSE. The statement must be correct even when the policy is wrong, and the policy IS wrong: sync_worker_access is USING (true) for marginsheet_sync, so RLS scopes nothing on this path and the household GUC is decorative. ORDERING ARGUMENT: 4c must not be verified against code that depends on it. With this correct on its own terms, landing 4c tests whether the narrowing works; landing 4c first would test only whether the narrowing is the one thing standing between us and a known-bad statement. This is a SHAPE assertion over recorded SQL rather than a database test, which is honest about what it proves: it proves the statement names a household, and the database-level proof is the confirmed finding on branch finding/cross-household-upsert."
     }
   ]
 }

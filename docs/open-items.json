@@ -251,5 +251,13 @@
     "trigger": "BEFORE A SECOND HOUSEHOLD CONNECTS ANYTHING, IN ANY ENVIRONMENT. Not a module number: 4.5b is when real Items first exist, but the condition that produces this is a second household linking an account, which can happen in dev or staging or twice on Guy's own logins, and a module completing says nothing about whether that has occurred. The trigger is the condition, not the milestone.",
     "owed_to": "TRIGGER: the condition above. Confirmed 19 Aug 2026 by the harness with the GUC read back inside the transaction, which is what separated a genuine cross-household write from an unrestored planted mutation. THE PLAN IS THE BUILD'S TO DRAFT AND GUY'S TO APPROVE, same as every other task; it was first recorded as owned by Guy, which would have left him owning a plan he was never going to write. Evidence lives on branch finding/cross-household-upsert and PR #113.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "sync-writes-keyed-on-internal-ids",
+    "item": "TWO SYNC WRITES ARE KEYED ON AN INTERNAL PRIMARY KEY WITH NO HOUSEHOLD PREDICATE, AND THEY ARE A DIFFERENT RISK FROM applyRemoved. outbox.ts markEnqueued updates household_state_signals WHERE signal_id, and reconnect.ts clears needs_reauth on plaid_items WHERE id. NEITHER IS KNOWN TO BE EXPLOITABLE and neither was tested, because both keys are uuidv7 values this system generates rather than values a provider supplies: they cannot collide across households the way plaid_transaction_id, item_id and plaid_account_id can, which is what made those three reachable. THE DISTINCTION IS THE POINT: a write keyed on a PROVIDER-supplied value must name the household, because the provider's namespace is shared across households; a write keyed on our own primary key is scoped by the key itself. That reasoning is why 4e fixed applyRemoved and stopped, rather than adding predicates everywhere on principle. WHAT HAPPENS IF NOBODY DOES ANYTHING: nothing today, and the exposure appears the moment either statement is rekeyed onto a provider id, which no control would notice. Adding the predicates is cheap defence in depth and should be done with 4c, when the sync role's policy is narrowed and the household is available on every path anyway.",
+    "owner": "build",
+    "trigger": "task 4c of docs/m4-cross-household-writes-plan.md, or sooner if either statement is rekeyed onto a provider-supplied id",
+    "owed_to": "TRIGGER: 4c. Audited during 4e on 19 Aug 2026 and deliberately left, with the reasoning recorded so the omission is a decision rather than an oversight.",
+    "raised": "2026-08-19"
   }
 ]
