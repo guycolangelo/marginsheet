@@ -10,12 +10,50 @@
 // It authenticates as marginsheet_sync, narrowed in migration 0023 to nine
 // tables. Its credential comes from scripts/sync-db-url.mts, which refuses to
 // mint one for a role wider than that.
+//
+// DURABLE OBJECT MIGRATIONS, DEV AND STAGING ONLY. v2 DELETES HouseholdSync.
+//
+// WHY IT EXISTS: a hand-deploy left durable state main cannot satisfy. The
+// chain lock was deployed to dev and staging from a feature branch on 19 Aug
+// 2026, which registered a HouseholdSync namespace on both. A DO NAMESPACE
+// OUTLIVES THE DEPLOY THAT MADE IT, so every later deploy from main was
+// refused: "New version of script does not export class 'HouseholdSync' which
+// is depended on by existing Durable Objects" [code: 10064]. A redeploy cannot
+// undo that; only a migration can.
+//
+// WHY PRODUCTION HAS NONE, AND THE ASYMMETRY IS THE POINT: production was
+// never hand-deployed, so it has no such namespace, and whether Cloudflare
+// treats deleting a never-created class as a no-op or an error is NOT KNOWN
+// HERE. Applying it uniformly would be guessing on the one environment that
+// cannot be tested first, to fix a problem it does not have. The migration is
+// scoped to the environments where the namespace is known to exist.
+//
+// Deleting is correct: nothing ever wrote to those objects and they hold no
+// household data. The branch introducing the class for real re-adds it under a
+// LATER TAG per environment, never by editing this one. Tags are applied once
+// and recorded, so editing a tag after it has run is the append-only rule
+// wearing different clothes.
+//
+// WHY v2 AND NOT v1, WHICH THIS FILE GOT WRONG ONCE. The hand-deploy applied
+// v1 (new_sqlite_classes) to dev and staging, so v1 is already RECORDED there.
+// A delete written as v1 is skipped silently: the deploy still failed with the
+// same 10064, and nothing said the migration had been ignored. The paragraph
+// above already said tags are applied once, and it was written in the same
+// change that reused one. PROBED, NOT REASONED: the second deploy attempt is
+// what said so.
+//
+// CONSEQUENCE FOR THE BRANCH THAT RE-ADDS THE CLASS: dev and staging will have
+// v1 and v2 recorded, so the class comes back as v3 there, while production
+// has nothing recorded and takes v1. Divergent tag lists per environment are
+// legal and are the honest state; making them uniform would mean claiming a
+// migration ran somewhere it did not.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "marginsheet-sync-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
+  "migrations": [{ "tag": "v2", "deleted_classes": ["HouseholdSync"] }],
   "vars": {
     "ENVIRONMENT": "dev",
     "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
@@ -24,6 +62,7 @@
     "staging": {
       "name": "marginsheet-sync-staging",
       "compatibility_flags": ["nodejs_compat"],
+      "migrations": [{ "tag": "v2", "deleted_classes": ["HouseholdSync"] }],
       "vars": {
         "ENVIRONMENT": "staging",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"

@@ -82,24 +82,47 @@ export function canRotate(): boolean {
  * control that will be correct in three. A caller whose skip logic is wrong
  * still cannot rotate anything.
  */
-export async function rotateAppRole(
+/** The roles a suite may rotate. ALLOWLISTED, NEVER BLOCKLISTED: naming the
+ *  two that exist fails closed on a third somebody adds later, which is the
+ *  same shape as the enumerated column grants and the pr-<n> branch guard. */
+const ROTATABLE = ["marginsheet_app", "marginsheet_sync"] as const;
+export type RotatableRole = (typeof ROTATABLE)[number];
+
+/**
+ * THE REFUSAL LIVES HERE, NOT IN THE CALLER. Four test files once carried
+ * their own ALTER ROLE and their own gate, and a control that must be
+ * remembered in four places will be correct in three.
+ */
+export async function rotateRole(
   owner: ReturnType<typeof postgres>,
   ownerUrl: string,
-  label: string
+  label: string,
+  role: RotatableRole = "marginsheet_app"
 ): Promise<string> {
   const branch = declaredBranch();
   if (!EPHEMERAL_BRANCH.test(branch)) {
     // Thrown BEFORE the connection is used, so a refused call issues no SQL.
     throw new ForbiddenRotation(branch);
   }
+  if (!ROTATABLE.includes(role)) {
+    throw new ForbiddenRotation(`role ${role} is not rotatable`);
+  }
 
   const password = `${label}_${crypto.randomUUID().replace(/-/g, "")}`;
-  await owner.unsafe(`ALTER ROLE marginsheet_app LOGIN PASSWORD '${password}'`);
+  await owner.unsafe(`ALTER ROLE ${role} LOGIN PASSWORD '${password}'`);
 
   const u = new URL(ownerUrl);
-  u.username = "marginsheet_app";
+  u.username = role;
   u.password = password;
   return u.toString();
+}
+
+export async function rotateAppRole(
+  owner: ReturnType<typeof postgres>,
+  ownerUrl: string,
+  label: string
+): Promise<string> {
+  return rotateRole(owner, ownerUrl, label, "marginsheet_app");
 }
 
 /**
