@@ -1,7 +1,9 @@
 # CLAUDE.md — MarginSheet™
 ## The constitution. Read before every task. If a task contradicts this file, stop and ask Guy.
 
-MarginSheet is a premium household financial operating system: an AI bookkeeper (MyKeeper™) and an AI CFO (MyCFO™) keep a household's books and watch the month ahead. The core is three things: the brains, the MarginSheet (actuals + projections), and Cash Flow. The product is a belief system — The Margin Method™ — and features are downstream of doctrine.
+MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the household's **Personal Money Intelligence Analyst**. The core is three things: the brains, the MarginSheet (actuals + projections), and Cash Flow. The product is a belief system, The Margin Method™, and features are downstream of doctrine.
+
+**This sentence used to read "a premium household financial operating system", which the category canon bans twice over** (the word, and the category). Corrected 18 Aug 2026, and recorded rather than quietly replaced: the constitution described the product in a competitor's vocabulary for three weeks while banning that vocabulary elsewhere.
 
 ---
 
@@ -222,12 +224,49 @@ Cloudflare Workers + Pages · Neon Postgres (single DB, branching in CI) · Dura
 - Parsing/extraction/merchant lookup: Haiku 4.5 → Sonnet 5
 - The composer never computes; every number traces to a fact-package field or it is a hard failure.
 
+## THE CATEGORY (locked 18 August 2026, canon v3.1)
+
+**MarginSheet is a Money Intelligence Platform. MyKeeper is your Personal Money Intelligence Analyst.** Money Intelligence is capitalised as a category noun, always.
+
+Your money → MarginSheet → Money Intelligence → MyKeeper → You
+
+**Data is what exists. Intelligence is what it means.** A balance is data. A balance read against what is committed before the next deposit is intelligence. The claim is **context, not prediction, and never advice.**
+
+The competitive line: *budgeting apps track, dashboards organize, AI assistants answer, Money Intelligence understands.*
+
+### Analyst, never agent, and this is a constraint rather than a disclaimer
+
+**An analyst produces the assessment. The decision-maker decides.** MyKeeper never holds authority to act on a household's money and the vocabulary must never imply it. **"Agent" is banned everywhere, including internal docs and prompt files.**
+
+Two sentences carry it. *"MarginSheet understands your money. MyKeeper puts that intelligence to work for you."* And **required wherever the Analyst is introduced**: *"MyKeeper does the work. You make the decisions."*
+
+Enforced as `no-agent-descriptor` in `packages/lint`, which bans the **descriptor** rather than the word: `user_agent` runs through M3's session-privacy work, and a rule that reddens the network-identity doctrine's own implementation is a rule people learn to suppress.
+
+### Margin is the vital sign
+
+Money Intelligence is the system. **Margin is the vital sign it produces:** one number, read at a glance, that tells you the state of your money's health.
+
+**A blood pressure reading is not a diagnosis and it is not a prescription.** It is a fact about you that took instruments and training to produce and now takes 3 seconds to read. That frame explains three existing rules at once, which is why it is recorded rather than treated as an analogy: **why one number is enough** (nobody wants a dashboard of their vitals), **why Margin is never celebrated** (nobody congratulates a blood pressure reading), and **why the system never prescribes** (the instrument reports, the person decides).
+
+Income − Spending = Kept ($) / Margin (%), unchanged. Causal chain control → opportunity → wealth, and only control is promised.
+
+### What sits at spec level rather than here
+
+The canon's operational rules amend named specs and are **drafted as amendments 11 to 13 plus canonical exchange #7, awaiting Guy's approval**: the two-ledger rule and the tender beat and the financing verdict (`mycfo-mykeeper-conversational-spec.md`), spending recognition by instrument (`ledger-spec.md`), and the owed `tender` and term fields on `ScenarioAnswer` (M2).
+
+**They are deliberately not restated here.** Two hand-written statements of one requirement drift by default, and the rule against that was recorded the same day. This section carries the category and the constraint; the specs carry the behaviour.
+
+**Not in that draft and owed its own ruling:** Margin integrity, the requirement that Margin holds itself back while an unconnected spending account or material uncategorized inflow is open. It touches `app-ui-spec.md` and `projection-spec.md` and needs a rendering decision.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
 - Negative Margin in parentheses: (6%). Positive figures never take parentheses. Overspent renders as a positive figure and is never behavioral commentary.
 - **No em dashes anywhere**, in any output, code comments included.
-- "budgeting apps" always in quotation marks. "Commandments" banned. Numerals for day counts ("the first 14 days").
+- "budgeting app" and "budgeting apps" always in quotation marks. "Commandments" banned. Numerals for day counts ("the first 14 days").
+- **"financial" and its variants are banned in any string a household reads.** Use "money". Scoped to household-facing text by the canon's own wording, and enforced that way: `no-financial-in-household-copy` binds to `household_copy` and `composed_artifact`, not universally. Seven internal comments in this repo say "financial data" correctly, describing what the system protects, and a rule firing on them would be wrong by the text that authorises it.
+- **Banned category terms:** "personal finance", "financial management", "financial wellness", "financial health". **Banned category language:** "AI-powered", "AI assistant", and "AI" appended to either mark.
+- **Banned burden verbs**, in anything a household reads: tied up, locked in, working to pay, eaten by, stuck with, on the hook, saddled with, weighed down. **State the term and the total. Never judge the tender.** This is the surface where the true statement and the lecture are one word apart: *"this commits $2,496 through August 2028"* is a fact and *"this ties up your Margin for two years"* is a verdict on the household's choice.
 - ™ on first/prominent use: MarginSheet™, The Margin Method™, MyKeeper™, MyCFO™. "AI" never appended to the marks. **"AI" appended is lint-enforced; PLACEMENT IS NOT, deliberately (ruled 16 Aug 2026).** The unit of "first use" is a **journey, not a file**: the sign-in confirm page and the signed-in page are two files and one journey, and a household walking it met the mark twice inside two sentences while each file was individually correct. A file-scoped rule would have passed that and called it checked. **A rule that is wrong about its unit is worse than a human reading the copy**, because it produces confidence rather than merely producing nothing. So trademark placement is a **copy-review item**, checked when a journey's copy is reviewed, and it is not lint's job.
 - P&L lines: income, fixed_obligations, variable_operating, discretionary, interest_fees, transfer, deployment. Taxes is a category ("Taxes After Takehome") under fixed_obligations, **not a line**.
 - Banned in analytical replies: "should," "need to," "afford," "cut" (as instruction), "recommend," affordability verdicts, "delta/variance/discrepancy" in corrections, "again/still haven't/reminder" in follow-up alerts, "good call"/"that cost you" on decisions.
