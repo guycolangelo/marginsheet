@@ -85,6 +85,9 @@ export interface ClaimBlock {
   file: string;
   line: number;
   text: string;
+  /** The lines immediately after the block, so a SQL claim can be checked
+   *  against the DDL it sits above rather than only against its own words. */
+  follows: string;
   /** Stable across line moves: the file plus the claim's opening words. */
   key: string;
 }
@@ -113,16 +116,24 @@ export function commentBlocks(root: string, trees: string[]): ClaimBlock[] {
       const rel = relative(root, file);
       const lines = readFileSync(file, "utf8").split("\n");
       let cur: { line: number; text: string } | null = null;
+      let i = 0;
       let inBlock = false;
       const flush = () => {
         if (cur) {
           const text = cur.text.replace(/\s+/g, " ").trim();
           // The key ignores line numbers, which drift on every edit above.
-          blocks.push({ file: rel, line: cur.line, text, key: `${rel}::${text.slice(0, 80)}` });
+          const endLine = i;
+          blocks.push({
+            file: rel,
+            line: cur.line,
+            text,
+            follows: lines.slice(endLine, endLine + 25).join("\n"),
+            key: `${rel}::${text.slice(0, 80)}`,
+          });
         }
         cur = null;
       };
-      for (let i = 0; i < lines.length; i++) {
+      for (i = 0; i < lines.length; i++) {
         const t = lines[i].trim();
         let isComment = false;
         if (inBlock) { isComment = true; if (t.includes("*/")) inBlock = false; }
@@ -154,6 +165,22 @@ function exempt(file: string): boolean {
   return false;
 }
 
+/** A SQL comment sitting directly above the DDL that enforces it.
+ *
+ * PREDICTED, THEN TESTED. Four migration claims were in the first baseline and
+ * all four were false positives: 0022's comment argues for a constraint and the
+ * CHECK is sixteen lines below it, already carried in the control register. The
+ * detector was reading the comment and stopping at the blank line.
+ *
+ * Requiring "Enforced by the CHECK constraint below" would be asking an author
+ * to describe what is already visible one line down, which is the kind of
+ * ceremony that makes a rule feel like an obstacle. */
+function backedByAdjacentDdl(b: ClaimBlock): boolean {
+  if (!b.file.endsWith(".sql")) return false;
+  return /\b(CHECK|UNIQUE INDEX|CONSTRAINT|GRANT|REVOKE|POLICY|FORCE ROW LEVEL|NOT NULL|REFERENCES)\b/i
+    .test(b.follows);
+}
+
 /** Blocks that assert a mechanism and do not name what enforces it. */
 export function unbackedClaims(root: string, trees: string[]): ClaimBlock[] {
   return commentBlocks(root, trees).filter(
@@ -161,6 +188,7 @@ export function unbackedClaims(root: string, trees: string[]): ClaimBlock[] {
       !exempt(b.file) &&
       MECHANISM_CLAIM.test(b.text) &&
       !NAMES_ENFORCEMENT.test(b.text) &&
-      !DISCLAIMS_ENFORCEMENT.test(b.text)
+      !DISCLAIMS_ENFORCEMENT.test(b.text) &&
+      !backedByAdjacentDdl(b)
   );
 }

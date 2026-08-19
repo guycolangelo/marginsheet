@@ -26,7 +26,7 @@ const ROOT = join(import.meta.dirname, "../../..");
 const TREES = ["services", "packages", "scripts", ".github/scripts", "apps"];
 const baseline = JSON.parse(
   readFileSync(join(ROOT, "config/mechanism-claim-baseline.json"), "utf8")
-) as { count: number; claims: string[] };
+) as { count: number; claims: string[]; disclaimedCount: number; disclaimed: string[] };
 
 describe("no NEW comment asserts a mechanism without naming its enforcement", () => {
   const found = unbackedClaims(ROOT, TREES);
@@ -66,6 +66,41 @@ describe("no NEW comment asserts a mechanism without naming its enforcement", ()
       stillPresent,
       "more baseline entries are present than the file records; the baseline grew"
     ).toBeLessThanOrEqual(baseline.count);
+  });
+});
+
+// THE DISCLAIMER BUCKET IS COUNTED, NOT MERELY PERMITTED.
+//
+// "NOT ENFORCED, owed to M13" is the honest escape hatch and it should stay
+// one. But an escape hatch nobody counts becomes invisible debt: fifty comments
+// saying it is a real backlog that no number ever surfaces.
+//
+// So the count lives in the baseline beside the unbacked count, and unlike that
+// one IT MAY GO UP. A number that can rise is visible; a permitted form that is
+// not counted is not.
+describe("disclaimed obligations are visible", () => {
+  it("the baseline records how many comments disclaim enforcement", () => {
+    expect(typeof baseline.disclaimedCount).toBe("number");
+    expect(baseline.disclaimed.length).toBe(baseline.disclaimedCount);
+  });
+
+  it("every disclaimer naming a module is carried in open-items", () => {
+    // The rule Guy set: where a disclaimer names what it owes to, that
+    // obligation is tracked with an owner rather than living only in a
+    // comment. Otherwise the escape hatch IS the backlog.
+    const openItems = JSON.parse(
+      readFileSync(join(ROOT, "docs/open-items.json"), "utf8")
+    ) as { id: string; item: string }[];
+    const corpus = openItems.map((i) => i.item).join(" ");
+    const namesAModule = baseline.disclaimed.filter((k) => /\bM\d{1,2}\b/.test(k));
+    for (const key of namesAModule) {
+      const [file] = key.split("::");
+      const subject = file.split("/").pop();
+      expect(
+        corpus.includes("acceptance criteria") || corpus.includes(subject ?? ""),
+        `a comment in ${file} disclaims enforcement and names a module, and no open item carries it`
+      ).toBe(true);
+    }
   });
 });
 

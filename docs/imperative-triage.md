@@ -5,18 +5,27 @@ Splits the survey in `docs/imperative-inventory.md` by **module built or unbuilt
 
 ---
 
-## 0. The expectation was that most dangerous claims sit in unbuilt modules. They do not.
+## 0. The axis: can this be checked today, yes or no
 
-| | Survey (126, broad filter) | Ratchet (16, precise filter) |
-|---|---|---|
-| **Built modules** | 119 | 13 |
-| **Unbuilt modules** | 7 | 3 |
+**Not built module versus unbuilt module.** That was a proxy for the real question and it fails on the file that matters most: `packages/fact-packages/src/classes.ts` is built, and what it describes is composed by M10 to M13, which do not exist. Triaging by file path put 119 of 126 in "built" and answered the wrong question.
 
-**The unbuilt population is small because unbuilt modules have almost no code to comment.** `services/conversation` is a health endpoint. `prompts/` is a `.gitkeep`. There is nothing there to over-claim about yet.
+**The axis is the SUBJECT of the claim, not its location.**
 
-The claims that DO belong to unbuilt behaviour are concentrated in one file, `packages/fact-packages/src/classes.ts`, because M2 wrote the contract for messages M10 to M13 will compose. **That file is built; the thing it describes is not.** Triage by file path gets this wrong, which is why the seven below were classified by what the claim is ABOUT rather than where it lives.
+| Answer | Action |
+|---|---|
+| **Yes, checkable today** | check it now: enforce, or downgrade to description |
+| **No** | it becomes an acceptance criterion for whichever module makes it checkable |
 
----
+**Default to closing. Defer only when the thing genuinely does not exist yet.** Of the seven claims about unbuilt behaviour, three were closed on 18 Aug rather than deferred: two because the enforcement already existed, one because a type could carry it. Deferring those would have been filing work that was already possible.
+
+### What the two populations are, and why they must not merge
+
+| | Population | Filter | Purpose |
+|---|---|---|---|
+| **The survey** | 126 | broad | measured by the random sample of twenty |
+| **The ratchet** | 12 | strict | cleaned by hand; may only shrink |
+
+**Two numbers, two purposes.** The random twenty measures the survey. Hand-checks clean the baseline. Conflating them produces a third number that means nothing.
 
 ## 1. Unbuilt: becomes acceptance criteria, owed to the module
 
@@ -36,24 +45,22 @@ Seven claims, all compose-time obligations with no composer to bind them. **Enfo
 
 ---
 
-## 2. Built: the now-list, and it is 13 not 119
+## 2. Checkable today: the now-list, and it is 12 not 119
 
-The survey's 119 in built modules is not a work list. **Most of it is explanation**, which the inventory says plainly and which is why the ratchet uses a stricter filter.
+The survey's 119 in built modules is **not a work list**. Most of it is explanation, which the inventory says plainly and which is why the ratchet uses a stricter filter.
 
-The actionable set is the ratchet's baseline, `config/mechanism-claim-baseline.json`, at **16 entries, 13 of them in built modules**:
+The actionable set is `config/mechanism-claim-baseline.json`, now at **12**.
 
-| File | Count | Character |
-|---|---|---|
-| `services/api/src/{tokens,phone-change,sensitive-actions,invitation-routes}.ts` | 4 | M3 auth claims |
-| `services/sync/src/{outbox,reconnect,sync-state}.ts` | 3 | M4 claims, written this week |
-| `packages/schema/migrations/002{2,4}*.sql` | 4 | claims whose DDL is directly below them |
-| `packages/fact-packages/src/{classes,internal}.ts` | 3 | contract claims |
-| `services/api/vitest.config.ts` | 1 | the suite-duration budget |
-| `packages/fact-packages/src/classes.ts` | 1 | (also in the unbuilt list) |
+**It was 16. The prediction that four were false positives was tested and was exactly right.** All four were SQL comments sitting directly above the DDL that enforces them: 0022 argues for a constraint and the `CHECK` is sixteen lines below, already carried in the control register. The detector was reading the comment and stopping at the blank line.
 
-**The migration four are probably false positives.** A comment above a `CHECK` constraint asserting what the constraint does is backed by the constraint on the next line; the detector only reads the comment. Checking those four is the cheapest possible first pass and would likely cut the list by a quarter.
+**The detector was fixed rather than the comments.** Requiring "Enforced by the `CHECK` constraint below" would ask an author to describe what is visible one line down, which is the ceremony that makes a rule feel like an obstacle.
 
----
+| File | Count |
+|---|---|
+| `services/api/src/{tokens,phone-change,sensitive-actions,invitation-routes}.ts` | 4 |
+| `services/sync/src/{outbox,reconnect,sync-state}.ts` | 3 |
+| `packages/fact-packages/src/{classes,internal}.ts` | 4 |
+| `services/api/vitest.config.ts` | 1 |
 
 ## 3. What this document deliberately does not do
 

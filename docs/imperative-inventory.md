@@ -411,4 +411,17 @@ Filtering to present-tense mechanism assertions (*forces, obligates, guarantees,
 
 **The preferred form, above a runtime check and far above a comment: let the type system carry it.** `FraudReply.boundary_line` is typed as the literal `true`, so the flag can never be absent or false and nothing has to enforce that. The herald subset became a conditional type on 18 Aug, and the probe that had produced nothing then fails to compile now. **A type cannot be forgotten, cannot drift, and needs no test to remember it.** A comment is the weakest form of a rule and the easiest to write, which is where all 126 came from.
 
+**THE RATCHET DOES NOT HOLD THE WHOLE LINE, AND NOBODY SHOULD READ IT AS IF IT DOES.**
+
+The ratchet guards **12** claims under a strict, high-precision definition. This survey found **126** under a looser one. **Roughly 110 sit outside the ratchet and can regrow freely.**
+
+That is a deliberate choice and probably the right one: the strict class is the class that can be *false*, and a rule firing on legitimate comments is a rule people learn to suppress. But the gap is real, and in six months somebody will assume the linter covers everything in this document unless it says otherwise. It does not.
+
+**This gives the random sample a second job.** Besides measuring the rate, it tells us whether the ratchet is scoped correctly:
+
+- if the loose class is mostly fine, **12 was the right thing to guard**
+- if a meaningful share is real, **the ratchet is under-scoped and widens**
+
+**A third bucket is counted separately: disclaimed obligations.** A comment saying "NOT ENFORCED, owed to M13" is the honest outcome the rule asks for, and an escape hatch nobody counts becomes invisible debt. Five today, recorded in the baseline beside the unbacked count, and unlike that one **it may go up**. A number that can rise is visible; a permitted form that is not counted is not.
+
 **What was done with this survey, so it is not read as a backlog.** The ratchet in `packages/lint/test/mechanism-claims.test.ts` stops the pile growing, which was the actual fix. `docs/imperative-triage.md` splits the rest by module built or unbuilt. A random sample of twenty is owed, and until it is drawn nothing here is a rate.
