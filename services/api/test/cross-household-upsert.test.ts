@@ -235,13 +235,26 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
     // carries the same global unique index as the other two, and "same shape"
     // is a statement about the remedy rather than about the behaviour. Two
     // vacuous tests this week came from exactly that inference.
-    const [acctB] = await owner<{ id: string; plaid_item_id: string }[]>`
-      select id, plaid_item_id from financial_accounts where plaid_account_id = ${SHARED_ACCOUNT}
+    // EVERY FIXTURE THIS TEST NEEDS IS BUILT HERE, not inherited from a test
+    // above it. THE HARNESS RUNS ONE TEST BY NAME (`vitest -t`), so a test that
+    // depends on rows an earlier test created gets `undefined` and reports a
+    // TypeError instead of a verdict. That happened on the first run of this
+    // file and cost a cycle: the failure was real and said nothing about
+    // isolation. A control that only passes when its neighbours ran is a
+    // control nobody can run alone.
+    const [itemB2] = await owner<{ id: string }[]>`
+      insert into plaid_items (household_id, item_id, access_token_ciphertext)
+      values (${householdB}, ${`item-b-txn-${crypto.randomUUID()}`}, 'B-token')
+      returning id
+    `;
+    const [acctB] = await owner<{ id: string }[]>`
+      insert into financial_accounts (household_id, plaid_item_id, plaid_account_id, name)
+      values (${householdB}, ${itemB2.id}, ${`acct-b-${crypto.randomUUID()}`}, 'B checking')
+      returning id
     `;
     await owner`
       insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, direction, merchant_name)
       values (${householdB}, ${acctB.id}, ${SHARED_TXN}, '2026-08-01', 42.00, 'outflow', 'B groceries')
-      on conflict (plaid_transaction_id) do nothing
     `;
 
     // A needs its own account, because transactions.account_id is NOT NULL and
@@ -288,6 +301,23 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
   });
 
   it("applyRemoved cannot flag another household's transaction", async () => {
+    // Self-contained for the same reason, under its own transaction id so it
+    // does not depend on the test above having run.
+    const REMOVED_TXN = `txn-removed-${crypto.randomUUID()}`;
+    const [itemB3] = await owner<{ id: string }[]>`
+      insert into plaid_items (household_id, item_id, access_token_ciphertext)
+      values (${householdB}, ${`item-b-rm-${crypto.randomUUID()}`}, 'B-token')
+      returning id
+    `;
+    const [acctB3] = await owner<{ id: string }[]>`
+      insert into financial_accounts (household_id, plaid_item_id, plaid_account_id, name)
+      values (${householdB}, ${itemB3.id}, ${`acct-b-rm-${crypto.randomUUID()}`}, 'B checking')
+      returning id
+    `;
+    await owner`
+      insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, direction, merchant_name)
+      values (${householdB}, ${acctB3.id}, ${REMOVED_TXN}, '2026-08-01', 42.00, 'outflow', 'B groceries')
+    `;
     // THE SECOND PATH, AND THE OTHER TWO TABLES DO NOT HAVE IT. applyRemoved
     // issues `update transactions set removed = true where plaid_transaction_id
     // = any(...)` with NO HOUSEHOLD PREDICATE. Under sync_worker_access, which
@@ -309,7 +339,7 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
         await tx`
           update transactions
              set removed = true, updated_at = now()
-           where plaid_transaction_id = any(${[SHARED_TXN]})
+           where plaid_transaction_id = any(${[REMOVED_TXN]})
         `;
       });
     } catch (error) {
@@ -319,7 +349,7 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
     expect(actingAs, `the transaction ran as ${actingAs}, not household A`).toBe(householdA);
 
     const [after] = await owner<{ removed: boolean; household_id: string }[]>`
-      select removed, household_id from transactions where plaid_transaction_id = ${SHARED_TXN}
+      select removed, household_id from transactions where plaid_transaction_id = ${REMOVED_TXN}
     `;
     expect(after.household_id).toBe(householdB);
     expect(
