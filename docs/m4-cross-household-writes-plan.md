@@ -337,10 +337,8 @@ something to improvise when it first appears in a real household's books.
   depends on it.** If `applyRemoved` is correct on its own terms first, landing
   4c tests whether the narrowing works. Landing 4c first tests only whether the
   narrowing is the one thing standing between us and a known-bad statement.
-- **4c. Constrain the sync role.** The authorization fix, and the one that closes
-  the class regardless of 4d. A per-run household GUC with a real predicate,
-  explicit predicates on every sync write, or both. **`USING (true)` should not
-  survive this module.**
+- **4c. Constrain the sync role.** Designed below and **awaiting a ruling**; the
+  plan deferred the choice until 4a was known, and 4a changed it.
 - **4d. The constraints**, per Option A: `(household_id, item_id)` and the
   siblings. Append-only migration.
 
@@ -358,3 +356,91 @@ something to improvise when it first appears in a real household's books.
   Link's picker, and it carries its own open question about whether a skipped
   account is recorded so it can be re-offered. This plan states them so they are
   not solved here by the wrong mechanism, and hands them over intact.
+
+---
+
+## 6. Task 4c: constraining the sync role. DESIGN, AWAITING RULING.
+
+### The shape the facts force
+
+**The sync role must READ across households and WRITE within one.** That is not a
+compromise, it is what the component does: the watchdog sweep scans every Item to
+find stuck ones, the outbox drain looks for unclaimed signals, and neither can
+name a household in advance. But **every write belongs to exactly one household**,
+and all four confirmed findings were writes.
+
+So the policy splits by command rather than being replaced:
+
+```sql
+-- reads: unchanged, because sweeps must find work they cannot name
+CREATE POLICY "sync_worker_read" ON <table> FOR SELECT TO marginsheet_sync
+  USING (true);
+
+-- writes: only into the household this transaction has declared
+CREATE POLICY "sync_worker_write" ON <table> FOR ALL TO marginsheet_sync
+  USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid)
+  WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);
+```
+
+**This would have refused all four findings**, because in each one the GUC named
+household A and the row belonged to B.
+
+### Three complications, none of them cosmetic
+
+**1. Two of the four write paths do not set the GUC today.** `exchange.ts` and
+`reconnect.ts` set it; `apply-streams.ts` and `outbox.ts` receive a `tx` from a
+caller and never declare a household. Under the policy above those writes would be
+**refused**, which is fail-closed and correct, and it means 4c is not only a
+migration: **every write path must declare its household first, or the sync
+Worker stops working.**
+
+That is the real cost of 4c and it should be stated before it is chosen rather
+than discovered during it.
+
+**2. Three tables do not fit the predicate and each needs a decision.**
+
+- **`institutions`** has no `household_id`. It is shared reference data, correctly
+  global, and a household-scoped write policy on it is simply wrong. It needs a
+  different rule, probably unchanged.
+- **`households`** is keyed `id`, not `household_id`, so the predicate must be
+  written against `id` for that table alone. `markFirstSyncCompleted` writes here.
+- **`provider_events`** has a **nullable** `household_id`, by design: a webhook
+  arrives before we know which household it concerns. A predicate that requires a
+  match refuses the insert that identifies the household in the first place.
+
+**A single policy body applied uniformly across the sync role's ten tables is
+therefore wrong**, and writing it that way would produce a boundary that is
+correct on seven tables and broken on three. Same lesson as 4e stopping where it
+did.
+
+**3. It cannot be verified against code that depends on it**, which is why 4e went
+first. With `applyRemoved` correct on its own terms, landing this tests whether
+the narrowing works. Landing it first would have tested only whether the narrowing
+was the one thing standing between us and a known-bad statement.
+
+### What this plan recommends
+
+**Do it, in the order the complications force:**
+
+- **4c-i.** Every sync write path declares its household, so the GUC is set on all
+  of them. **No policy change yet.** Nothing behaves differently, and the change
+  is reviewable on its own.
+- **4c-ii.** The split policy, per table, with `institutions`, `households` and
+  `provider_events` handled explicitly rather than swept into one body.
+  Append-only migration.
+- **4c-iii.** A negative control per shape: a write as household A against a
+  household B row must be **refused**, on a table with `household_id`, on
+  `households`, and on `provider_events` before and after its household is known.
+  **Three shapes, because one refusal proves a boundary exists and three prove it
+  is a boundary rather than a lucky predicate.**
+
+**The alternative, stated so it is a decision:** leave `USING (true)` and rely on
+explicit household predicates in every statement, as 4e did. That is genuinely
+simpler and it is what the provider-key rule already requires. It fails the moment
+somebody writes a statement without one, and **nothing would catch that** — which
+is the argument for the policy: a predicate somebody forgets is a hole, a policy
+somebody forgets is a refusal.
+
+**Recommendation: both.** The predicates are correctness at the statement, the
+policy is the backstop, and 4e already proved the statement-level rule can be got
+right one at a time.
