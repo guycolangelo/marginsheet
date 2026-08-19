@@ -317,14 +317,6 @@
     "raised": "2026-08-18"
   },
   {
-    "id": "forcing-fields-unenforced",
-    "item": "Three flag-plus-nullable pairs in the fact package where the flag obligates the nullable, and NOTHING CHECKS ANY OF THEM. ScenarioAnswer.ledgers_diverge true requires cash_ledger non-null, and its own comment says 'true FORCES the two-ledger answer shape'. PreferenceConfirm.honored_fully false requires not_honored_part non-null, or a confirmation says the preference was recorded and omits the part that was not, which the household reads as full agreement. The third, tender installment requiring term and total, cannot be enforced because the fields do not exist. TWO OF THE THREE ARE ENFORCEABLE TODAY with no new fields and no owned canon text: they assert the contract, not composed output. Found by sweeping every boolean in classes.ts after the omission failure was named.",
-    "owner": "build",
-    "trigger": "on request; independent of M11 and of exchange #7",
-    "owed_to": "TRIGGER: on request. Two of the three are one commit and need nothing that does not exist.",
-    "raised": "2026-08-18"
-  },
-  {
     "id": "banned-word-inflection-audit-done-keep-the-rule",
     "item": "AUDITED AND FIXED 18 Aug 2026, recorded so the rule survives the fix. no-burden-verbs shipped matching the canon's literal 'tied up' and PASSING 'this TIES up your Margin for two years', the exact sentence the canon quotes as the thing the ban exists to stop. The audit found ELEVEN GAPS ACROSS SIX OF THE SEVEN ADVICE RULES, every one in place since M0: should permitted shouldn't, need to permitted needs to and needed to, afford permitted affording, recommend permitted recommending and recommendations, cut back permitted cuts back, delta permitted deltas, reminder permitted reminding. ONE GAP WAS MASKED because 'reminding you again' fired on 'again' and looked like coverage. All fixed and fixtured. THE STANDING RULES ARE IN CLAUDE.md: a banned-word rule bans a prohibition rather than a spelling, and where doctrine supplies its own example of the failure that example IS the fixture. Any NEW banned-word rule is audited the same way before it ships.",
     "owner": "build",
@@ -333,11 +325,11 @@
     "raised": "2026-08-18"
   },
   {
-    "id": "category-self-description-sweep-outside-the-repo",
-    "item": "'Premium household financial operating system' was corrected in CLAUDE.md, and FIXING IT IN THE CONSTITUTION FIXES THE AUTHORITY, NOT THE COPIES. It has been the project's standing self-description and is almost certainly in the investor deck plan, the influencer materials, the marketing site and elsewhere outside this repository. The phrase carries two violations at once: the banned word, and a competitor's category. Guy runs the sweep. Recorded here because a correction whose copies are untouched is a correction that will be quoted back from the copies.",
-    "owner": "Guy",
-    "trigger": "Guy's sweep of materials outside this repository",
-    "owed_to": "TRIGGER: Guy's external sweep. The repo half is done; the copies are not.",
+    "id": "mistake-doctrine-is-advisory",
+    "item": "THE MISTAKE DOCTRINE IS ADVISORY, WHICH IS WORSE THAN AN ORDINARY UNCHECKED RULE. Three fact-package fields carry compose obligations in their own comments and nothing enforces any of them: Correction.verdict_changed ('true = highest-stakes fixture'), Correction.band_demoted ('composes \\'I have started asking again\\''), and Alert.first_flag ('false = follow-up register plus the follow-up banned list'). These are not three separate gaps. THEY ARE ONE JOB, and they are the mistake doctrine: three tiers, the plain-dollar difference, the automatic double-fault demotion. That is the doctrine governing HOW WE BEHAVE WHEN WE ARE ALREADY WRONG, and A RULE THAT ONLY APPLIES WHEN NOTHING HAS GONE WRONG IS NOT A RULE. A correction whose verdict flipped and does not say so is the same omission failure as a monthly figure without its term: every word true, and the household is left believing the number moved without the meaning moving. Same shape, same fix as the two forcing fields built on 18 Aug 2026: assert the obligation against the contract, plant a fixture that violates it, register each. No new fields needed for verdict_changed or band_demoted.",
+    "owner": "build",
+    "trigger": "on request; needs no new fields and no owned canon text",
+    "owed_to": "TRIGGER: on request. One job, three fields, the same shape as the two already built.",
     "raised": "2026-08-18"
   }
 ]

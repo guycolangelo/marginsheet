@@ -82,6 +82,20 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **Absent-with-an-owner beats flaky.** A gap in `docs/open-items.json` is honest, it is visible in CI, and somebody owns closing it. A flaky test is a false claim of coverage that also corrodes every true claim next to it. When a fixture cannot be made deterministic, the branch is split: test our **handler** against a synthesised response and say plainly that Plaid's behaviour is not what was proven.
 
+- **A PASSING FIXTURE MUST BE SHOWN TO PASS FOR ITS STATED REASON. Minimal-mutation proof.** Remove or alter **only the element under test** and confirm the pass disappears. If it does not, the fixture is passing on something else and the assertion is decoration.
+
+  The instance: `"reminding you again"` was the fixture for `no-nagging`'s `reminding` inflection, and it passed. It fired on **`again`**. `reminding` alone did not fire at all, and the gap sat under a green assertion.
+
+  **The planted-failure rule does not catch this.** Planting proves a test can go red when the CODE breaks. This proves a test goes green for the reason it claims. A fixture containing two triggers tests whichever one fires first, and says nothing about the other.
+
+  Third order of the same idea, and the three are worth reading together: **planting** proves the test can fail, **doctrine's own sentence** proves it is aimed at the right failure, and **minimal mutation** proves the pass is earned rather than incidental.
+
+- **PROBE, DO NOT READ. Reading a pattern tells you what its author meant. Probing tells you what it does.** The standing method for auditing any rule expressed as a pattern.
+
+  Eleven inflection gaps sat under a green suite since M0 and were found in one run by testing the rules against inflected strings rather than by reading the regexes. **Reading them had not found the gaps, and the regexes were in front of everyone the whole time**, because a pattern reads as its intent: `\bafford(s|ed|ability)?\b` looks like it covers the inflections until you hand it `affording`.
+
+  Same instinct as **verify against the database, never against reports**, applied to source: the pattern is the report and the probe is the database.
+
 - **THE OMISSION FAILURE: a sentence where every word is permitted, every rule is satisfied, and it still misleads by what is missing.** Named 18 Aug 2026, because it is a different kind of failure from everything the advice gate was designed for and no vocabulary layer will ever reach it.
 
   The example that named it: **"This costs $104 a month."** True. Complete-sounding. Contains no banned word. And the category canon's own description of it is *"the cleanest lie by omission"*, because $104 looks like nothing and 24 months of a decision you no longer get to make is the actual price.
@@ -106,6 +120,12 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
   **Consequence recorded now so M11 does not rediscover it:** the adversarial set for omission failures cannot be tested until the forcing fields exist and are checked, which makes the owed `tender` and term fields a prerequisite for testing the class at all rather than a nicety.
 
   **And the sweep is not finished.** Three were found by reading every boolean in the contract. `Correction.verdict_changed`, `Correction.band_demoted` and `Alert.first_flag` all carry compose obligations in their own comments and none is enforced either.
+
+- **When a fact needs provenance, add a VALUE, never a flag beside it.** A contract design rule, recorded because it will come up the next time someone reaches for a boolean.
+
+  The instance: `tender` needs to carry how we know it, because *"you said debit"* and *"assuming debit"* are two different sentences and the reply has to tell them apart. The tempting shape is `tender` plus `assumed: boolean`. **A boolean sitting beside a field reads as a modifier of it**, and invites composing one sentence from the other. `household_stated` and `system_assumed` as separate values make them two distinct facts with **no third state to invent.**
+
+  Same reasoning that makes `unspecified` a value rather than a null: **a shape that cannot express the ambiguity forces the composer to resolve it, and resolving it is guessing.** The general form is that a contract should make the illegal state unrepresentable rather than merely discouraged, and a flag beside a field is a suggestion where a union is a constraint.
 
 - **State the positive fact and let the absence follow.** Absence assertions are usually a positive fact written backwards, and **the rewrite is almost always cheaper than the field.**
 

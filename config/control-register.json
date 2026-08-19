@@ -457,6 +457,36 @@
         "note": "DROPS THE GUARD. Verified 18 Aug 2026: two tests redden, the structural one and the behavioural one. The behavioural one only catches it because the test stub MODELS the guard rather than returning a flat empty result, which would have passed whether or not the WHERE clause existed."
       },
       "distinction": "The guard is a WHERE clause rather than a read-then-write because a read-then-write RACES: two Items finishing their first sync together both read NULL and both write, and the second moves a timestamp M13's intro trigger and the day-3-to-5 census treat as immutable."
+    },
+    {
+      "id": "ledgers-diverge-obligates-cash-ledger",
+      "control": "the ledgers_diverge forcing field (fact package)",
+      "guards": "A scenario answer claiming the ledgers diverge cannot omit the cash half.",
+      "test": "packages/fact-packages/test/forcing-fields.test.ts",
+      "name": "ScenarioAnswer.ledgers_diverge obligates cash_ledger",
+      "planted": {
+        "kind": "source",
+        "file": "packages/fact-packages/src/fixtures/index.ts",
+        "find": "      cash_ledger: null,\n      ledgers_diverge: false,",
+        "replace": "      cash_ledger: null,\n      ledgers_diverge: true,",
+        "note": "A fixture claiming divergence with no cash ledger, which is the state the comment forbade and nothing checked. Verified 18 Aug 2026: reddens only its own assertion, and the constructed-violation tests stay green, which is the discrimination that matters."
+      },
+      "distinction": "THE COMMENT SAID FORCES SINCE M2 AND FORCED NOTHING. This is an OMISSION FAILURE: answering one ledger is not a banned word, it is a missing half, so no vocabulary rule reaches it. NULL_BEHAVIOR is the dual and points the other way, governing what a null composes while nothing governed what a populated flag obligates. Its own cash_ledger entry pointed at this enforcement before it existed."
+    },
+    {
+      "id": "honored-fully-obligates-not-honored-part",
+      "control": "the honored_fully forcing field (fact package)",
+      "guards": "A preference confirmation that was not honored fully cannot omit the part left out.",
+      "test": "packages/fact-packages/test/forcing-fields.test.ts",
+      "name": "PreferenceConfirm.honored_fully obligates not_honored_part",
+      "planted": {
+        "kind": "source",
+        "file": "packages/fact-packages/src/fixtures/index.ts",
+        "find": "not_honored_part: \"the split transactions\"",
+        "replace": "not_honored_part: null",
+        "note": "A partial honor with nothing naming the part not honored. Verified 18 Aug 2026, reddens only its own assertion."
+      },
+      "distinction": "Found by sweeping every boolean in the contract after the omission failure was named, and it is the cleanest instance after the archetype. Every word in such a confirmation is true and the household reads FULL agreement into a PARTIAL one. Same shape as answering one ledger: not a banned word, a missing half."
     }
   ]
 }
