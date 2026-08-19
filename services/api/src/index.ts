@@ -84,15 +84,71 @@ const handler = {
     // Everything past this line happens inside marginsheet-sync, which has no
     // public route and holds the only copy of the encryption key.
     if (url.pathname === "/plaid/exchange" && request.method === "POST") {
+      // AN AUTHORIZATION INPUT NEVER COMES FROM THE REQUEST BODY.
+      //
+      // This handler used to read `householdId` out of the JSON and forward it,
+      // and exchange.ts then did set_config('marginsheet.household_id', <that
+      // value>). The authorization boundary was SET FROM A VALUE THE CALLER
+      // CHOSE. RLS could not help: the household id was the input to the GUC
+      // rather than a constraint on it, so every policy faithfully enforced
+      // isolation for whichever household the caller named.
+      //
+      // Probed against production on 19 Aug 2026: an unauthenticated POST
+      // answered 400, not 401, which is the handler rejecting the body SHAPE
+      // after reaching it.
+      //
+      // householdId is no longer a field. It is not validated, because a field
+      // that must be validated is a field somebody can forget to validate; the
+      // parameter simply does not exist, and there is nothing to override.
+      // Same shape as invitation-routes.ts and phone-change.ts, which both got
+      // this right, which is the good news and also the uncomfortable part.
       if (!env.SYNC) {
         return Response.json({ error: "no SYNC service binding" }, { status: 503 });
       }
-      const payload = await request.json();
+      if (!env.NEON_DATABASE_URL || !env.BETTER_AUTH_SECRET || !env.BETTER_AUTH_URL) {
+        return Response.json({ error: "auth is not configured" }, { status: 503 });
+      }
+      const auth = createAuth({
+        NEON_DATABASE_URL: env.NEON_DATABASE_URL,
+        ENVIRONMENT: env.ENVIRONMENT,
+        BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL: env.BETTER_AUTH_URL,
+      });
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (!session?.session) {
+        return Response.json({ error: "not_signed_in" }, { status: 401 });
+      }
+
+      const sql = postgres(env.NEON_DATABASE_URL, { max: 1, idle_timeout: 5, connect_timeout: 10 });
+      let householdId: string;
+      try {
+        // The session names a USER. The member row names the household, and
+        // auth_household_id is the SECURITY DEFINER bootstrap that reads it
+        // (migration 0018). This is the only place the household comes from.
+        const [row] = await sql<{ household_id: string | null }[]>`
+          select public.auth_household_id(${session.user.id}) as household_id
+        `;
+        if (!row?.household_id) {
+          return Response.json({ error: "no_household" }, { status: 403 });
+        }
+        householdId = row.household_id;
+      } finally {
+        await sql.end();
+      }
+
+      const body = (await request.json().catch(() => ({}))) as { publicToken?: unknown };
+      if (typeof body.publicToken !== "string" || body.publicToken.length === 0) {
+        return Response.json({ error: "publicToken is required" }, { status: 400 });
+      }
+
       const response = await env.SYNC.fetch(
         new Request("https://sync.internal/internal/exchange", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(payload),
+          // REBUILT, never spread from the request. Spreading would let a
+          // caller-supplied householdId ride along and win by key order, which
+          // is the same defect with an extra step.
+          body: JSON.stringify({ publicToken: body.publicToken, householdId }),
         })
       );
       // Passed through unchanged. api does not read, reshape or log this body:
