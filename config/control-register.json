@@ -474,21 +474,6 @@
       "distinction": "THIS IS NOT A CONTROL THAT GUARDED NOTHING, WHICH IS WHAT EVERY OTHER FINDING THIS WEEK WAS. It is an authorization boundary that was pointed at the attacker: exchange.ts did set_config('marginsheet.household_id', <body value>), so every RLS policy enforced isolation faithfully for whichever household the caller named. RLS cannot help when the household id is the INPUT to the GUC rather than a constraint on it. The 401 assertion is separate from the derivation assertion on purpose: the defect answered 400, because the body was checked and the caller never was, and a 400 reads as malformed rather than as unauthenticated."
     },
     {
-      "id": "cross-household-upsert-cannot-land",
-      "control": "RLS against a global unique index (plaid_items.item_id, financial_accounts.plaid_account_id)",
-      "guards": "One household's upsert cannot create, update or take ownership of another household's row.",
-      "test": "services/api/test/cross-household-upsert.test.ts",
-      "name": "cannot reach another household's plaid_items row",
-      "planted": {
-        "kind": "source",
-        "file": "services/api/test/cross-household-upsert.test.ts",
-        "find": "        await tx`select set_config('marginsheet.household_id', ${householdA}, true)`;\n\n        // WHO IS ACTUALLY WRITING.",
-        "replace": "        await tx`select set_config('marginsheet.household_id', ${householdB}, true)`;\n\n        // PLANTED: the writer is legitimate, so the update succeeds.\n        // WHO IS ACTUALLY WRITING.",
-        "note": "THE MUTATION MAKES THE WRITER LEGITIMATE rather than breaking the policy. Setting the GUC to B means the upsert is B updating B's own row, which succeeds and overwrites the ciphertext, so the survival assertions fail. Disabling the policy would also redden it and would prove far less: nothing was ever going to disable household_isolation quietly. IT TARGETS THE GUC LINE PLUS THE COMMENT BELOW IT, because the set_config line alone appears twice in this file and a mutation that matches two places is a mutation nobody can reason about. The GUC readback added 19 Aug 2026 exists so the test can tell a real cross-household write from an unrestored mutation, which produce the same assertion failure."
-      },
-      "distinction": "WRITTEN BECAUSE THE ANSWER WAS RECORDED AS UNVERIFIED. The unique indexes are GLOBAL, not household-scoped, so `on conflict (item_id) do update` in exchange.ts can collide with another household's row, and 'RLS makes it invisible so it errors' is reasoning about Postgres rather than evidence. RUNS AS marginsheet_sync, not marginsheet_app: exchange.ts runs in the sync Worker and the roles hold different grants, so a refusal under app's grants would prove nothing about the path that runs and would look like a pass. THE SURVIVAL ASSERTION IS THE POINT, not the throw: a version asserting only that it errored would pass if a later change made the statement succeed against a row it should never see."
-    },
-    {
       "id": "household-id-never-reaches-a-caller",
       "control": "the household-id surface scan (services/api/test/household-id-never-leaves.test.ts)",
       "guards": "No household id is composed into a response, URL, email or client-reachable surface.",

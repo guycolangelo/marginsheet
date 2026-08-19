@@ -243,5 +243,13 @@
     "trigger": "BEFORE 4.5b and before the retraction is described as closing the boundary, whichever comes first",
     "owed_to": "TRIGGER: 4.5b. Raised 19 Aug 2026 by Guy's endpoint-authentication question, answered against code rather than against the spec's argument.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "cross-household-upsert-overwrites-another-household",
+    "item": "CONFIRMED 19 AUG 2026 AGAINST A REAL DATABASE: one household's upsert overwrites another household's plaid_items row. Acting as household A with marginsheet.household_id set to A, verified by reading current_setting back inside the transaction, the statement exchange.ts issues (`insert into plaid_items ... on conflict (item_id) do update set access_token_ciphertext = excluded...`) SUCCEEDED against a row owned by household B and replaced B's access_token_ciphertext. Ownership stayed with B only because household_id is not in the SET list. household_isolation did not refuse it. THE ROUTE IS ORDINARY USE, NOT AN ATTACK: item_id is Plaid's, and two households linking THE SAME joint account produce the same item_id, so this arrives through a shared bank login rather than through a guessed UUID. Consequences: B's Plaid token is destroyed so B's syncs break, and B's row then holds a token minted for A, which is a cross-household data path into B's ledger the next time sync runs. The same shape applies to financial_accounts.plaid_account_id, which carries the same global unique index; that half is NOT yet proven, because the test exercising it had a NOT NULL omission that made it pass vacuously. NOT FIXED IN THE CURRENT CHAIN, by Guy's ruling: it is a schema-level finding whose fix touches migrations, the exchange path and the account-overlap item, and it needs its own plan rather than being folded into a PR about something else. The proving test and its register entry are preserved on branch finding/cross-household-upsert; they were removed from the authorization PR because the finding is real and would otherwise hold a live security fix behind a red check.",
+    "owner": "Guy",
+    "trigger": "its own task, planned before 4.5b, because 4.5b connects the founder's real institutions and a joint account is exactly the shape that triggers this",
+    "owed_to": "TRIGGER: a dedicated task. Confirmed 19 Aug 2026 by the harness with the GUC read back inside the transaction, which is what separated a genuine cross-household write from an unrestored planted mutation.",
+    "raised": "2026-08-19"
   }
 ]
