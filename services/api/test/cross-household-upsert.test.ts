@@ -70,9 +70,27 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
 
     // Exactly what exchange.ts issues, as household A.
     let threw: unknown = null;
+    let actingAs: string | null = null;
     try {
       await sync.begin(async (tx) => {
         await tx`select set_config('marginsheet.household_id', ${householdA}, true)`;
+
+        // WHO IS ACTUALLY WRITING. Read back inside the transaction, because
+        // the failure this test can produce has TWO explanations and they are
+        // indistinguishable from the assertion alone: either A genuinely wrote
+        // across the boundary, or the planted mutation (which swaps this GUC to
+        // B) was not restored, in which case B legitimately updated B's own row
+        // and the test is reporting on the mutated file.
+        //
+        // A harness reporting "restored -> STILL RED" cannot separate them, and
+        // the difference is a cross-household write versus a tooling artifact.
+        // So the transaction states which household it is, and the assertion
+        // below fails FIRST if it is not A.
+        const [ctx] = await tx<{ who: string }[]>`
+          select current_setting('marginsheet.household_id', true) as who
+        `;
+        actingAs = ctx.who;
+
         await tx`
           insert into plaid_items (household_id, item_id, access_token_ciphertext)
           values (${householdA}, ${SHARED_ITEM}, 'A-tried-to-take-it')
@@ -85,6 +103,16 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
     } catch (error) {
       threw = error;
     }
+
+    // FIXTURE GUARD, AND IT COMES BEFORE EVERY CONCLUSION. If the GUC is not
+    // A, this run is not testing a cross-household write at all and nothing
+    // below means what it says.
+    expect(
+      actingAs,
+      `the transaction ran as ${actingAs}, not as household A (${householdA}). ` +
+        `This run proves nothing about isolation: either the planted mutation ` +
+        `was not restored, or the GUC did not take.`
+    ).toBe(householdA);
 
     // THE ASSERTION THAT MATTERS IS THE SECOND ONE. Whether Postgres refuses
     // is interesting; whether B's row survived is the security property. A
