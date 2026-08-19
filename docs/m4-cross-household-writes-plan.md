@@ -67,15 +67,21 @@ actually unconstrained. `marginsheet_app` carries the real
 |---|---|---|
 | `plaid_items` | `item_id`, global unique | **CONFIRMED.** A wrote, B's `access_token_ciphertext` was replaced, `threw=nothing` |
 | `financial_accounts` | `plaid_account_id`, global unique | **CONFIRMED.** A wrote, B's account was renamed and re-pointed, `threw=nothing` |
-| `transactions` | `plaid_transaction_id`, global unique | **UNPROVEN. Same shape, and shape is not evidence** |
+| `transactions` | `plaid_transaction_id`, global unique | **CONFIRMED (4a, 19 Aug).** A wrote, B's transaction was rewritten, `threw=nothing` |
+| `transactions` | `applyRemoved`, no unique index involved | **CONFIRMED (4a, 19 Aug).** A flagged B's transaction `removed`, `threw=nothing` |
 
 Both confirmations read `current_setting` back inside the transaction and asserted
 the writer was A before drawing any conclusion, because the same assertion failure
 is produced by an unrestored planted mutation.
 
-**Task 1 of this plan is to prove or disprove the transactions case**, and it is
-first because `"same shape, untested"` is the exact state that produced two
-vacuous tests this week. It also has a second path that the other two do not:
+**Task 4a is complete and both paths confirm.** It ran first because
+`"same shape, untested"` is the exact state that produced two vacuous tests this
+week, and the caution was warranted in an unexpected direction: the table behaves
+as the other two do, **and it carries a second path that is worse than any of
+them.**
+
+**`applyRemoved` is the most serious of the four findings.** The other three
+corrupt a CONNECTION. This one writes to the LEDGER:
 
 ```sql
 update transactions
@@ -83,17 +89,34 @@ update transactions
  where plaid_transaction_id = any(${plaidTransactionIds})
 ```
 
-`applyRemoved` carries **no household predicate**. Under `USING (true)` there is
-nothing else scoping it. If a removed-stream batch ever names a transaction id
-belonging to another household, that household's transaction is flagged removed.
-**This is the worst of the three if it holds**, because `transactions` is where the
-ledger lives and `removed` changes what a household is told they spent.
+`applyRemoved` carries **no household predicate**. Under `USING (true)` nothing
+else scopes it, and the test confirmed it end to end:
 
-Two tests, and the second is not optional:
+```
+household A flagged household B's transaction as removed. threw=nothing.
+```
 
-1. the upsert path, as for the other two tables
-2. **`applyRemoved` given an id belonging to another household**, asserting that
-   household's row is untouched
+**`removed` decides what a household is told they spent.** So this is wrong data
+in a close, arriving through an ordinary removed-stream batch, with no error
+anywhere. Not a broken connection somebody eventually notices.
+
+### Two fixture failures preceded the verdict, and neither was a result
+
+Recorded because the second is a lesson about this task specifically.
+
+**A test-ordering dependency.** The harness runs one test by name (`vitest -t`),
+so tests reading rows an earlier test created got `undefined` and reported a
+TypeError. **A control that only passes when its neighbours ran is a control
+nobody can run alone.** Every fixture is now built inside the test that needs it.
+
+**An invented enum value.** `'outflow'` was written as a `transaction_direction`
+when the enum is `('income', 'expense', 'transfer')`. **Inventing a plausible
+value rather than reading the schema is the same move as inferring behaviour from
+shape, one layer down** — and it happened inside the task that existed
+specifically to replace shape-matching with evidence.
+
+Both runs failed before reaching any assertion. **Reported as non-verdicts rather
+than results**: a red that never reached its assertions is not evidence.
 
 ---
 
@@ -300,19 +323,26 @@ something to improvise when it first appears in a real household's books.
 
 ## 4. Tasks, in order
 
-- **4a. Prove or disprove `transactions`**, both the upsert path and `applyRemoved`.
-  Register entries with planted mutations, GUC read back inside the transaction.
-  **Nothing else starts until this lands**, because it changes the size of the fix.
-- **4b. Guy's ruling on section 3.** The constraint cannot be written before this.
+- **4a. DONE, 19 Aug 2026.** Both `transactions` paths confirmed. Four findings
+  total, and `applyRemoved` is the worst of them.
+- **4b. DONE.** Option A ruled by Guy: two Items, one per household.
+- **4e. NEXT, AND IT MOVED AHEAD OF 4c** (Guy, 19 Aug 2026). `applyRemoved` and
+  every sibling get an explicit household predicate, independent of RLS.
+
+  **Three reasons, and the first is the plan's own sentence turned on itself.** A
+  statement should be correct even when the policy is wrong, **and the policy is
+  wrong.** Second: it is a predicate on one statement whose failure is the worst
+  of the four, so it is the smallest change against the largest harm. Third, and
+  the ordering argument proper: **4c must not be verified against code that
+  depends on it.** If `applyRemoved` is correct on its own terms first, landing
+  4c tests whether the narrowing works. Landing 4c first tests only whether the
+  narrowing is the one thing standing between us and a known-bad statement.
 - **4c. Constrain the sync role.** The authorization fix, and the one that closes
-  the hole regardless of 4b. Options to be costed once 4a is known: a per-run
-  household GUC with a real predicate, explicit household predicates on every sync
-  write, or both. `USING (true)` should not survive this module.
-- **4d. The constraints**, per 4b's ruling. Append-only migration, and the
-  `(household_id, ...)` shape only if Option A is chosen.
-- **4e. `applyRemoved` and every sibling get an explicit household predicate**,
-  independent of RLS. Defence in depth is the point: the statement should be
-  correct even if the policy is wrong, because it was.
+  the class regardless of 4d. A per-run household GUC with a real predicate,
+  explicit predicates on every sync write, or both. **`USING (true)` should not
+  survive this module.**
+- **4d. The constraints**, per Option A: `(household_id, item_id)` and the
+  siblings. Append-only migration.
 
 ---
 
