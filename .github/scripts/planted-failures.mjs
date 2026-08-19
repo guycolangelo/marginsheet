@@ -100,10 +100,24 @@ function packageFor(testPath) {
   return { pkg: `@marginsheet/${name}`, relative: testPath.replace(`${kind}/${name}/`, "") };
 }
 
+/** Runs the control's test. Returns whether it passed AND what it said.
+ *
+ *  THE OUTPUT IS KEPT BECAUSE DISCARDING IT FORCED GUESSING. On 19 Aug 2026
+ *  cross-household-upsert-cannot-land reported "restored -> STILL RED" and
+ *  nothing else, and a control that stays red after restore has SEVERAL
+ *  possible causes: the property it guards is genuinely violated, the fixture
+ *  is invalid, a grant is missing, or the restore did not restore. Those have
+ *  different owners and different urgencies, and the report could not tell
+ *  them apart.
+ *
+ *  That is the enumerate-causes rule applied to this harness: when a message
+ *  cannot distinguish its causes, build the diagnostic rather than reason
+ *  harder. The raw body is printed alongside the verdict so a reader can
+ *  disagree with the interpretation. */
 async function testPasses(control) {
   const { pkg, relative } = packageFor(control.test);
   try {
-    await run(
+    const { stdout = "", stderr = "" } = await run(
       "pnpm",
       [
         "--filter",
@@ -118,10 +132,20 @@ async function testPasses(control) {
       ],
       { cwd: process.cwd(), env: process.env, maxBuffer: 32 * 1024 * 1024 }
     );
-    return true;
-  } catch {
-    return false;
+    return { passed: true, output: `${stdout}\n${stderr}` };
+  } catch (error) {
+    const e = error ?? {};
+    return { passed: false, output: `${e.stdout ?? ""}\n${e.stderr ?? ""}\n${e.message ?? ""}` };
   }
+}
+
+/** The part of a vitest run that says WHY, without the passing noise. */
+function whyItFailed(output) {
+  const lines = String(output).split("\n");
+  const kept = lines.filter((l) =>
+    /AssertionError|Error:|expected|→|✕|×|FAIL|Tests\s+\d|No test files found|skipped/i.test(l)
+  );
+  return (kept.length > 0 ? kept : lines).slice(-40).join("\n");
 }
 
 async function readProof(control) {
@@ -203,7 +227,8 @@ for (const control of controls) {
     restore = await breakIt(control);
     process.stdout.write(`  broke it, and confirmed the break took effect\n`);
 
-    const redWhenBroken = !(await testPasses(control));
+    const broken = await testPasses(control);
+    const redWhenBroken = !broken.passed;
     process.stdout.write(
       `  ${control.test} -t "${control.name}" -> ${redWhenBroken ? "RED" : "still green"}\n`
     );
@@ -211,8 +236,22 @@ for (const control of controls) {
     await restore();
     restore = undefined;
 
-    const greenWhenRestored = await testPasses(control);
+    const restored = await testPasses(control);
+    const greenWhenRestored = restored.passed;
     process.stdout.write(`  restored -> ${greenWhenRestored ? "green" : "STILL RED"}\n`);
+    if (!greenWhenRestored) {
+      // The whole point of this block: a STILL RED must arrive with its reason.
+      process.stdout.write(`  WHY IT IS STILL RED (raw, trust this over any reading):\n`);
+      for (const line of whyItFailed(restored.output).split("\n")) {
+        process.stdout.write(`    | ${line}\n`);
+      }
+    }
+    if (!redWhenBroken) {
+      process.stdout.write(`  WHY THE MUTATION DID NOT REDDEN IT (raw):\n`);
+      for (const line of whyItFailed(broken.output).split("\n")) {
+        process.stdout.write(`    | ${line}\n`);
+      }
+    }
 
     results.push({
       control,

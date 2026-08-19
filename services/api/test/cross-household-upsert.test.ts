@@ -126,8 +126,8 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
       await sync.begin(async (tx) => {
         await tx`select set_config('marginsheet.household_id', ${householdA}, true)`;
         await tx`
-          insert into financial_accounts (household_id, plaid_account_id, name)
-          values (${householdA}, ${SHARED_ACCOUNT}, 'A took it')
+          insert into financial_accounts (household_id, plaid_item_id, plaid_account_id, name)
+          values (${householdA}, ${itemB.id}, ${SHARED_ACCOUNT}, 'A took it')
           on conflict (plaid_account_id) do update
             set name = excluded.name, is_active = true, updated_at = now()
         `;
