@@ -66,7 +66,7 @@
   },
   {
     "id": "second-credential-write-path",
-    "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and §1 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
+    "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and \u00a71 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
     "owner": "build",
     "owed_to": "standing constraint, reviewed whenever @better-auth/passkey is upgraded",
     "raised": "2026-08-17"
@@ -80,7 +80,7 @@
   },
   {
     "id": "sensitive-actions-unbuilt",
-    "item": "Three of the four sensitive actions §1 names do not exist yet: cancellation (M7), member removal (3.5), export (M8). They are enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts each has NO route, so building one without flipping the flag fails and sends the author to where the recent-auth requirement is written. Recent-auth is live on the one that exists.",
+    "item": "Three of the four sensitive actions \u00a71 names do not exist yet: cancellation (M7), member removal (3.5), export (M8). They are enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts each has NO route, so building one without flipping the flag fails and sends the author to where the recent-auth requirement is written. Recent-auth is live on the one that exists.",
     "owner": "M7, 3.5 and M8 respectively",
     "owed_to": "each action's own module",
     "raised": "2026-08-17"
@@ -235,5 +235,13 @@
     "trigger": "the first customer, partner or investor who requires it",
     "owed_to": "TRIGGER: the first customer, partner or investor who REQUIRES it. Not a module and not a date: per the trigger rule, this is gated on someone outside the project.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "plaid-exchange-is-unauthenticated",
+    "item": "POST /plaid/exchange ON THE PUBLIC api REQUIRES NOTHING OF ITS CALLER, AND IT TAKES householdId FROM THE REQUEST BODY. Traced to code and probed live on 19 Aug 2026: services/api/src/index.ts reads the JSON body and forwards it to sync over the binding with no getSession, no 401 and no household derivation, and services/sync/src/exchange.ts then does set_config('marginsheet.household_id', <body value>). An unauthenticated POST to https://api.marginsheet.com/plaid/exchange answers 400, not 401, which is the handler rejecting the body SHAPE after reaching it. WHAT HAPPENS IF NOBODY DOES ANYTHING: anyone on the internet who obtains a Plaid public token can attach the resulting Item, its accounts and its balances to ANY household id they name. RLS does not help, because the household id is the INPUT to the GUC rather than a constraint on it: the boundary is set from the attacker's value. THE RETRACTION DOES NOT CLOSE THIS. Making sync private removes a second door to the same handler and leaves the front one open, so anyone reading the third-Worker ruling as the mitigation is reading it wrong. THE SHAPE OF THE FIX IS ALREADY IN THE REPO: invitation-routes.ts calls env.auth.api.getSession, answers 401 when absent, and derives household_id from public.auth_household_id(session.user.id), so the household comes from the session and never from the body. /plaid/exchange should do the same, and householdId should stop being a body field at all: a value the caller supplies is a value the caller chooses.",
+    "owner": "build",
+    "trigger": "BEFORE 4.5b and before the retraction is described as closing the boundary, whichever comes first",
+    "owed_to": "TRIGGER: 4.5b. Raised 19 Aug 2026 by Guy's endpoint-authentication question, answered against code rather than against the spec's argument.",
+    "raised": "2026-08-19"
   }
 ]
