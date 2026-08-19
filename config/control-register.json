@@ -547,6 +547,21 @@
         "note": "THE MUTATION HAD TO BE THE THIRD ONE TRIED, and that is the finding. Chaining with .then PASSED, because previous.catch() swallows a rejected predecessor. Replacing withLock with the naive implementation broke four tests by bypassing the bookkeeping, which is loud and says nothing about poisoning. Only rejecting the tail on failure, phrased as a sentence a reasonable engineer would write, reddens exactly this test on exactly its final assertion. IT IS DELIBERATELY ONE CONTIGUOUS EDIT COVERING THREE SITES, because poisoning needs all three: the tail must be rejectable, the predecessor must be awaited bare, and the failure must reach the tail. A one-site mutation is inert here, and an inert mutation reports an insensitive control. Verified 19 Aug 2026."
       },
       "distinction": "POISONING IS STRUCTURALLY IMPOSSIBLE HERE IN TWO INDEPENDENT WAYS, and the test exists anyway. The tail is a fresh promise resolved by release() in a `finally`, so a rejected task still settles it; and `previous.catch(() => undefined)` swallows a rejected predecessor even if it were. EITHER ALONE IS SUFFICIENT, which is why the first two mutations could not redden it. So this control does not guard against a one-line slip, which cannot produce poisoning: it guards against a REWRITE to the obvious `tail = tail.then(work)` implementation, which is the shape a later author reaches for and where the risk actually lives. A household locked out until the object restarts reads as a sync problem rather than a lock problem, which is what makes it expensive to diagnose."
+    },
+    {
+      "id": "private-workers-answer-nobody",
+      "control": "the public-surface probe (.github/scripts/verify-public-surface.mjs)",
+      "guards": "A Worker declared private in config/public-surface.json cannot be reached from the public internet.",
+      "test": "services/sync/test/no-public-routes.test.ts",
+      "name": "turns workers.dev OFF explicitly, rather than omitting it",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/wrangler.jsonc",
+        "find": "  \"workers_dev\": false,",
+        "replace": "  // PLANTED: omitted, which is how it was for the life of the Worker.",
+        "note": "THE MUTATION IS AN OMISSION, because the defect was an omission. Removing the line restores exactly the state that had marginsheet-sync answering 200 in production while a test named \"unreachable from the public internet\" passed. A mutation that set workers_dev TRUE would prove far less: nobody was ever going to write true, and the failure mode is that nobody writes anything. Verified 19 Aug 2026."
+      },
+      "distinction": "TWO CONTROLS, DELIBERATELY, AND THEY FAIL AT DIFFERENT MOMENTS. The unit test fails when the config is edited and is what the register plants against. The CI job fails when the DEPLOYED surface disagrees with the declaration, which is the only one that could have caught the original: the config was never wrong in a way a reader would notice, it was silent, and silence is the exposed state. The live job carries a positive control because its passing state is indistinguishable from a network failure."
     }
   ]
 }

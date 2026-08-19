@@ -391,6 +391,26 @@ jobs:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
         run: scripts/neon-pr-branch.sh delete 98${{ github.run_number }} || true
 
+  public-surface:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4.2.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      # ASKS THE INTERNET, NOT THE REPO. services/sync/test/no-public-routes.test.ts
+      # reads wrangler.jsonc and reported a boundary for the whole life of the
+      # Worker while marginsheet-sync answered 200 in production: workers_dev
+      # was ABSENT, the test asserted not.toBe(true), and absent means
+      # PUBLISHED. Config is a report; this job checks the surface.
+      #
+      # It carries its own positive control, because its passing state is
+      # "nothing answered" and that is also what a broken network produces.
+      - name: No Worker declared private answers the public internet
+        run: node .github/scripts/verify-public-surface.mjs
+
   open-items:
     runs-on: ubuntu-latest
     steps:
