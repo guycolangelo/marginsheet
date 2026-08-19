@@ -66,7 +66,7 @@
   },
   {
     "id": "second-credential-write-path",
-    "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and §1 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
+    "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and \u00a71 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
     "owner": "build",
     "owed_to": "standing constraint, reviewed whenever @better-auth/passkey is upgraded",
     "raised": "2026-08-17"
@@ -80,7 +80,7 @@
   },
   {
     "id": "sensitive-actions-unbuilt",
-    "item": "Three of the four sensitive actions §1 names do not exist yet: cancellation (M7), member removal (3.5), export (M8). They are enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts each has NO route, so building one without flipping the flag fails and sends the author to where the recent-auth requirement is written. Recent-auth is live on the one that exists.",
+    "item": "Three of the four sensitive actions \u00a71 names do not exist yet: cancellation (M7), member removal (3.5), export (M8). They are enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts each has NO route, so building one without flipping the flag fails and sends the author to where the recent-auth requirement is written. Recent-auth is live on the one that exists.",
     "owner": "M7, 3.5 and M8 respectively",
     "owed_to": "each action's own module",
     "raised": "2026-08-17"
@@ -342,10 +342,18 @@
   },
   {
     "id": "security-page-mechanism-claims",
-    "item": "THE /security PAGE MAKES TWO MECHANISM CLAIMS THAT NEED TRACING TO THIS REPOSITORY, and it is the second thing today to cross a session boundary, so it is recorded rather than left between them. The claims concern row-level security and CI gating. The repo-side facts they must match: household_isolation is on every policied table with FORCE set on all 37, asserted by an M1 introspection invariant that counts rather than spot-checks; marginsheet_sync is narrowed to ten enumerated tables by migrations 0023 and 0024 with a negative control attempting three forbidden tables; branch protection has no admin override and nothing merges with a red required check; and 29 controls carry planted failures verified by the harness. WHAT TO CHECK: that the page claims no more than those, and that each sentence on it names something a person could verify. A marketing page asserting a mechanism is the same class as a comment asserting one, and it has a wider audience.",
+    "item": "THE /security PAGE MAKES TWO MECHANISM CLAIMS THAT NEED TRACING TO THIS REPOSITORY, and it is the second thing today to cross a session boundary, so it is recorded rather than left between them. The claims concern row-level security and CI gating. The repo-side facts they must match: household_isolation is on every policied table with FORCE set on all 37, asserted by an M1 introspection invariant that counts rather than spot-checks; marginsheet_sync is narrowed to ten enumerated tables by migrations 0023 and 0024 with a negative control attempting three forbidden tables; branch protection has no admin override and nothing merges with a red required check; and every control in config/control-register.json carries a planted failure verified by the harness. READ THE COUNT FROM THE REGISTER, NOT FROM HERE: this item said 29 and was stale within a day, which is the two-hand-written-statements shape, on a fact destined for a page the public reads. WHAT TO CHECK: that the page claims no more than those, and that each sentence on it names something a person could verify. A marketing page asserting a mechanism is the same class as a comment asserting one, and it has a wider audience.",
     "owner": "Guy",
     "trigger": "the marketing site session, using these repo-side facts",
     "owed_to": "TRIGGER: the marketing-site session. Small, and it crosses a session boundary, which is why it is written down.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "chain-lock-wait-is-unbounded",
+    "item": "THE HOUSEHOLD'S SYNC CHAIN LOCK HAS NO BOUND ON THE WAIT, AND THE WATCHDOG CANNOT RELEASE IT. Verified 19 Aug 2026: household-sync-do.ts holds no timeout, no alarm and no AbortSignal, and sweepReason() in sync-state.ts is a pure function over a database row whose caller flips sync_status from syncing to queued. THE TWO MECHANISMS LIVE IN DIFFERENT PLACES AND NOTHING CONNECTS THEM: the lock is in memory in the Durable Object, the watchdog is a row in Postgres. WHAT HAPPENS IF NOBODY DOES ANYTHING: a hung Plaid call holds the household's chain for as long as it hangs and every arrival behind it queues, while the watchdog sweeps the row back to queued and REPORTS RECOVERY. That is worse than either failure alone, because the state machine looks healthy while the household syncs nothing. Once the sweep is wired to a re-dispatch, each sweep ADDS a waiter behind the hung task rather than replacing it, so the watchdog firing repeatedly grows the queue it exists to drain. THE DECISION IS GUY'S AND IT IS NOT OBVIOUS: releasing the lock on expiry while the hung work continues gives exactly the concurrency the lock exists to prevent, and failing the waiter instead means a household's syncs error rather than queue. Whichever is chosen, the watchdog and the lock must read ONE clock, because two independent timeouts on one condition is the drift shape CLAUDE.md already records.",
+    "owner": "Guy",
+    "trigger": "before the watchdog sweep is wired to a re-dispatch, because that is the point the gap starts amplifying rather than merely failing to recover",
+    "owed_to": "TRIGGER: wiring the watchdog sweep to a re-dispatch. Raised by Guy 19 Aug 2026 reviewing 4.5a. Is the wait bounded: no. Do the two compose: no.",
+    "raised": "2026-08-19"
   }
 ]

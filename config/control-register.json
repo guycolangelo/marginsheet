@@ -532,6 +532,21 @@
         "note": "This mutation PASSED every HTTP test, which is why this control exists. It leaves a lock that reads like a chain and serialises nothing. Verified 19 Aug 2026 against the same-tick path: fails on 'expected 2 to be 1'."
       },
       "distinction": "THE CONTROL EXISTS BECAUSE A MUTATION PASSED, and the tempting response was to call the window too small to matter. One microtask is smaller than any gap the network can produce, so no HTTP test can ever see it. It is reachable anyway, because sync work is dispatched from inside the object too: a queue batch or an alarm taking the lock per item takes it twice in one tick. Two arrival shapes need two tests."
+    },
+    {
+      "id": "household-sync-survives-a-failed-task",
+      "control": "the household sync chain lock, when a task rejects",
+      "guards": "A failed sync releases the lock, so one failure cannot lock a household out until the object restarts.",
+      "test": "services/sync/test/household-sync-lock.test.ts",
+      "name": "a failed sync does not lock the household out",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/household-sync-do.ts",
+        "find": "    let release!: () => void;\n    // The next arrival waits on THIS promise, so the chain is extended before\n    // any awaiting happens. Extending it after the await is the bug that turns\n    // a chain into no lock at all.\n    this.tail = new Promise<void>((resolve) => { release = resolve; });\n\n    // A predecessor that threw must not stop the chain moving.\n    await previous.catch(() => undefined);\n\n    this.inside += 1;\n    this.maxObserved = Math.max(this.maxObserved, this.inside);\n    try {\n      return await work();",
+        "replace": "    let release!: () => void;\n    let rejectTail!: (e: unknown) => void;\n    this.tail = new Promise<void>((resolve, reject) => { release = resolve; rejectTail = reject; });\n\n    await previous;\n\n    this.inside += 1;\n    this.maxObserved = Math.max(this.maxObserved, this.inside);\n    try {\n      // PLANTED: propagate the failure to whoever is waiting behind us.\n      return await work().catch((e) => { rejectTail(e); throw e; });",
+        "note": "THE MUTATION HAD TO BE THE THIRD ONE TRIED, and that is the finding. Chaining with .then PASSED, because previous.catch() swallows a rejected predecessor. Replacing withLock with the naive implementation broke four tests by bypassing the bookkeeping, which is loud and says nothing about poisoning. Only rejecting the tail on failure, phrased as a sentence a reasonable engineer would write, reddens exactly this test on exactly its final assertion. IT IS DELIBERATELY ONE CONTIGUOUS EDIT COVERING THREE SITES, because poisoning needs all three: the tail must be rejectable, the predecessor must be awaited bare, and the failure must reach the tail. A one-site mutation is inert here, and an inert mutation reports an insensitive control. Verified 19 Aug 2026."
+      },
+      "distinction": "POISONING IS STRUCTURALLY IMPOSSIBLE HERE IN TWO INDEPENDENT WAYS, and the test exists anyway. The tail is a fresh promise resolved by release() in a `finally`, so a rejected task still settles it; and `previous.catch(() => undefined)` swallows a rejected predecessor even if it were. EITHER ALONE IS SUFFICIENT, which is why the first two mutations could not redden it. So this control does not guard against a one-line slip, which cannot produce poisoning: it guards against a REWRITE to the obvious `tail = tail.then(work)` implementation, which is the shape a later author reaches for and where the risk actually lives. A household locked out until the object restarts reads as a sync problem rather than a lock problem, which is what makes it expensive to diagnose."
     }
   ]
 }

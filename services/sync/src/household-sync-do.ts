@@ -93,6 +93,21 @@ export class HouseholdSync {
     try {
       return await work();
     } finally {
+      // RELEASE IN `finally`, AND THAT IS THE WHOLE ANSWER TO CHAIN POISONING.
+      // The tail is a fresh promise this resolves, never `previous.then(work)`,
+      // so a task that REJECTS still settles the tail and the next caller runs.
+      // Chained with `then`, one failed sync would leave every later caller for
+      // that household inheriting a rejected promise: the household is locked
+      // out until the object restarts, and it reads as a sync problem rather
+      // than a lock problem.
+      //
+      // The caller still sees the rejection, because `await work()` throws
+      // before this block runs. Failing loudly to the caller and releasing the
+      // lock are not in tension; chaining is what puts them in tension.
+      //
+      // Enforced by household-sync-lock.test.ts, "a failed sync does not lock
+      // the household out". Construction is not the control: this is one moved
+      // line away from poisoning, and nothing but a test notices.
       this.inside -= 1;
       release();
     }
@@ -116,14 +131,23 @@ export class HouseholdSync {
     // test can hold the lock long enough for a second request to arrive; real
     // callers omit it and the work is the sync itself.
     if (url.pathname === "/sync" && request.method === "POST") {
-      const { holdMs = 0 } = (await request.json().catch(() => ({}))) as { holdMs?: number };
+      const { holdMs = 0, fail = false } = (await request.json().catch(() => ({}))) as {
+        holdMs?: number;
+        fail?: boolean;
+      };
       this.arrived += 1;
       try {
       const outcome = await this.withLock(async () => {
         if (holdMs > 0) await new Promise((r) => setTimeout(r, holdMs));
+        // `fail` exists so a test can put a REJECTING task through the lock.
+        // Real callers omit it and the work is the sync itself.
+        if (fail) throw new Error("planted sync failure");
         return { ran: true } satisfies SyncOutcome;
       });
       return Response.json(outcome);
+      } catch (error) {
+        // The caller sees the failure. The lock does not keep it.
+        return Response.json({ ran: false, error: (error as Error).message }, { status: 500 });
       } finally { this.departed += 1; }
     }
 

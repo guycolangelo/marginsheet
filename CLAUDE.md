@@ -90,6 +90,28 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   Third order of the same idea, and the three are worth reading together: **planting** proves the test can fail, **doctrine's own sentence** proves it is aimed at the right failure, and **minimal mutation** proves the pass is earned rather than incidental.
 
+- **A GUARD'S EVIDENCE CANNOT COME FROM THE CODE UNDER TEST. Instrument outside the mechanism, always.**
+
+  A fixture guard exists to prove the test exercised the thing it claims. When the guard reads state the mechanism itself maintains, **the mutation that breaks the mechanism also erases the proof the fixture was exercised**, and the run reports a degenerate fixture instead of a broken control.
+
+  The instance, 19 Aug 2026. The chain lock's guard counted **waiters**, a number the lock keeps. Planting removed the lock, so nothing ever waited, and the failure read *"the collision never formed: nothing measured"* when the collision had formed and the lock was gone. It counts **arrivals** now, incremented outside the lock, where no mutation to the lock can reach them.
+
+  **The damage is the message, not the red.** Both versions fail. One says "your fixture was degenerate, re-run", and the other says "the thing you are guarding is broken". The first sends a reader to re-run, which is the habit that gets a real red ignored, and it is the same corrosion a flaky test causes.
+
+  This is the same rule as **a check that reads its expectation from the thing it is checking**, applied one level down: not to the assertion, but to the evidence that the assertion had anything to assert about.
+
+- **A MUTATION THAT PASSES IS A FINDING ABOUT THE TEST, NOT AN EXONERATION OF THE CODE. Default to the test being inadequate.**
+
+  And the mutation set needs **at least one mutation that leaves the code reading correctly.** Removing an `await` proves a test exists. Moving an assignment proves it discriminates. **Coarse mutations only ever prove the first**, and a set made only of them reads as thorough while establishing the weaker claim throughout.
+
+  Paid for twice on 19 Aug 2026, both times on the chain lock.
+
+  **The one that mattered.** Moving `this.tail = ...` from before the `await` to after it leaves code that reads like a chain, is a chain by every description of it, and serialises nothing. **Every HTTP test passed against it.** The window is one microtask and two network arrivals are milliseconds apart, so nothing the network can deliver lands inside it.
+
+  **"The window is too small to matter" was available, defensible, and wrong.** What killed it was asking **which arrival shapes exist** rather than which ones the test could produce: sync work is dispatched from inside the object as well as from the network, and a queue batch or alarm taking the lock per item takes it twice in one tick. That is precisely the arrival the network cannot make. Two arrival shapes, two tests.
+
+  **The one that showed the rule's other half.** Testing chain poisoning, the first mutation passed and the second broke four tests at once by bypassing the bookkeeping entirely, which is this file's `USING (false)`: loud, red, and silent about the thing under test. Only the third, phrased as a sentence a reasonable engineer would write (*"propagate the failure to whoever is waiting behind us"*), reddened exactly one test on exactly the right assertion.
+
 - **CAPTURE THE BASELINE BEFORE THE PROBE, NOT AFTER.** A probe's result is a DIFFERENCE, and a difference needs two measurements. Running the probe first and comparing against a baseline you assume is clean measures nothing.
 
   Paid for on 18 Aug 2026: a probe on the herald subset reported six typecheck errors, which looked like the probe biting. They were pre-existing, they were mine, and I had reported a clean typecheck minutes earlier. **The probe caught the prober.** The finding was still correct, and it was correct by luck rather than by method.

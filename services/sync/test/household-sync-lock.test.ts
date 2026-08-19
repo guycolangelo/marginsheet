@@ -152,3 +152,48 @@ describe("the chain lock under a collision the network cannot produce", () => {
     expect(maxObserved).toBe(1);
   }, 60_000);
 });
+
+describe("the chain when a sync fails", () => {
+  it("a failed sync does not lock the household out", async () => {
+    // THE MOST LIKELY PRODUCTION FAILURE IN THIS FILE IF IT WERE WRONG, and it
+    // is one moved line away. Extending the tail with `previous.then(work)`
+    // instead of a promise released in a `finally` makes a rejected task the
+    // new tail, and every later caller for that household inherits the
+    // rejection. One failed sync locks the household out until the object
+    // restarts, and it reads as a sync problem rather than a lock problem.
+    //
+    // The failing sync is QUEUED AHEAD of the good one rather than merely run
+    // before it. A test that fails one sync, waits for it, then runs another
+    // proves the object still answers; it does not prove the chain survived,
+    // because by then there is no chain to inherit.
+    const failing = fetch(`${BASE}/household-poison/sync`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ holdMs: 600, fail: true }),
+    });
+    // Arrives while the failing task holds the lock, so it takes the poisoned
+    // tail if there is one.
+    await new Promise((r) => setTimeout(r, 150));
+    const following = fetch(`${BASE}/household-poison/sync`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ holdMs: 0 }),
+    });
+
+    const failed = (await (await failing).json()) as { ran: boolean; error?: string };
+    const after = (await (await following).json()) as { ran: boolean };
+
+    // The caller of the failing sync still learns it failed. Releasing the
+    // lock and reporting the failure are not in tension.
+    expect(failed.ran).toBe(false);
+    expect(failed.error).toContain("planted sync failure");
+
+    // FIXTURE GUARD: the second request must have been behind the first, or
+    // this measured nothing. Instrumented outside the lock, per the rule the
+    // waiters count cost us.
+    const seen = await observe("household-poison");
+    expect(seen.maxObserved, "the two never queued: nothing measured").toBe(1);
+
+    expect(after.ran, "the chain was poisoned by a rejected task").toBe(true);
+  }, 60_000);
+});
