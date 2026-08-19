@@ -347,6 +347,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   Paid for on 18 Aug 2026: `--admin` merged a pull request whose `control-register` job was red. The red was real. It was hiding a harness that had never executed four registered controls, reporting them as verified because a test that cannot run exits non-zero and non-zero reads as the mutation working. **The override did not cause that defect, it deferred finding it**, which is the whole of what an override ever does.
 
+- **A COUNT THAT LIVES IN A CONVERSATION DRIFTS FROM THE COUNT IN THE CONFIG, AND ONLY A CHECK RECONCILES THEM.**
+
+  On 19 Aug 2026 the workers.dev retraction was discussed as **"all four"** for its entire life, from the original finding through the merge sequencing, by both of us. `config/public-surface.json` declared sync and conversation private in **three** environments each, and the probe list was `["", "-staging", "-dev"]`. **The real number was six.**
+
+  Nothing was ever written down wrongly. "All four" was accurate when first said, about production and staging, and it survived as a phrase long after the config had grown a third environment behind it. **Neither statement was edited into being wrong. They were just two**, which is the drift rule already recorded here about `worker-secrets.json` and `REQUIRED_SECRETS`, arriving in a form neither of us watched for: **one of the two copies was a phrase in conversation rather than a line in a file.**
+
+  What makes it worth its own entry: a phrase has no owner, no diff, and no review. **The only thing that reconciled them was the check**, which was going to fail on the two dev hosts and report exactly which. A count repeated in prose is a claim nothing verifies, and it is most dangerous when it is repeated often enough to sound settled.
+
+  So: **when a number describes a set the repo defines, read it from the repo before acting on it**, and treat an agreed figure that nobody has re-derived as a quotation rather than a fact.
+
 - **AN EMPTY LIST IS A STATEMENT; SILENCE IS AN INHERITANCE.** Recorded as one rule rather than three incidents, because it produced three in a single day, two of them in the same file, and every one resolved to something other than what its absence suggested.
 
   | Key | What absence looked like | What absence meant |
