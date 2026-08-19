@@ -407,4 +407,8 @@ Filtering to present-tense mechanism assertions (*forces, obligates, guarantees,
 
 **The right next step is not to fix 126 things.** It is to check a random sample of them and find out what the real rate is. Two-for-two on a biased sample says nothing about the population.
 
-**And the method has a floor**, stated in §1: obligations phrased without a verb are invisible to it, and two of the three mistake-doctrine fields are exactly that.
+**And the method has a floor, which is a KNOWN LIMIT rather than a gap to close.** Obligations phrased as bare equations carry no verb and are invisible to any wordlist. Two of the three mistake-doctrine fields were exactly that, and they were found by reading the contract by hand. **The inventory undercounts permanently and chasing that is not worth doing**: the wordlist is a net, not a census, and the response to a permanent floor is to know it rather than to widen the net until it catches prose.
+
+**The preferred form, above a runtime check and far above a comment: let the type system carry it.** `FraudReply.boundary_line` is typed as the literal `true`, so the flag can never be absent or false and nothing has to enforce that. The herald subset became a conditional type on 18 Aug, and the probe that had produced nothing then fails to compile now. **A type cannot be forgotten, cannot drift, and needs no test to remember it.** A comment is the weakest form of a rule and the easiest to write, which is where all 126 came from.
+
+**What was done with this survey, so it is not read as a backlog.** The ratchet in `packages/lint/test/mechanism-claims.test.ts` stops the pile growing, which was the actual fix. `docs/imperative-triage.md` splits the rest by module built or unbuilt. A random sample of twenty is owed, and until it is drawn nothing here is a rate.

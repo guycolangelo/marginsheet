@@ -487,6 +487,21 @@
         "note": "A partial honor with nothing naming the part not honored. Verified 18 Aug 2026, reddens only its own assertion."
       },
       "distinction": "Found by sweeping every boolean in the contract after the omission failure was named, and it is the cleanest instance after the archetype. Every word in such a confirmation is true and the household reads FULL agreement into a PARTIAL one. Same shape as answering one ledger: not a banned word, a missing half."
+    },
+    {
+      "id": "mechanism-claims-name-their-enforcement",
+      "control": "the mechanism-claim ratchet (packages/lint)",
+      "guards": "A comment cannot newly assert that a mechanism exists without naming what enforces it.",
+      "test": "packages/lint/test/mechanism-claims.test.ts",
+      "name": "finds no unbacked claim outside the baseline",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/plaid-client.ts",
+        "find": "export class PlaidError extends Error {",
+        "replace": "// PLANTED: this guarantees the token never escapes.\nexport class PlaidError extends Error {",
+        "note": "A NEW unbacked mechanism claim, which is the thing the ratchet exists to refuse. Verified 18 Aug 2026 as a PAIR: the claim alone reddens, and the same claim followed by 'Enforced by token-never-escapes.test.ts' passes. The pair is the point, because a rule that reddens on everything is a rule people suppress."
+      },
+      "distinction": "THIS IS THE FIX; THE 126 ARE CLEANUP. The unbacked claims accumulated because this project records rulings in comments, and that method works when a control enforces the comment and FAILS SILENTLY when none does. Cleanup on a pile that is still growing is not worth starting. Deliberately STRICTER than the survey in docs/imperative-inventory.md, which counts 126 with a broad filter because a survey should over-collect and be read by a human. This counts 18, because a rule firing on legitimate comments is a rule people learn to suppress."
     }
   ]
 }

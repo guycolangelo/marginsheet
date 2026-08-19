@@ -90,6 +90,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   Third order of the same idea, and the three are worth reading together: **planting** proves the test can fail, **doctrine's own sentence** proves it is aimed at the right failure, and **minimal mutation** proves the pass is earned rather than incidental.
 
+- **CAPTURE THE BASELINE BEFORE THE PROBE, NOT AFTER.** A probe's result is a DIFFERENCE, and a difference needs two measurements. Running the probe first and comparing against a baseline you assume is clean measures nothing.
+
+  Paid for on 18 Aug 2026: a probe on the herald subset reported six typecheck errors, which looked like the probe biting. They were pre-existing, they were mine, and I had reported a clean typecheck minutes earlier. **The probe caught the prober.** The finding was still correct, and it was correct by luck rather than by method.
+
+  So: record the before state, run the probe, compare. It costs one command and it is the difference between evidence and a coincidence.
+
+- **WHERE THE TYPE SYSTEM CAN CARRY AN OBLIGATION, IT SHOULD.** Preferred above a runtime check, which is preferred above a comment. A type **cannot be forgotten, cannot drift, and needs no test to remember it**, and it fails at the moment the mistake is written rather than when a suite next runs.
+
+  `FraudReply.boundary_line` is typed as the literal `true`, so the flag can never be absent or false, and nothing has to enforce that. `_HeraldKeysAreCloseKeys` is the same idea applied to a claim that had been false since M2: the interfaces were unrelated and "BY CONSTRUCTION" described nothing, and a conditional type now makes adding an unmatched herald key fail to compile.
+
+  The ladder is worth stating because the bottom rung is where the 126 came from: **a comment is the weakest form of a rule and the easiest one to write.**
+
 - **PROBE, DO NOT READ. Reading a pattern tells you what its author meant. Probing tells you what it does.** The standing method for auditing any rule expressed as a pattern.
 
   Eleven inflection gaps sat under a green suite since M0 and were found in one run by testing the rules against inflected strings rather than by reading the regexes. **Reading them had not found the gaps, and the regexes were in front of everyone the whole time**, because a pattern reads as its intent: `\bafford(s|ed|ability)?\b` looks like it covers the inflections until you hand it `affording`.

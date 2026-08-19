@@ -1,0 +1,22 @@
+{
+  "_doc": [],
+  "count": 16,
+  "claims": [
+    "packages/fact-packages/src/classes.ts::Forces the bank-authority sentence.",
+    "packages/fact-packages/src/classes.ts::NEVER COMPOSABLE. Stripped from the composer's view by construction.",
+    "packages/fact-packages/src/classes.ts::true FORCES the two-ledger answer shape.",
+    "packages/fact-packages/src/internal.ts::The composer's input type: the package with every internal field removed, recurs",
+    "packages/schema/migrations/0022_invitation_token_format.sql::========================================================================= 0022_i",
+    "packages/schema/migrations/0024_household_state_outbox.sql::FORCE as well as ENABLE. Without FORCE the table OWNER bypasses every policy, so",
+    "packages/schema/migrations/0024_household_state_outbox.sql::SET AFTER THE DATA COMMITS, and that ordering is the entire point. enqueued_at N",
+    "packages/schema/migrations/0024_household_state_outbox.sql::The household-state-changed outbox (M4 task 4.4.1). THE CONTRACT IS RULED (18 Au",
+    "services/api/src/invitation-routes.ts::The invitation endpoints (M3 task 3.5). Mounted in the same task that built the ",
+    "services/api/src/phone-change.ts::Refused BEFORE any write. The test asserts on the database row rather than this ",
+    "services/api/src/sensitive-actions.ts::Routes that LOOK sensitive to the scan and deliberately are not. An exclusion li",
+    "services/api/src/tokens.ts::32 bytes of randomness as lowercase hex. 256 bits, URL and email safe. HEX RATHE",
+    "services/api/vitest.config.ts::Vitest's default is 5s, which is a statement about LOCAL latency. Every database",
+    "services/sync/src/outbox.ts::The outbox: writing signals, announcing them, and the two readers that point opp",
+    "services/sync/src/reconnect.ts::Reconnect, in Plaid's update mode (M4 task 4.3.4). KEYED ON THE ITEM, NEVER ON T",
+    "services/sync/src/sync-state.ts::Syncing with neither clock is a row nothing can reason about, so it is swept rat"
+  ]
+}

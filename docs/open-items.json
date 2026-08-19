@@ -325,11 +325,27 @@
     "raised": "2026-08-18"
   },
   {
-    "id": "mistake-doctrine-is-advisory",
-    "item": "THE MISTAKE DOCTRINE IS ADVISORY, WHICH IS WORSE THAN AN ORDINARY UNCHECKED RULE. Three fact-package fields carry compose obligations in their own comments and nothing enforces any of them: Correction.verdict_changed ('true = highest-stakes fixture'), Correction.band_demoted ('composes \\'I have started asking again\\''), and Alert.first_flag ('false = follow-up register plus the follow-up banned list'). These are not three separate gaps. THEY ARE ONE JOB, and they are the mistake doctrine: three tiers, the plain-dollar difference, the automatic double-fault demotion. That is the doctrine governing HOW WE BEHAVE WHEN WE ARE ALREADY WRONG, and A RULE THAT ONLY APPLIES WHEN NOTHING HAS GONE WRONG IS NOT A RULE. A correction whose verdict flipped and does not say so is the same omission failure as a monthly figure without its term: every word true, and the household is left believing the number moved without the meaning moving. Same shape, same fix as the two forcing fields built on 18 Aug 2026: assert the obligation against the contract, plant a fixture that violates it, register each. No new fields needed for verdict_changed or band_demoted.",
+    "id": "mechanism-claim-random-sample",
+    "item": "TWENTY OF THE 126, DRAWN RANDOMLY AND HAND-VERIFIED. Two claims were checked by hand on 18 Aug 2026 and both were false: ledgers_diverge forced nothing, and the herald subset had no construction. THAT IS NOT A RATE. The sample was not random; both were already suspected, which is why they were checked. WHAT THE NUMBER DECIDES: whether 18 Aug found two bad instances, or whether the comment-as-ruling method is systemically not working. If the second, that is a bigger finding than any individual fix and it changes CLAUDE.md rather than the code. Report the rate WITH ITS RANGE and do not round it toward comfort. Draw from docs/imperative-inventory.md section 4 using the reproducible sweep in scripts/imperative-sweep.",
     "owner": "build",
-    "trigger": "on request; needs no new fields and no owned canon text",
-    "owed_to": "TRIGGER: on request. One job, three fields, the same shape as the two already built.",
+    "trigger": "next session, before any further cleanup",
+    "owed_to": "TRIGGER: next session. Until it is drawn, no statement about the rate is supported.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "mistake-doctrine-acceptance-criteria",
+    "item": "THE MISTAKE DOCTRINE'S COMPOSE OBLIGATIONS BECOME ACCEPTANCE CRITERIA, since there is no composer to enforce them against. Correction.verdict_changed obligates the reply to say the verdict MOVED, because a household told only the new number reads the meaning as unchanged. Correction.band_demoted obligates the canonical words 'I have started asking again', so the household is told the system's confidence in itself dropped rather than discovering it from behaviour. Alert.first_flag false obligates the follow-up register, whose banned list IS already enforced by no-nagging in packages/lint; what is unenforced is that the composer SELECTS that context. All three comments were rewritten on 18 Aug from assertions into descriptions that say plainly they are not enforced, which is the honest state rather than a fix. THE FRAMING THAT MATTERS: this is the doctrine governing how the product behaves WHEN IT IS ALREADY WRONG, and a rule that only applies when nothing has gone wrong is not a rule.",
+    "owner": "build",
+    "trigger": "M13 for the correction pair, M10 for the alert register selection",
+    "owed_to": "TRIGGER: M13 and M10. Acceptance criteria, not a backlog item: they cannot be built before a composer exists.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "security-page-mechanism-claims",
+    "item": "THE /security PAGE MAKES TWO MECHANISM CLAIMS THAT NEED TRACING TO THIS REPOSITORY, and it is the second thing today to cross a session boundary, so it is recorded rather than left between them. The claims concern row-level security and CI gating. The repo-side facts they must match: household_isolation is on every policied table with FORCE set on all 37, asserted by an M1 introspection invariant that counts rather than spot-checks; marginsheet_sync is narrowed to ten enumerated tables by migrations 0023 and 0024 with a negative control attempting three forbidden tables; branch protection has no admin override and nothing merges with a red required check; and 29 controls carry planted failures verified by the harness. WHAT TO CHECK: that the page claims no more than those, and that each sentence on it names something a person could verify. A marketing page asserting a mechanism is the same class as a comment asserting one, and it has a wider audience.",
+    "owner": "Guy",
+    "trigger": "the marketing site session, using these repo-side facts",
+    "owed_to": "TRIGGER: the marketing-site session. Small, and it crosses a session boundary, which is why it is written down.",
     "raised": "2026-08-18"
   }
 ]

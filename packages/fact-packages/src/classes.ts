@@ -100,14 +100,41 @@ export interface CloseEmailFacts {
 }
 
 /**
- * HERALD FACTS ARE A SUBSET OF CLOSE FACTS BY CONSTRUCTION.
- * One call, one package: the herald cannot say something the close does not.
+ * The herald headline: a strict subset of the close's facts, so the herald
+ * cannot say something the close does not.
+ *
+ * CARRIED BY THE TYPE SYSTEM, not by this comment. `_HeraldKeysAreCloseKeys`
+ * below fails to compile if a key is added here that the close does not have.
+ *
+ * It said "BY CONSTRUCTION" from M2 until 18 Aug 2026 and there was no
+ * construction: the two interfaces were unrelated, and adding a herald field
+ * with no close counterpart produced no error and no failing test. Proven by
+ * probe, then made true.
  */
 export interface HeraldHeadlineFacts {
   kept?: string;
   margin_pct?: string;
+  /** Drawn FROM `CloseEmailFacts.notable`, and deliberately not named the
+   *  same: the close carries the list, the herald carries at most one of them.
+   *  Exempted from the subset proof below for that reason, and it is the only
+   *  exemption. */
   one_notable?: string;
 }
+
+/**
+ * COMPILE-TIME PROOF of the subset claim above.
+ *
+ * Every herald key other than `one_notable` must be a key of `CloseEmailFacts`.
+ * Add one that is not and this resolves to `never`, and the assignment below
+ * stops compiling. No test to remember, no runtime cost, and nothing to
+ * forget: the preferred form wherever the type system can carry an obligation.
+ */
+type _HeraldKeysAreCloseKeys =
+  Exclude<keyof HeraldHeadlineFacts, "one_notable"> extends keyof CloseEmailFacts
+    ? true
+    : never;
+const _heraldSubsetProof: _HeraldKeysAreCloseKeys = true;
+void _heraldSubsetProof;
 
 export interface ClosePair {
   close_email_facts: CloseEmailFacts;
@@ -146,7 +173,14 @@ export interface AlertDates {
 export interface Alert {
   /** Internal: routing identifier, not composable. See INTERNAL_PATHS. */
   rule_id: string;
-  /** false = follow-up register plus the follow-up banned list. */
+  /** True on the first firing of a rule, false on every repeat.
+   *
+   *  A repeat is composed in the follow-up register, which bans "again",
+   *  "still haven't" and "reminder". THAT HALF IS ENFORCED: `no-nagging` in
+   *  packages/lint binds to the `follow_up` context. What is not enforced is
+   *  that the composer SELECTS that context when this is false, which is
+   *  compose-time and owed to M10. Described rather than asserted, because
+   *  the second half does not exist yet. */
   first_flag: boolean;
   numbers: AlertNumbers;
   dates: AlertDates;
@@ -192,10 +226,24 @@ export interface Correction {
   old_value: string;
   new_value: string;
   plain_dollar_difference: string;
-  /** true = highest-stakes fixture. */
+  /** True when the correction changes the artifact's verdict, not just a
+   *  figure.
+   *
+   *  The mistake doctrine asks such a correction to say the verdict moved,
+   *  because a household told only the new number reads the meaning as
+   *  unchanged. NOT ENFORCED ANYWHERE: there is no second field this
+   *  obligates, so the obligation is on composed output and is owed to M13's
+   *  acceptance criteria. Described, not asserted. */
   verdict_changed: boolean;
   cause_attribution: CauseAttribution;
-  /** composes "I've started asking again". */
+  /** True when the household's confidence band was demoted by a double
+   *  fault.
+   *
+   *  The doctrine asks the correction to say so, in the canonical words
+   *  "I've started asking again", so a household is told the system's
+   *  confidence in itself dropped rather than discovering it from behaviour.
+   *  NOT ENFORCED: a compose-time obligation with no field to check, owed to
+   *  M13's acceptance criteria. Described, not asserted. */
   band_demoted: boolean;
 }
 
