@@ -14,15 +14,33 @@
     "domain because households reach it, and dev and staging do not because",
     "nobody does. A check should verify the address households actually use, not",
     "a pattern that happens to be true today. When an address changes, change it",
-    "here and the checks follow it instead of going red."
+    "here and the checks follow it instead of going red.",
+    "",
+    "AMENDED 19 Aug 2026, AND THE ASYMMETRY BELOW IS A TRANSITION, NOT A DESIGN.",
+    "conversation was reached at a workers.dev address, which worked only because",
+    "the Worker was publicly reachable, and it should never have been. Closing that",
+    "turned db-identity red, which is the correct order of events: the check was",
+    "depending on the gap.",
+    "",
+    "dev and staging are already private and are reached THROUGH api over a service",
+    "binding. production is still direct because api's proxy route does not exist",
+    "there until this merges and deploys. The follow-up privatises production",
+    "conversation and moves it to `via`, at which point every environment matches.",
+    "Tracked as retract-workers-dev-staging-production in docs/open-items.json."
   ],
   "dev": {
     "api": "https://marginsheet-api-dev.guy-a84.workers.dev",
-    "conversation": "https://marginsheet-conversation-dev.guy-a84.workers.dev"
+    "conversation": {
+      "via": "api",
+      "path": "/debug/conversation-identity"
+    }
   },
   "staging": {
     "api": "https://marginsheet-api-staging.guy-a84.workers.dev",
-    "conversation": "https://marginsheet-conversation-staging.guy-a84.workers.dev"
+    "conversation": {
+      "via": "api",
+      "path": "/debug/conversation-identity"
+    }
   },
   "production": {
     "api": "https://api.marginsheet.com",
