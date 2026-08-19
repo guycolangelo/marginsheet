@@ -13,6 +13,12 @@
 
 **537 imperative comment blocks across 162 files.**
 
+> **SNAPSHOT, TAKEN AT COMMIT `8bc5893` ON 18 AUGUST 2026, AND IT HAS ALREADY MOVED.** Re-running the three scripts from a clean checkout on 19 August yields **577 blocks, 221 mechanism claims, 145 not confirmed enforced.** Nothing regressed: the difference is this week's own commits, which added comments faster than anything read them.
+>
+> **The figures below are deliberately NOT regenerated**, for one reason. The random sample of twenty is drawn from the 126 recorded here, and refreshing the population mid-measurement would replace a sample of a known set with a sample of a moving one.
+>
+> **Read the drift as the finding it is.** A survey states a number and the number is true when written; the codebase is not asked to hold still. So a count in prose is a claim about a moment, and it needs the moment attached or a reader six months from now compares it to today and concludes something false. That is the same shape as the open item that said "29 controls" and was stale inside a day, on a fact bound for a public page. **The scripts are the durable artifact. These numbers are a photograph.**
+
 ### The wordlist has a ceiling, and it was found by probing
 
 The first pass used only Guy's list and **missed three obligations entirely**, because they carry no imperative word:
