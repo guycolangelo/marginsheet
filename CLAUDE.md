@@ -29,7 +29,7 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 | M6b projections/goals/cash flow | `projection-spec.md` |
 | M8 app | `app-ui-spec.md` |
 | M9 migration | `migration-spec.md` |
-| Amendments, Aug 2026 | `docs/spec-amendments-2026-08.md` (year-end projection, goal priority, Dashboard, Cash Flow, budgeting scope) |
+| Amendments, Aug 2026 | `docs/spec-amendments-2026-08.md` (year-end projection, goal priority, Dashboard, Cash Flow, budgeting scope; **11 to 13**: two-ledger rule, spending recognition by instrument, owed tender and term fields) |
 | M10–M21 conversation service | conversation-service-spec + conversational spec |
 
 ---
@@ -347,7 +347,11 @@ Income − Spending = Kept ($) / Margin (%), unchanged. Causal chain control →
 
 ### What sits at spec level rather than here
 
-The canon's operational rules amend named specs and are **drafted as amendments 11 to 13 plus canonical exchange #7, awaiting Guy's approval**: the two-ledger rule and the tender beat and the financing verdict (`mycfo-mykeeper-conversational-spec.md`), spending recognition by instrument (`ledger-spec.md`), and the owed `tender` and term fields on `ScenarioAnswer` (M2).
+The canon's operational rules amend named specs and **landed 19 August 2026 as amendments 11 to 13 plus canonical exchange #7**: the two-ledger rule and the tender beat and the financing verdict (`mycfo-mykeeper-conversational-spec.md`), spending recognition by instrument (`ledger-spec.md`), and the owed `tender` and term fields on `ScenarioAnswer` (M2).
+
+**Three corrections separate the final from the draft**, and each is a rule elsewhere in this file doing work. **Tender is echoed into the answer**, because the composer cites answer fields and a field living only on the request cannot be cited, so *"assuming debit"* would be an uncited assertion; it carries tender and how we know it as **two values rather than a flag**. **7b's absence claim was cut rather than given a field.** And **amendment 13 asks for a discriminated union on tender**, so the installment variant carries its term fields as required and every other variant has none to omit: *"installment obligates term"* becomes structural rather than checked, which is `boundary_line`'s pattern applied to the forcing-field class. Order of preference: **type, then runtime check, then comment.**
+
+**7c is canon before it is capability.** No field carries a term, so MyKeeper cannot state $2,496 today, and that is recorded in the fixture's status rather than left for whoever wires the endpoint to discover.
 
 **They are deliberately not restated here.** Two hand-written statements of one requirement drift by default, and the rule against that was recorded the same day. This section carries the category and the constraint; the specs carry the behaviour.
 
