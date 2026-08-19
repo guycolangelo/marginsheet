@@ -487,6 +487,66 @@
         "note": "A new endpoint returning a household id, which is the shape that would actually occur: somebody adds a surface, not somebody edits the scanner. Verified red 19 Aug 2026, reporting services/api/src/index.ts and the planted line."
       },
       "distinction": "THIS GUARDS A MITIGATION, NOT A BOUNDARY, AND THAT IS WHY IT EXISTS. The severity of anything taking a household id as input rests on a stranger being unable to obtain one, which was true when traced and was maintained by NOTHING. The first feature to put one in a link would have removed it silently. It scans SOURCE rather than payloads because a household id is a bare UUID with no structure to recognise at runtime. Two false positives on the first run, an internal service-binding forward and an error message naming the field, and THE DETECTOR WAS FIXED RATHER THAN THE CODE: rewriting an error message to satisfy a scanner is the ceremony that teaches people to suppress a rule."
+    },
+    {
+      "id": "cross-household-upsert-cannot-land",
+      "control": "RLS against a global unique index (plaid_items.item_id, financial_accounts.plaid_account_id)",
+      "guards": "One household's upsert cannot create, update or take ownership of another household's row.",
+      "test": "services/api/test/cross-household-upsert.test.ts",
+      "name": "cannot reach another household's plaid_items row",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/test/cross-household-upsert.test.ts",
+        "find": "        await tx`select set_config('marginsheet.household_id', ${householdA}, true)`;\n\n        // WHO IS ACTUALLY WRITING.",
+        "replace": "        await tx`select set_config('marginsheet.household_id', ${householdB}, true)`;\n\n        // PLANTED: the writer is legitimate, so the update succeeds.\n        // WHO IS ACTUALLY WRITING.",
+        "note": "THE MUTATION MAKES THE WRITER LEGITIMATE rather than breaking the policy. Setting the GUC to B means the upsert is B updating B's own row, which succeeds and overwrites the ciphertext, so the survival assertions fail. Disabling the policy would also redden it and would prove far less: nothing was ever going to disable household_isolation quietly. IT TARGETS THE GUC LINE PLUS THE COMMENT BELOW IT, because the set_config line alone appears twice in this file and a mutation that matches two places is a mutation nobody can reason about. The GUC readback added 19 Aug 2026 exists so the test can tell a real cross-household write from an unrestored mutation, which produce the same assertion failure."
+      },
+      "distinction": "CONFIRMED FAILING 19 Aug 2026, AND IT STAYS RED UNTIL THE SCHEMA FIX LANDS. This entry is EVIDENCE for a defect rather than a guard over a working boundary, and it lives on a draft PR that is meant to be red. It was briefly marked `owed`, which the register correctly refused: owed means designed and not yet built, the test exists, and an owed label on a built control is a control nobody runs. A red here is the finding. See cross-household-upsert-overwrites-another-household in docs/open-items.json. WRITTEN BECAUSE THE ANSWER WAS RECORDED AS UNVERIFIED. The unique indexes are GLOBAL, not household-scoped, so `on conflict (item_id) do update` in exchange.ts can collide with another household's row, and 'RLS makes it invisible so it errors' is reasoning about Postgres rather than evidence. RUNS AS marginsheet_sync, not marginsheet_app: exchange.ts runs in the sync Worker and the roles hold different grants, so a refusal under app's grants would prove nothing about the path that runs and would look like a pass. THE SURVIVAL ASSERTION IS THE POINT, not the throw: a version asserting only that it errored would pass if a later change made the statement succeed against a row it should never see."
+    },
+    {
+      "id": "cross-household-upsert-cannot-land-accounts",
+      "control": "RLS against the global unique index on financial_accounts.plaid_account_id",
+      "guards": "One household's account upsert cannot overwrite another household's financial_accounts row.",
+      "test": "services/api/test/cross-household-upsert.test.ts",
+      "name": "cannot reach another household's financial_accounts row",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/test/cross-household-upsert.test.ts",
+        "find": "        await tx`select set_config('marginsheet.household_id', ${householdA}, true)`;\n        const [ctx] = await tx<{ who: string }[]>`\n          select current_setting('marginsheet.household_id', true) as who\n        `;\n        actingAs = ctx.who;\n        await tx`\n          insert into financial_accounts",
+        "replace": "        await tx`select set_config('marginsheet.household_id', ${householdB}, true)`;\n        const [ctx] = await tx<{ who: string }[]>`\n          select current_setting('marginsheet.household_id', true) as who\n        `;\n        actingAs = ctx.who;\n        await tx`\n          insert into financial_accounts",
+        "note": "Same mutation as the plaid_items entry: it makes the WRITER LEGITIMATE rather than breaking the policy, so B updates B's own row, the update succeeds and the survival assertions fail."
+      },
+      "distinction": "REGISTERED SEPARATELY BECAUSE THE ANSWER CHANGES THE FIX. plaid_account_id carries the same global unique index as item_id, and 'same shape' is a statement about the remedy rather than about the behaviour: one index and two indexes are different fixes. The harness runs only the test it names, so a second question needs a second entry or it is never asked. Its first version proved nothing twice over: it omitted a NOT NULL column so the insert threw for a schema reason before reaching any policy, and it pointed A's insert at B's Item row, which would have tested a foreign key rather than the unique index."
+    },
+    {
+      "id": "cross-household-transactions-upsert",
+      "control": "RLS against the global unique index on transactions.plaid_transaction_id",
+      "guards": "One household's transaction upsert cannot overwrite another household's ledger row.",
+      "test": "services/api/test/cross-household-upsert.test.ts",
+      "name": "cannot reach another household's transactions row",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/test/cross-household-upsert.test.ts",
+        "find": "        await tx`select set_config('marginsheet.household_id', ${householdA}, true)`;\n        const [ctx] = await tx<{ who: string }[]>`\n          select current_setting('marginsheet.household_id', true) as who\n        `;\n        actingAs = ctx.who;\n        await tx`\n          insert into transactions",
+        "replace": "        await tx`select set_config('marginsheet.household_id', ${householdB}, true)`;\n        const [ctx] = await tx<{ who: string }[]>`\n          select current_setting('marginsheet.household_id', true) as who\n        `;\n        actingAs = ctx.who;\n        await tx`\n          insert into transactions",
+        "note": "Makes the WRITER LEGITIMATE rather than breaking the policy, so B acts on B's own row, the write succeeds and the survival assertions fail. Anchored on the GUC line plus the readback below it, because the set_config line alone appears several times in this file."
+      },
+      "distinction": "THE WORST OF THE THREE IF IT HOLDS, because transactions is where the ledger lives: amount and date are figures the close reports. Registered separately from the plaid_items and financial_accounts entries because the harness runs only the test it names, so a third question needs a third entry or it is never asked. ASKED RATHER THAN SHAPE-MATCHED: 'same shape as the other two' is a statement about the remedy and not about the behaviour, and two vacuous tests this week came from exactly that inference."
+    },
+    {
+      "id": "applyremoved-cannot-cross-households",
+      "control": "applyRemoved's household scoping (services/sync/src/apply-streams.ts)",
+      "guards": "A removed-stream batch cannot flag a transaction belonging to another household.",
+      "test": "services/api/test/cross-household-upsert.test.ts",
+      "name": "applyRemoved cannot flag another household's transaction",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/test/cross-household-upsert.test.ts",
+        "find": "        await tx`select set_config('marginsheet.household_id', ${householdA}, true)`;\n        const [ctx] = await tx<{ who: string }[]>`\n          select current_setting('marginsheet.household_id', true) as who\n        `;\n        actingAs = ctx.who;\n        // Exactly the statement applyRemoved issues.\n        await tx`\n          update transactions",
+        "replace": "        await tx`select set_config('marginsheet.household_id', ${householdB}, true)`;\n        const [ctx] = await tx<{ who: string }[]>`\n          select current_setting('marginsheet.household_id', true) as who\n        `;\n        actingAs = ctx.who;\n        // Exactly the statement applyRemoved issues.\n        await tx`\n          update transactions",
+        "note": "Makes the WRITER LEGITIMATE rather than breaking the policy, so B acts on B's own row, the write succeeds and the survival assertions fail. Anchored on the GUC line plus the readback below it, because the set_config line alone appears several times in this file."
+      },
+      "distinction": "A SECOND PATH THE OTHER TABLES DO NOT HAVE. applyRemoved issues `update transactions set removed = true where plaid_transaction_id = any(...)` with NO household predicate, and under sync_worker_access, which is USING (true), nothing else scopes it. `removed` is not metadata: it changes what a household is told they spent, so a false flag is wrong data in a close rather than a broken connection. This control is why task 4e exists: every sync write gets an explicit household predicate so the statement is correct even when the policy is not, because the policy was not."
     }
   ]
 }
