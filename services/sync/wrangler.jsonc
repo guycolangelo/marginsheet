@@ -16,6 +16,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "HOUSEHOLD_SYNC", "class_name": "HouseholdSync" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HouseholdSync"] }],
   "vars": {
     "ENVIRONMENT": "dev",
     "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
@@ -24,6 +28,10 @@
     "staging": {
       "name": "marginsheet-sync-staging",
       "compatibility_flags": ["nodejs_compat"],
+      "durable_objects": {
+        "bindings": [{ "name": "HOUSEHOLD_SYNC", "class_name": "HouseholdSync" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HouseholdSync"] }],
       "vars": {
         "ENVIRONMENT": "staging",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
@@ -32,6 +40,10 @@
     "production": {
       "name": "marginsheet-sync",
       "compatibility_flags": ["nodejs_compat"],
+      "durable_objects": {
+        "bindings": [{ "name": "HOUSEHOLD_SYNC", "class_name": "HouseholdSync" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HouseholdSync"] }],
       "vars": {
         "ENVIRONMENT": "production",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"

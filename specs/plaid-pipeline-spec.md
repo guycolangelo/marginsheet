@@ -47,6 +47,14 @@ Sources: `base44/shared/plaid.ts` and `transactions.ts` (extracted), the plaid-*
   **The fix is a promise-chain lock**, where each request awaits the previous one's completion before starting its own. `blockConcurrencyWhile()` also serialises and is the wrong tool here: it holds the whole object, including status reads, and is documented for initialisation. Reserve it for the object's own startup.
 
   **What the DO is still for:** a single, addressable, consistent place to hold the lock and the coordination state for one household. It is the right home for the lock. It is not itself the lock, and anyone reading "the DO owns sync execution" should not infer one.
+
+  **Amended again 19 August 2026, on building it (task 4.5), because the chain has a second way to be wrong and the obvious test cannot see it.** The lock is `this.tail = new Promise(...)` assigned **before** awaiting the predecessor. Moving that assignment **after** the await leaves code that reads like a chain, is a chain by every description of it, and serialises nothing: two callers both read the old tail before either replaces it.
+
+  **Every HTTP test stayed green against that mutation.** The window it opens is one microtask, and two requests arriving over the network are milliseconds apart, so nothing the network can deliver lands inside it. The comfortable conclusion is that the window is too small to matter. It is wrong, because **sync work is dispatched from inside the object as well as from the network**: a queue batch or an alarm that takes the lock per item takes it twice in one tick, which is precisely the arrival the network cannot produce.
+
+  So the object carries a **same-tick collision** path that dispatches two units of work with no await between them, and the lock is proven against it. Two arrival shapes, two tests: the network one proves the deployable serialises, and the same-tick one proves the chain is a chain.
+
+  **The counters that prove a collision happened are maintained OUTSIDE the lock**, and that ordering is load-bearing. The first version had the test's fixture guard read a queue depth the lock itself kept, so removing the lock reported *"the collision never formed"* when it had formed and the lock was gone. A guard the mutation can silence sends the reader to re-run rather than to look.
 - Added/modified/removed and pending→posted semantics: per categorization-spec §1 and §10, unchanged.
 - **First-sync milestone:** `first_sync_completed_at` set once; feeds the intro trigger and the day-3–5 census scheduling.
 

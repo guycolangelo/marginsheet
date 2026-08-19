@@ -502,6 +502,36 @@
         "note": "A NEW unbacked mechanism claim, which is the thing the ratchet exists to refuse. Verified 18 Aug 2026 as a PAIR: the claim alone reddens, and the same claim followed by 'Enforced by token-never-escapes.test.ts' passes. The pair is the point, because a rule that reddens on everything is a rule people suppress."
       },
       "distinction": "THIS IS THE FIX; THE 126 ARE CLEANUP. The unbacked claims accumulated because this project records rulings in comments, and that method works when a control enforces the comment and FAILS SILENTLY when none does. Cleanup on a pile that is still growing is not worth starting. Deliberately STRICTER than the survey in docs/imperative-inventory.md, which counts 126 with a broad filter because a survey should over-collect and be read by a human. This counts 18, because a rule firing on legitimate comments is a rule people learn to suppress."
+    },
+    {
+      "id": "household-sync-serialises-over-http",
+      "control": "the household sync chain lock (services/sync)",
+      "guards": "Two sync requests for one household cannot be inside the critical section at once.",
+      "test": "services/sync/test/household-sync-lock.test.ts",
+      "name": "serialises two concurrent syncs for one household",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/household-sync-do.ts",
+        "find": "    // A predecessor that threw must not stop the chain moving.\n    await previous.catch(() => undefined);",
+        "replace": "    // PLANTED: the lock removed, the Durable Object left intact.\n    void previous;",
+        "note": "THE MUTATION REMOVES THE LOCK, NOT THE OBJECT (Guy, 17 Aug 2026). A test that only reddens when the DO is gone proves the wrong thing: the DO is not the lock, and the failure this system faces is a DO that routes correctly and serialises nothing. Verified 19 Aug 2026: fails on 'expected 2 to be 1', the exclusion assertion, with the fixture guard passing."
+      },
+      "distinction": "TESTED OVER HTTP AGAINST wrangler dev, NOT AGAINST withLock. Calling the method proves the promise chain serialises, which is a fact about the chain. The claim is that two requests for one household cannot sync at once, and the route, idFromName, the binding and the runtime's concurrency all sit outside the class. THE COLLISION IS CONSTRUCTED AND THE TEST ABORTS RATHER THAN PASSES IF IT DOES NOT FORM: the fixture guard counts arrivals from outside the lock and fires before the exclusion assertion, because two requests that never overlapped are an empty set and an exclusion assertion over an empty set is zero evidence. The guard counts arrivals rather than waiters for a reason paid for on 19 Aug: reading the lock's own queue depth let the mutation silence the guard, so planting reported a degenerate fixture when the lock was gone."
+    },
+    {
+      "id": "household-sync-chain-holds-same-tick",
+      "control": "the household sync chain lock, against arrivals in one tick",
+      "guards": "The chain is extended before the predecessor is awaited, so two callers in one tick cannot both read the old tail.",
+      "test": "services/sync/test/household-sync-lock.test.ts",
+      "name": "serialises two units of work dispatched in the same tick",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/household-sync-do.ts",
+        "find": "    const previous = this.tail;\n    let release!: () => void;",
+        "replace": "    const previous = this.tail;\n    await previous.catch(() => undefined);  // PLANTED: await before extending\n    let release!: () => void;",
+        "note": "This mutation PASSED every HTTP test, which is why this control exists. It leaves a lock that reads like a chain and serialises nothing. Verified 19 Aug 2026 against the same-tick path: fails on 'expected 2 to be 1'."
+      },
+      "distinction": "THE CONTROL EXISTS BECAUSE A MUTATION PASSED, and the tempting response was to call the window too small to matter. One microtask is smaller than any gap the network can produce, so no HTTP test can ever see it. It is reachable anyway, because sync work is dispatched from inside the object too: a queue batch or an alarm taking the lock per item takes it twice in one tick. Two arrival shapes need two tests."
     }
   ]
 }
