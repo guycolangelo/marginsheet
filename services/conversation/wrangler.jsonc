@@ -11,6 +11,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
   "vars": {
     "ENVIRONMENT": "dev",
     "SENTRY_DSN": "https://10db9ad1ac7e0cb011ffd14a678b0ccc@o4511912456617984.ingest.us.sentry.io/4511915843715072"
@@ -19,6 +20,7 @@
     "staging": {
       "name": "marginsheet-conversation-staging",
       "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "staging",
         "SENTRY_DSN": "https://10db9ad1ac7e0cb011ffd14a678b0ccc@o4511912456617984.ingest.us.sentry.io/4511915843715072"
@@ -27,6 +29,7 @@
     "production": {
       "name": "marginsheet-conversation",
       "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": false,
       "vars": {
         "ENVIRONMENT": "production",
         "SENTRY_DSN": "https://10db9ad1ac7e0cb011ffd14a678b0ccc@o4511912456617984.ingest.us.sentry.io/4511915843715072"
