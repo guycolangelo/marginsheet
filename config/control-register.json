@@ -472,6 +472,36 @@
         "note": "THE MUTATION REINTRODUCES THE DEFECT IN ITS MOST PLAUSIBLE FORM, a spread of the caller's body over the derived value, rather than deleting the session lookup. Deleting the lookup breaks loudly and proves only that a test exists; a spread leaves code that READS correct and is the shape somebody writes while 'passing through the rest of the body'. Verified red by CI's planted-failure harness, which provisions a Neon branch this test needs."
       },
       "distinction": "THIS IS NOT A CONTROL THAT GUARDED NOTHING, WHICH IS WHAT EVERY OTHER FINDING THIS WEEK WAS. It is an authorization boundary that was pointed at the attacker: exchange.ts did set_config('marginsheet.household_id', <body value>), so every RLS policy enforced isolation faithfully for whichever household the caller named. RLS cannot help when the household id is the INPUT to the GUC rather than a constraint on it. The 401 assertion is separate from the derivation assertion on purpose: the defect answered 400, because the body was checked and the caller never was, and a 400 reads as malformed rather than as unauthenticated."
+    },
+    {
+      "id": "cross-household-upsert-cannot-land",
+      "control": "RLS against a global unique index (plaid_items.item_id, financial_accounts.plaid_account_id)",
+      "guards": "One household's upsert cannot create, update or take ownership of another household's row.",
+      "test": "services/api/test/cross-household-upsert.test.ts",
+      "name": "cannot reach another household's plaid_items row",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/test/cross-household-upsert.test.ts",
+        "find": "        await tx`select set_config('marginsheet.household_id', ${householdA}, true)`;\n        await tx`\n          insert into plaid_items (household_id, item_id, access_token_ciphertext)",
+        "replace": "        await tx`select set_config('marginsheet.household_id', ${householdB}, true)`;\n        await tx`\n          insert into plaid_items (household_id, item_id, access_token_ciphertext)",
+        "note": "THE MUTATION MAKES THE WRITER LEGITIMATE rather than breaking the policy. Setting the GUC to B means the upsert is B updating B's own row, which SUCCEEDS and overwrites the ciphertext, so the survival assertions fail. That proves the assertions detect a successful cross-household write rather than merely detecting an error. Disabling the policy would also redden it and would prove far less: nothing was ever going to disable household_isolation quietly."
+      },
+      "distinction": "WRITTEN BECAUSE THE ANSWER WAS RECORDED AS UNVERIFIED. The unique indexes are GLOBAL, not household-scoped, so `on conflict (item_id) do update` in exchange.ts can collide with another household's row, and 'RLS makes it invisible so it errors' is reasoning about Postgres rather than evidence. RUNS AS marginsheet_sync, not marginsheet_app: exchange.ts runs in the sync Worker and the roles hold different grants, so a refusal under app's grants would prove nothing about the path that runs and would look like a pass. THE SURVIVAL ASSERTION IS THE POINT, not the throw: a version asserting only that it errored would pass if a later change made the statement succeed against a row it should never see."
+    },
+    {
+      "id": "household-id-never-reaches-a-caller",
+      "control": "the household-id surface scan (services/api/test/household-id-never-leaves.test.ts)",
+      "guards": "No household id is composed into a response, URL, email or client-reachable surface.",
+      "test": "services/api/test/household-id-never-leaves.test.ts",
+      "name": "is composed into no response, URL or message",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "    if (url.pathname === \"/health\") {",
+        "replace": "    if (url.pathname === \"/whoami\") {\n      return Response.json({ householdId: \"x\" });\n    }\n\n    if (url.pathname === \"/health\") {",
+        "note": "A new endpoint returning a household id, which is the shape that would actually occur: somebody adds a surface, not somebody edits the scanner. Verified red 19 Aug 2026, reporting services/api/src/index.ts and the planted line."
+      },
+      "distinction": "THIS GUARDS A MITIGATION, NOT A BOUNDARY, AND THAT IS WHY IT EXISTS. The severity of anything taking a household id as input rests on a stranger being unable to obtain one, which was true when traced and was maintained by NOTHING. The first feature to put one in a link would have removed it silently. It scans SOURCE rather than payloads because a household id is a bare UUID with no structure to recognise at runtime. Two false positives on the first run, an internal service-binding forward and an error message naming the field, and THE DETECTOR WAS FIXED RATHER THAN THE CODE: rewriting an error message to satisfy a scanner is the ceremony that teaches people to suppress a rule."
     }
   ]
 }
