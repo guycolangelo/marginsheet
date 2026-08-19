@@ -347,6 +347,14 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   Paid for on 18 Aug 2026: `--admin` merged a pull request whose `control-register` job was red. The red was real. It was hiding a harness that had never executed four registered controls, reporting them as verified because a test that cannot run exits non-zero and non-zero reads as the mutation working. **The override did not cause that defect, it deferred finding it**, which is the whole of what an override ever does.
 
+- **A DURABLE OBJECT MIGRATION TAG IS APPLIED ONCE, SO REUSING ONE IS SILENTLY SKIPPED.** Same family as append-only, different mechanism, and the failure is quieter.
+
+  Cloudflare records which tags a script has applied. A tag already recorded is **not re-run**, whatever its new contents say. So a `deleted_classes` migration written as `v1` against a script whose `v1` was `new_sqlite_classes` does nothing at all: the deploy fails **with the original error**, and nothing anywhere says a migration was ignored. The reader sees an unchanged symptom and concludes the fix did not work, rather than that it never ran.
+
+  Paid for on 19 Aug 2026, and the aggravating detail is that **the comment warning about it was in the file being edited** and had been written minutes earlier in the same change. Knowing the rule did not prevent reusing the tag; the second deploy attempt did.
+
+  So: a corrective migration takes the **next** tag, and the tags a given environment carries are a property of that environment's history rather than of the file. **Divergent tag lists across environments are the honest state.** Making them uniform claims a migration ran somewhere it did not, which is the same lie as an edited migration.
+
 - **Migrations are append-only after merge.** Once a migration file is on main, its contents are frozen. Corrections go forward as a new migration, never as an edit. The failure mode is worse than an error: an environment that has already applied a migration will never apply it again, so an edit reaches only the databases that have not seen it yet, and you end up with **two databases carrying identical ledgers and different schemas**. Nothing reports a problem until something reads the column. Enforced by the `migrations-append-only` CI job, which hashes every migration on main and fails on any modification. Additions pass; edits do not.
 - Each spec's invariants section seeds that module's test suite. An invariant without a test is not done.
 - Golden tests and the lint layer block merges in CI. No prompt version ships failing either.
