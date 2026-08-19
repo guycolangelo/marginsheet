@@ -53,6 +53,24 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
+  // BOTH workers.dev SURFACES ARE DECLARED OFF, NEVER INHERITED.
+  //
+  // Production is a hostname. PREVIEW IS A WILDCARD,
+  // <version-prefix>-<worker>.<subdomain>, publishing EVERY VERSION EVER
+  // DEPLOYED at its own address, so the exposure was never limited to the
+  // current deployment.
+  //
+  // preview_urls resolves to workers_dev when absent, so declaring it is
+  // redundant today and that is exactly the point: the finding was never
+  // "workers_dev was true", it was that AN UNSTATED SETTING RESOLVED TO
+  // EXPOSED and a test read absence as safety. Closing it by a second unstated
+  // default is the same mechanism pointing the other way.
+  //
+  // Wrangler recomputes both "for this deployment", so a toggle flipped by
+  // hand in the dashboard is undone by the next deploy. This file is the only
+  // durable statement.
+  "workers_dev": false,
+  "preview_urls": false,
   "migrations": [{ "tag": "v2", "deleted_classes": ["HouseholdSync"] }],
   "vars": {
     "ENVIRONMENT": "dev",
@@ -62,6 +80,8 @@
     "staging": {
       "name": "marginsheet-sync-staging",
       "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": false,
+      "preview_urls": false,
       "migrations": [{ "tag": "v2", "deleted_classes": ["HouseholdSync"] }],
       "vars": {
         "ENVIRONMENT": "staging",
@@ -71,6 +91,8 @@
     "production": {
       "name": "marginsheet-sync",
       "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": false,
+      "preview_urls": false,
       // EXPLICITLY EMPTY, BECAUSE OMITTING IT INHERITS THE TOP-LEVEL LIST.
       //
       // The delete-class migration was written for dev and staging, which have

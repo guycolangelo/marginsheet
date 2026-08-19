@@ -1,0 +1,32 @@
+{
+  "_doc": "WHICH WORKERS MAY ANSWER THE PUBLIC INTERNET. Declared here and verified against the live workers.dev surface by .github/scripts/verify-public-surface.mjs, because wrangler.jsonc is a report and the question is reachability. Found necessary on 19 Aug 2026: marginsheet-sync was publicly reachable in all three environments while a test named 'unreachable from the public internet' passed, because it asserted not.toBe(true) against an ABSENT workers_dev and absent means PUBLISHED. AMENDED 19 Aug 2026: workers.dev has TWO surfaces per Worker, Production and Preview. Preview is a WILDCARD, <version-prefix>-<worker>.<subdomain>.workers.dev, publishing every version ever deployed at its own address, so the exposure was never limited to the current deployment. This check probed only the production hostname and would have reported a boundary while every version stayed reachable.",
+  "subdomain": "guy-a84.workers.dev",
+  "workers": [
+    {
+      "name": "marginsheet-api",
+      "public": true,
+      "why": "The household-facing API. This is the front door and it is meant to answer."
+    },
+    {
+      "name": "marginsheet-conversation",
+      "public": false,
+      "why": "Reached over a service binding. Nothing about it is a household entry point."
+    },
+    {
+      "name": "marginsheet-sync",
+      "public": false,
+      "why": "M4 section 2a: it holds TOKEN_ENCRYPTION_KEY, which decrypts every household's Plaid token. The ENTIRE argument for a third deployable is that a household request cannot arrive here. A reachable sync Worker is not a smaller version of the boundary, it is the absence of it."
+    }
+  ],
+  "environments": [
+    "",
+    "-staging",
+    "-dev"
+  ],
+  "probe": {
+    "path": "/health",
+    "marker": "\"service\"",
+    "note": "REACHABLE MEANS OUR WORKER ANSWERED, not that the hostname resolved. A disabled workers.dev subdomain still returns a Cloudflare page, so status alone cannot tell them apart and the body is checked for a marker only our Worker emits.",
+    "preview_note": "A preview host is the first 8 characters of a version id, hyphen, the script name. The version id must be resolved from Cloudflare: if it cannot be, this check FAILS rather than treating an unknown as silence, because 'nothing answered' is also what a failed lookup produces."
+  }
+}
