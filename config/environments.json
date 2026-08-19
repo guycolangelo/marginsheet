@@ -24,8 +24,14 @@
     "either way. What is private is declared in config/public-surface.json and",
     "verified against the live surface.",
     "",
-    "conversation is direct in production only until api's proxy deploys there.",
-    "See retract-workers-dev-staging-production in docs/open-items.json."
+    "See retract-workers-dev-staging-production in docs/open-items.json.",
+    "",
+    "COMPLETED 19 Aug 2026. Production now matches dev and staging: conversation",
+    "is reached THROUGH api over a service binding, verified answering before the",
+    "switch was made. The transitional asymmetry is gone, and this had to land",
+    "BEFORE the workers.dev retraction rather than after: the direct address is",
+    "exactly what retraction removes, so leaving it here would have turned the",
+    "retraction into a red db-identity and verify-deploy on production."
   ],
   "dev": {
     "api": {
@@ -68,10 +74,10 @@
       }
     },
     "conversation": {
-      "origin": "https://marginsheet-conversation.guy-a84.workers.dev",
+      "origin": "https://api.marginsheet.com",
       "paths": {
-        "health": "/health",
-        "identity": "/debug/db-identity"
+        "health": "/debug/conversation-health",
+        "identity": "/debug/conversation-identity"
       }
     }
   }
