@@ -371,5 +371,13 @@
     "trigger": "immediately, and BEFORE 4.5b: production Plaid credentials must not land on a Worker that answers the public internet",
     "owed_to": "TRIGGER: now. Raised 19 Aug 2026 while probing for a Plaid webhook payload. The repo-side fix and both controls are on the branch; what remains is deploy and subdomain retraction.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "wrangler-inherited-settings-sweep",
+    "item": "SWEEP EVERY PER-ENVIRONMENT SETTING IN EVERY WRANGLER CONFIG THAT WE BELIEVE IS SCOPED BY OMISSION. Three settings resolved to something other than what their absence suggested on 19 Aug 2026, two of them in services/sync/wrangler.jsonc: workers_dev absent meant PUBLISHED, preview_urls absent meant FOLLOW workers_dev (a wildcard over every version ever deployed), and migrations absent on a named environment meant INHERIT THE TOP LEVEL, which sent a delete-class migration to production that had been deliberately left out of it and broke the deploy. WHAT TO DO: for each of the three Workers and each of dev, staging and production, list every key that is set at the top level and confirm whether each named environment inherits it, overrides it, or needs an explicit override. Declare or verify per environment rather than trusting the shape of the file. WHAT HAPPENS OTHERWISE: the next one is found the same way these were, by a deploy failing or by a boundary turning out to be open, and the cost is that a config reads as scoped while behaving as inherited. NOT IN THE CURRENT CHAIN by Guy's ruling; the three known instances are already fixed by declaration.",
+    "owner": "build",
+    "trigger": "after the workers.dev chain closes, before the next Worker or environment is added, because a fourth environment inherits everything the third one did",
+    "owed_to": "TRIGGER: the next Worker or environment addition. Raised by Guy 19 Aug 2026 after the third inheritance surprise in one day.",
+    "raised": "2026-08-19"
   }
 ]

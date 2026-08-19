@@ -347,6 +347,20 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   Paid for on 18 Aug 2026: `--admin` merged a pull request whose `control-register` job was red. The red was real. It was hiding a harness that had never executed four registered controls, reporting them as verified because a test that cannot run exits non-zero and non-zero reads as the mutation working. **The override did not cause that defect, it deferred finding it**, which is the whole of what an override ever does.
 
+- **AN EMPTY LIST IS A STATEMENT; SILENCE IS AN INHERITANCE.** Recorded as one rule rather than three incidents, because it produced three in a single day, two of them in the same file, and every one resolved to something other than what its absence suggested.
+
+  | Key | What absence looked like | What absence meant |
+  |---|---|---|
+  | `workers_dev` | not published | **published**, and the test read `undefined` as safe |
+  | `preview_urls` | not published | **follows `workers_dev`**, so a wildcard over every version ever deployed |
+  | `migrations` on a named env | scoped to the environments that declare it | **inherits the top level**, so production received a delete-class it was deliberately left out of |
+
+  The third is the sharpest, because the omission was a **deliberate scoping decision**. Production genuinely had no orphaned Durable Object namespace and genuinely should not have received the migration, and leaving it out looked like exactly how you express that. It was never scoped; it only looked scoped, and the deploy failed with `Cannot apply delete-class migration to class 'HouseholdSync' which was not exported in the previous version of the script`.
+
+  **A default is not always "off". It is whatever the tool decides**, and for a nested config the answer is frequently "whatever the parent said." So a setting that matters is **declared at the level it applies to**, and an empty list, an explicit `false`, or an explicit override is the only way to say "none" out loud.
+
+  **The sweep this implies** (Guy, 19 Aug 2026, not this chain): any per-environment setting we believe is scoped by omission is probably inherited instead. Declare or verify per environment rather than trusting the shape of the file.
+
 - **A DURABLE OBJECT MIGRATION TAG IS APPLIED ONCE, SO REUSING ONE IS SILENTLY SKIPPED.** Same family as append-only, different mechanism, and the failure is quieter.
 
   Cloudflare records which tags a script has applied. A tag already recorded is **not re-run**, whatever its new contents say. So a `deleted_classes` migration written as `v1` against a script whose `v1` was `new_sqlite_classes` does nothing at all: the deploy fails **with the original error**, and nothing anywhere says a migration was ignored. The reader sees an unchanged symptom and concludes the fix did not work, rather than that it never ran.
