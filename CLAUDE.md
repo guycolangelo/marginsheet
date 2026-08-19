@@ -112,6 +112,33 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **The one that showed the rule's other half.** Testing chain poisoning, the first mutation passed and the second broke four tests at once by bypassing the bookkeeping entirely, which is this file's `USING (false)`: loud, red, and silent about the thing under test. Only the third, phrased as a sentence a reasonable engineer would write (*"propagate the failure to whoever is waiting behind us"*), reddened exactly one test on exactly the right assertion.
 
+- **A PLANTED MUTATION MAKES THE CODE PLAUSIBLE AND WRONG, NEVER OBVIOUSLY BROKEN.** The general rule behind every mutation in the register, stated once now that the pattern is consistent enough to name.
+
+  An obviously broken mutation proves a test **exists**. A plausible one proves it **discriminates**, and only the second is worth having, because nobody was ever going to write the obvious break. The question is not "does this break something" but "**is this what somebody would actually write**".
+
+  The pairs, each rejected version reddening the test just as reliably:
+
+  | Rejected, obviously broken | Kept, plausible and wrong |
+  |---|---|
+  | `USING (false)` on the policy | `AND is_primary`, narrowing to one member |
+  | delete the session lookup | **spread the caller's body** over the derived value |
+  | disable `household_isolation` | set the GUC to the **legitimate** household, so the write succeeds |
+  | remove the DO | remove the **chain await**, leaving the object |
+  | move the tail assignment (loud) | move it **after the await**, still reading as a chain |
+  | set `workers_dev: true` | **omit the line**, which is how it actually was |
+
+  The last is the purest: nobody writes `true`, and the failure mode is that nobody writes anything.
+
+- **A CONTROL WHOSE CORRECT OPERATION BLINDS OTHER CONTROLS.** Its own species, and the eleventh entry here. Not a control that cannot observe, and not one that depends on a vulnerability: **this one works exactly as designed and takes the watchers down with it.**
+
+  The near-miss, 19 Aug 2026. Gating `/debug` on `ENVIRONMENT === "production"` is the cheap obvious fix and it is correct about what it refuses. It would also have 404'd the production routes `db-identity.test.ts` and `verify-deploy.sh` depend on, **blinding five live controls** in the one environment that matters, including the check that closes the `rls-not-forced` debt by proving every Worker connects as `marginsheet_app` without `BYPASSRLS`.
+
+  **Two tells, and both are why it would have shipped.** It reads as the cheap obvious fix, so review approves it quickly. And **the damage lands in the environment where the checks matter most**, because that is precisely where the gate is active and dev and staging keep working.
+
+  A gate that silences the checks watching the thing it guards is not a gate. It is an outage with a rationale.
+
+  So the question to ask of any refusal, alongside the standing one: **what else was reaching through here, and does it still get through?** Gate by credential and the probes present it; gate by environment and they cannot.
+
 - **CAPTURE THE BASELINE BEFORE THE PROBE, NOT AFTER.** A probe's result is a DIFFERENCE, and a difference needs two measurements. Running the probe first and comparing against a baseline you assume is clean measures nothing.
 
   Paid for on 18 Aug 2026: a probe on the herald subset reported six typecheck errors, which looked like the probe biting. They were pre-existing, they were mine, and I had reported a clean typecheck minutes earlier. **The probe caught the prober.** The finding was still correct, and it was correct by luck rather than by method.
