@@ -11,7 +11,26 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
+  // preview_urls IS DECLARED, NOT INHERITED, AND THE SECOND LINE IS THE POINT.
+  //
+  // Wrangler resolves preview_urls to workers_dev when it is absent, so
+  // `workers_dev: false` alone does turn Preview URLs off. Relying on that
+  // CLOSES THIS THE SAME WAY IT WAS OPENED. The finding was never "workers_dev
+  // was true"; it was that AN UNSTATED SETTING RESOLVED TO EXPOSED and a test
+  // read absence as safety. A second unstated setting resolving to safe is the
+  // same mechanism pointing the other way, and it stays right only until a
+  // default changes.
+  //
+  // Wrangler also says "for this deployment": these are recomputed on every
+  // deploy, so a toggle flipped by hand in the dashboard is undone by the next
+  // one. The file is the only durable statement.
+  //
+  // WHAT PREVIEW URLs ARE, since one line does not convey it: a wildcard,
+  // <version-prefix>-<worker>.<subdomain>.workers.dev, which publishes EVERY
+  // VERSION EVER DEPLOYED at its own address. The exposure was never limited
+  // to the current deployment.
   "workers_dev": false,
+  "preview_urls": false,
   "vars": {
     "ENVIRONMENT": "dev",
     "SENTRY_DSN": "https://10db9ad1ac7e0cb011ffd14a678b0ccc@o4511912456617984.ingest.us.sentry.io/4511915843715072"
@@ -21,6 +40,7 @@
       "name": "marginsheet-conversation-staging",
       "compatibility_flags": ["nodejs_compat"],
       "workers_dev": false,
+      "preview_urls": false,
       "vars": {
         "ENVIRONMENT": "staging",
         "SENTRY_DSN": "https://10db9ad1ac7e0cb011ffd14a678b0ccc@o4511912456617984.ingest.us.sentry.io/4511915843715072"
@@ -30,6 +50,7 @@
       "name": "marginsheet-conversation",
       "compatibility_flags": ["nodejs_compat"],
       "workers_dev": false,
+      "preview_urls": false,
       "vars": {
         "ENVIRONMENT": "production",
         "SENTRY_DSN": "https://10db9ad1ac7e0cb011ffd14a678b0ccc@o4511912456617984.ingest.us.sentry.io/4511915843715072"
