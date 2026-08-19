@@ -254,7 +254,7 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
     `;
     await owner`
       insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, direction, merchant_name)
-      values (${householdB}, ${acctB.id}, ${SHARED_TXN}, '2026-08-01', 42.00, 'outflow', 'B groceries')
+      values (${householdB}, ${acctB.id}, ${SHARED_TXN}, '2026-08-01', 42.00, 'expense', 'B groceries')
     `;
 
     // A needs its own account, because transactions.account_id is NOT NULL and
@@ -281,7 +281,7 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
         actingAs = ctx.who;
         await tx`
           insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, direction, merchant_name)
-          values (${householdA}, ${acctA.id}, ${SHARED_TXN}, '2026-08-02', 999.00, 'outflow', 'A took it')
+          values (${householdA}, ${acctA.id}, ${SHARED_TXN}, '2026-08-02', 999.00, 'expense', 'A took it')
           on conflict (plaid_transaction_id) do update
             set amount = excluded.amount, merchant_name = excluded.merchant_name, updated_at = now()
         `;
@@ -316,7 +316,7 @@ describe.skipIf(!configured)("a cross-household upsert on a global unique index"
     `;
     await owner`
       insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, direction, merchant_name)
-      values (${householdB}, ${acctB3.id}, ${REMOVED_TXN}, '2026-08-01', 42.00, 'outflow', 'B groceries')
+      values (${householdB}, ${acctB3.id}, ${REMOVED_TXN}, '2026-08-01', 42.00, 'expense', 'B groceries')
     `;
     // THE SECOND PATH, AND THE OTHER TWO TABLES DO NOT HAVE IT. applyRemoved
     // issues `update transactions set removed = true where plaid_transaction_id
