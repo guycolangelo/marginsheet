@@ -75,4 +75,8 @@ jobs:
         if: always()
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-        run: scripts/neon-pr-branch.sh delete 99${{ github.run_number }} || true
+        # NO `|| true`. The script already tolerates an absent branch internally,
+        # so this would absorb only UNEXPECTED failures, which are the only kind
+        # that matters. A delete that fails is a leak; a leak that reports success
+        # is how the Neon ceiling arrived unannounced on 19 Aug 2026 with nothing red.
+        run: scripts/neon-pr-branch.sh delete 99${{ github.run_number }}
