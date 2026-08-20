@@ -406,5 +406,29 @@
     "trigger": "after the workers.dev chain closes, before the next Worker or environment is added, because a fourth environment inherits everything the third one did",
     "owed_to": "TRIGGER: the next Worker or environment addition. Raised by Guy 19 Aug 2026 after the third inheritance surprise in one day.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "capital-one-annual-consent-refresh",
+    "item": "CAPITAL ONE CONSENT EXPIRES ANNUALLY AND NOTHING EXPECTS IT. Plaid's OAuth guide states Capital One consent must be refreshed once a year. WHAT HAPPENS IF NOBODY DOES ANYTHING: roughly a year after a household connects Capital One, the Item stops working and surfaces as ITEM_LOGIN_REQUIRED with no explanation, which reads to the household as a broken connection rather than an expiry that was always coming. It arrives ON A CLOCK rather than from any event, so nothing in the pipeline will predict it: the watchdog sees a stuck Item, the reconnect path can repair it, and neither knows it was due. WHAT IS OWED: the reconnect surface should be able to say that a consent expired rather than that a login failed, and the founder household's own Capital One Item is the first one that will hit this, roughly August 2027. Related: a company display-name change ALSO forces Capital One Items into ITEM_LOGIN_REQUIRED, which is why the Plaid application display name is being chosen deliberately rather than casually.",
+    "owner": "build",
+    "trigger": "M8's reconnect surface, and no later than eleven months after the first Capital One Item is connected",
+    "owed_to": "TRIGGER: M8's reconnect copy. Found 19 Aug 2026 while confirming Plaid's OAuth prerequisites before building 4.5b prime.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "pending-institution-coverage-is-not-discoverable",
+    "item": "PLAID PUBLISHES NO WAY TO KNOW WHICH INSTITUTIONS RETURN PENDING TRANSACTIONS. Confirmed 19 Aug 2026 against current docs: there is no institution-level capability field, /institutions/get_by_id reports nothing about it, and no comprehensive list exists. Two are named explicitly in Plaid's own documentation and support articles: CAPITAL ONE AND USAA DO NOT PROVIDE PENDING TRANSACTION DATA. When none is available, pending_transaction_id is null. WHY THIS MATTERS HERE: pending-to-posted is unexercised (see pending-to-posted-unexercised) and it is a stated reason for connecting real institutions at 4.5b prime, so connecting only institutions that never report pending would leave categorization-spec section 10 exactly as unproven as Sandbox left it, while looking like progress. THE CONSEQUENCE FOR 4.5b PRIME: coverage cannot be inferred from a successful connect, so the task is not complete until a pending transaction has been OBSERVED SETTLING in real data, asserted rather than assumed. ALSO FOUND: Capital One provides only 90 days of transaction history, which matters separately for the engines that want real history.",
+    "owner": "build",
+    "trigger": "4.5b prime, as an acceptance criterion rather than a follow-on: at least one connected institution must report pending, and a settle must be observed",
+    "owed_to": "TRIGGER: 4.5b prime. Found while confirming Plaid prerequisites before building, on Guy's instruction to look it up rather than recall it.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "backfill-depth-is-per-institution",
+    "item": "EVERY SPEC ASSUMES A UNIFORM 24 MONTHS OF HISTORY AND BACKFILL DEPTH IS PER-INSTITUTION. Confirmed against Plaid's docs 19 Aug 2026: CAPITAL ONE PROVIDES ONLY 90 DAYS of transaction history. Every other institution's actual depth is UNVERIFIED, and Plaid publishes no per-institution figure, so this is not something a lookup can answer. WHAT ASSUMES 24 MONTHS: the census finds seasonal shape from up to 24 months (M15); spec-amendments-2026-08 rules that trailing-3 alone is wrong at year end BECAUSE it cannot see seasonality, and the error there is DIRECTIONAL rather than random, which is what made it unacceptable; the Annual Planning Session reads seasonal shape; and the day-three state was designed around a household arriving with history. WHAT HAPPENS IF NOBODY DOES ANYTHING: a household whose accounts are mostly Capital One gets a year-end projection built on a quarter of the intended window, and the failure is SILENT and DIRECTIONAL. It does not look like missing data; it looks like a confident projection. That is the one error mode the product cannot tolerate, in the direction that flatters or alarms depending on the season. THE LIKELY CONSEQUENCE, NOT YET RULED: the projection engine may need to know how much history it actually holds PER ACCOUNT rather than assuming a window, and to say so rather than silently narrowing. Guy would rather see real depths before ruling (19 Aug 2026), which is why this is recorded and not designed.",
+    "owner": "build",
+    "trigger": "4.5b prime, when real institutions connect and actual depths are observable rather than assumed; a ruling on the engine follows the numbers",
+    "owed_to": "TRIGGER: 4.5b prime. Found while confirming Plaid prerequisites, from the Capital One 90-day limit, which Guy identified as bigger than Capital One.",
+    "raised": "2026-08-19"
   }
 ]
