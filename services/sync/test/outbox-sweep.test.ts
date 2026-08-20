@@ -121,7 +121,7 @@ describe("markEnqueued records the announcement", () => {
   it("sets enqueued_at, which is what makes NULL mean never announced", async () => {
     const issued: string[] = [];
     const rec = ((s: TemplateStringsArray) => { issued.push(s.join(" ")); return Promise.resolve([]); }) as never;
-    await markEnqueued(rec, "sig-1");
+    await markEnqueued(rec, "11111111-1111-4111-8111-111111111111", "sig-1");
     expect(issued.join(" ")).toMatch(/set enqueued_at = now\(\)/i);
   });
 });

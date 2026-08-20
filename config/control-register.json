@@ -502,6 +502,21 @@
         "note": "Removes the household predicate, restoring EXACTLY the statement that was confirmed on 19 Aug 2026 to flag another household's transaction with threw=nothing. The mutation is the historical defect rather than an invented one, which is the strongest form available: the direction of the break is known to occur because it did."
       },
       "distinction": "TASK 4e, AND IT LANDED BEFORE THE AUTHORIZATION FIX ON PURPOSE. The statement must be correct even when the policy is wrong, and the policy IS wrong: sync_worker_access is USING (true) for marginsheet_sync, so RLS scopes nothing on this path and the household GUC is decorative. ORDERING ARGUMENT: 4c must not be verified against code that depends on it. With this correct on its own terms, landing 4c tests whether the narrowing works; landing 4c first would test only whether the narrowing is the one thing standing between us and a known-bad statement. This is a SHAPE assertion over recorded SQL rather than a database test, which is honest about what it proves: it proves the statement names a household, and the database-level proof is the confirmed finding on branch finding/cross-household-upsert."
+    },
+    {
+      "id": "every-sync-write-declares-a-household",
+      "control": "the sync write scan (services/sync/test/every-write-declares-a-household.test.ts)",
+      "guards": "No write in the sync Worker lacks a household, so 4c's policy cannot refuse a path nobody declared.",
+      "test": "services/sync/test/every-write-declares-a-household.test.ts",
+      "name": "no write statement is unscoped",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/outbox.ts",
+        "find": "     where household_id = ${householdId}\n       and signal_id = ${signalId}",
+        "replace": "     where signal_id = ${signalId}",
+        "note": "Restores the one statement the scan actually found on its first run, which is the historical state rather than an invented break. Verified red 19 Aug 2026, naming outbox.ts and the statement."
+      },
+      "distinction": "STEP 4c-i, LANDED BEFORE THE POLICY AND ON ITS OWN, because setting a household changes nothing while sync_worker_access is still USING (true). That makes the policy the only variable when 4c lands and something breaks (Guy). IT IS A SOURCE SCAN AND SAYS SO: it proves each write names a household or sits in a file that sets the GUC, and it CANNOT prove the GUC is set on the same transaction as the write, which is a runtime property. The database-level proof is 4c-iii's negative controls, which is why this is not sufficient alone. It also carries the fifth write path, which is a HOLE rather than a statement: runTransactionsSync takes persistInFlight as an injected callback, so the cursor write lives in a caller that does not exist, and a scan cannot find a statement that is not there."
     }
   ]
 }
