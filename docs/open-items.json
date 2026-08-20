@@ -462,5 +462,13 @@
     "trigger": "if scripts/neon-pr-branch.sh ever stops recreating the branch on every run, because branch reuse is the single property that makes the pre-merge window real",
     "owed_to": "TRIGGER: any change to neon-pr-branch.sh that reintroduces reuse. Raised and closed the same day, 20 Aug 2026.",
     "raised": "2026-08-20"
+  },
+  {
+    "id": "days-requested-was-never-sent-so-every-item-holds-ninety-days",
+    "item": "CONFIRMED AGAINST PLAID'S DOCS 20 AUG 2026, NOT RECALLED. transactions.days_requested appears nowhere in this repository. Plaid's default is 90 days, the maximum is 730, and the field is sent at /link/token/create. So every Item we have ever created holds 90 days of history, on every institution, because of a field we never sent. TWO CONSEQUENCES, AND THEY NEED DIFFERENT ACTIONS. (1) FOR FUTURE CONNECTIONS the fix is one field on the link token: transactions: { days_requested: 730 }. Authorised by Guy 20 Aug 2026 as a live defect independent of what caused the 201, and sequenced after PR 128 lands and the readout runs. (2) FOR THE ITEMS THAT ALREADY EXIST THERE IS NO CHEAP FIX. Plaid's API reference: 'Once Transactions has been added to an Item, this value cannot be updated.' The field applies only where the Transactions product has NOT already been initialised, so LINK UPDATE MODE DOES NOT HELP: extending history on an initialised Item requires /item/remove followed by sending the household through Link to create a NEW Item. That is a new item_id, a re-consent, and the duplicate-account path Guy already ruled on in the Option A overlap decision. It is a household-visible action, so it is a ruling rather than a maintenance step. WHAT IS NOT YET ESTABLISHED: whether the 90-day default is what produced 201 on SoFi. That is a mechanism rather than a diagnosis until the ledger readout reports the oldest transaction date; roughly 90 days ago is the signature, and 24 months falsifies it. THE FINDING THIS REPLACED is the one worth remembering: a projection-spec finding blaming two institutions for a uniform window was about to be written, when the window was uniform because we asked all of them the same question. Recorded in CLAUDE.md as its own species.",
+    "owner": "Guy",
+    "trigger": "the ledger readout reporting the oldest transaction date, which either confirms the 90-day window or falsifies it; the future-connections half is authorised already and is sequenced after PR 128",
+    "owed_to": "TRIGGER: the readout running. Raised 20 Aug 2026 after Guy said SoFi can give more than 90 days, which inverted the conclusion from an institution property to our own parameter.",
+    "raised": "2026-08-20"
   }
 ]

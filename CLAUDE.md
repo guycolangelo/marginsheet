@@ -183,6 +183,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The ladder is worth stating because the bottom rung is where the 126 came from: **a comment is the weakest form of a rule and the easiest one to write.**
 
+- **A FINDING ABOUT THE WORLD, CAUSED BY A PARAMETER WE NEVER SET. When several independent sources agree, check whether they were asked the same question before concluding something about the sources.** (Guy, 20 Aug 2026.) A new species, and worse than the others here, because it would have been written down as a fact about a third party and inherited by everyone who read it afterwards.
+
+  The near-miss. SoFi's first sync returned 201 transactions, which is thin, and two earlier institutions had already looked short. The conclusion being drafted was a `projection-spec` finding: **two institutions break the uniform-window assumption, so it is a pattern rather than a Capital One quirk.** Every step was reasonable. Three sources, agreeing, about the outside world.
+
+  **`transactions.days_requested` appears nowhere in this repository.** Plaid's default is 90 days and the maximum is 730. The window was not something the institutions decided; it was a field we never sent, identically, to all of them. **The agreement between the sources was manufactured by the question**, and a finding about banks would have been recorded, cited, and eventually designed around.
+
+  **THE TELL IS THE AGREEMENT ITSELF.** Independent sources converging is normally the strongest evidence available, which is exactly what makes this dangerous: the convergence was the artifact. Before concluding anything about several sources that agree, establish that they were **asked different questions**. If one parameter, one default, one query shape or one code path reached all of them, they are not independent and their agreement carries no weight about them at all. It carries weight about **us**.
+
+  **It generalises past Plaid**, and the cases are easy to find once named: every institution short by the same margin, every model refusing the same way, every environment reporting the same latency, every household showing the same gap. The shared cause is ours far more often than the shared property is theirs, because **our side is the only thing all of them have in common.**
+
+  Distinct from the drift rules above, which are about two statements of one fact diverging. This is **one statement of ours replicated across many subjects and then read back as a property of the subjects.**
+
 - **PROBE, DO NOT READ. Reading a pattern tells you what its author meant. Probing tells you what it does.** The standing method for auditing any rule expressed as a pattern.
 
   Eleven inflection gaps sat under a green suite since M0 and were found in one run by testing the rules against inflected strings rather than by reading the regexes. **Reading them had not found the gaps, and the regexes were in front of everyone the whole time**, because a pattern reads as its intent: `\bafford(s|ed|ability)?\b` looks like it covers the inflections until you hand it `affording`.
