@@ -150,6 +150,31 @@ for (const raw of statements()) {
   }
 }
 
+/** Asks the catalog about many (table, column, privilege) triples in ONE round
+ *  trip.
+ *
+ *  Not a micro-optimisation. The first version asked one query per triple, which
+ *  is roughly 150 sequential round trips to Neon, and it TIMED OUT at vitest's
+ *  5000ms rather than failing an assertion. Raising the timeout was the tempting
+ *  fix and the wrong one: it leaves a control whose runtime scales with the
+ *  schema, so it goes red for reasons that have nothing to do with what it
+ *  guards, and a test that reddens for reasons unrelated to its subject is the
+ *  flaky-fixture problem arriving by a different road. */
+async function columnPrivileges(
+  triples: Array<[string, string, Priv]>,
+): Promise<Map<string, boolean>> {
+  if (triples.length === 0) return new Map();
+  const rows = await sql<{ t: string; c: string; p: string; allowed: boolean }[]>`
+    select t, c, p, has_column_privilege(${ROLE}, t, c, p) as allowed
+      from unnest(
+        ${triples.map((x) => x[0])}::text[],
+        ${triples.map((x) => x[1])}::text[],
+        ${triples.map((x) => x[2])}::text[]
+      ) as u(t, c, p)
+  `;
+  return new Map(rows.map((r) => [`${r.t}.${r.c}:${r.p}`, r.allowed]));
+}
+
 describe("the sync Worker's reach is inside what marginsheet_sync holds", () => {
   it("derived a reach large enough to be worth checking", () => {
     // The ninth finding: assert the fixture can tell a pass from a failure
@@ -160,17 +185,14 @@ describe("the sync Worker's reach is inside what marginsheet_sync holds", () => 
   });
 
   it("holds every privilege the Worker's statements require", async () => {
-    const missing: string[] = [];
+    const triples: Array<[string, string, Priv]> = [];
     for (const [table, cols] of reach) {
-      for (const [column, privs] of cols) {
-        for (const priv of privs) {
-          const [row] = await sql<{ allowed: boolean }[]>`
-            select has_column_privilege(${ROLE}, ${table}, ${column}, ${priv}) as allowed
-          `;
-          if (!row.allowed) missing.push(`${priv} on ${table}.${column}`);
-        }
-      }
+      for (const [column, privs] of cols) for (const priv of privs) triples.push([table, column, priv]);
     }
+    const held = await columnPrivileges(triples);
+    const missing = triples
+      .filter(([t, c, p]) => !held.get(`${t}.${c}:${p}`))
+      .map(([t, c, p]) => `${p} on ${t}.${c}`);
     expect(
       missing,
       `${ROLE} cannot run statements the sync Worker issues. Each of these fails at runtime, on a real sync, the way households did on 20 Aug 2026:\n  ${missing.join("\n  ")}`,
@@ -182,34 +204,35 @@ describe("the sync Worker's reach is inside what marginsheet_sync holds", () => 
     // and this asserts against both.
     //
     // THE FIRST IS THE ONE THAT WOULD ACTUALLY BE WRITTEN. Widening a narrowed
-    // table to a plain table grant is the cheap obvious fix, it is what both
+    // privilege to a plain table grant is the cheap obvious fix, it is what both
     // people looking at the 20 Aug failure reached for first, and it silently
     // covers every column the column grant was enumerated to withhold. A check
     // that only compared column privileges would never see it, because there
     // would be no column privileges left to compare.
     //
     // The second is drift: a column added to the enumerated list over time.
-    const scoped = columnScopedPairs();
-    expect(scoped.size, "no privilege is narrowed by column, so this compared nothing").toBeGreaterThan(0);
+    const scoped = [...columnScopedPairs()].map((x) => x.split(":") as [string, Priv]);
+    expect(scoped.length, "no privilege is narrowed by column, so this compared nothing").toBeGreaterThan(0);
+
+    const tableLevel = await sql<{ t: string; p: string; allowed: boolean }[]>`
+      select t, p, has_table_privilege(${ROLE}, t, p) as allowed
+        from unnest(${scoped.map((x) => x[0])}::text[], ${scoped.map((x) => x[1])}::text[]) as u(t, p)
+    `;
+    const whole = new Map(tableLevel.map((r) => [`${r.t}:${r.p}`, r.allowed]));
 
     const findings: string[] = [];
-    for (const pair of scoped) {
-      const [table, priv] = pair.split(":") as [string, Priv];
-      const cols = reach.get(table) ?? new Map<string, Set<Priv>>();
-      const [t] = await sql<{ allowed: boolean }[]>`
-        select has_table_privilege(${ROLE}, ${table}, ${priv}) as allowed
-      `;
-      if (t.allowed) {
+    const triples: Array<[string, string, Priv]> = [];
+    for (const [table, priv] of scoped) {
+      if (whole.get(`${table}:${priv}`)) {
         findings.push(`${priv} on ${table} is held at TABLE level, which covers every column the column grant enumerates`);
         continue;
       }
-      for (const column of schema.get(table) ?? []) {
-        const [c] = await sql<{ allowed: boolean }[]>`
-          select has_column_privilege(${ROLE}, ${table}, ${column}, ${priv}) as allowed
-        `;
-        if (c.allowed && !cols.get(column)?.has(priv)) {
-          findings.push(`${priv} on ${table}.${column} is granted and never used`);
-        }
+      for (const column of schema.get(table) ?? []) triples.push([table, column, priv]);
+    }
+    const held = await columnPrivileges(triples);
+    for (const [table, column, priv] of triples) {
+      if (held.get(`${table}.${column}:${priv}`) && !reach.get(table)?.get(column)?.has(priv)) {
+        findings.push(`${priv} on ${table}.${column} is granted and never used`);
       }
     }
     expect(
@@ -231,15 +254,14 @@ describe("the sync Worker's reach is inside what marginsheet_sync holds", () => 
       expect(reach.get("households")?.has(c), `the sync Worker now touches households.${c}, which needs a ruling rather than a grant`).toBeFalsy();
     }
 
-    const reachable: string[] = [];
+    const triples: Array<[string, string, Priv]> = [];
     for (const column of sensitive) {
-      for (const priv of ["SELECT", "INSERT", "UPDATE"] as const) {
-        const [row] = await sql<{ allowed: boolean }[]>`
-          select has_column_privilege(${ROLE}, 'households', ${column}, ${priv}) as allowed
-        `;
-        if (row.allowed) reachable.push(`${priv} on households.${column}`);
-      }
+      for (const priv of ["SELECT", "INSERT", "UPDATE"] as const) triples.push(["households", column, priv]);
     }
+    const held = await columnPrivileges(triples);
+    const reachable = triples
+      .filter(([t, c, p]) => held.get(`${t}.${c}:${p}`))
+      .map(([, c, p]) => `${p} on households.${c}`);
     expect(
       reachable,
       `${ROLE} can reach household columns it has no business with:\n  ${reachable.join("\n  ")}`,
