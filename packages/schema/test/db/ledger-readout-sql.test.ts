@@ -75,30 +75,36 @@ describe("the ledger readout's statements execute as marginsheet_sync", () => {
     // No try/catch. A thrown statement IS the finding, and swallowing it is how
     // cross-household-upsert.test.ts proved nothing for two weeks: when a test
     // tolerates an exception, the exception is part of the fixture.
+    // EVERYTHING THAT RUNS AS THE ROLE IS INSIDE THE finally THAT RESETS IT.
+    // The first version put the role probe above the try, so when it failed the
+    // session stayed as marginsheet_sync and afterAll's cleanup then failed
+    // with "permission denied for table transactions" -- a second, louder error
+    // about a different table, burying the one that mattered. A test that
+    // changes session state has to restore it on EVERY exit, not just the ones
+    // it expected to take.
     await sql`set role marginsheet_sync`;
-
-    // WHO AM I, AND WHAT CAN I ACTUALLY READ, ASKED IN THE FAILING CONTEXT.
-    // The harness probe reported this grant as present on this database minutes
-    // before this test ran, and the test still failed with permission denied.
-    // Two true-looking facts that cannot both describe the same query, so the
-    // question moves inside the transaction rather than being asked from
-    // outside it: an assumption that `set role` took effect is exactly the kind
-    // of join nobody checks.
-    const [ctx] = await sql<{ role: string; session: string; readable: boolean }[]>`
-      select current_user as role, session_user as session,
-             has_column_privilege('households', 'first_sync_completed_at', 'SELECT') as readable
-    `;
-    expect(
-      { role: ctx.role, readable: ctx.readable },
-      `the effective role is not what this test assumes. session_user=${ctx.session}`,
-    ).toEqual({ role: "marginsheet_sync", readable: true });
-
     let readout;
+    let context;
     try {
+      // WHO AM I, AND WHAT CAN I ACTUALLY READ, ASKED IN THE FAILING CONTEXT
+      // AND IN THE FORM THE QUERY USES. The 3-argument has_column_privilege
+      // answers for current_user; the 4-argument form names a role and is what
+      // the harness probe asked from an owner connection. Those two returned
+      // OPPOSITE answers on the same database minutes apart, so this asks the
+      // one that matches how the grant is actually exercised.
+      [context] = await sql<{ role: string; session: string; readable: boolean }[]>`
+        select current_user as role, session_user as session,
+               has_column_privilege('households', 'first_sync_completed_at', 'SELECT') as readable
+      `;
       readout = await sql.begin(async (tx) => readLedger(tx as unknown as Sql, HOUSEHOLD));
     } finally {
       await sql`reset role`;
     }
+
+    expect(
+      { role: context.role, readable: context.readable },
+      `the effective role cannot read what the migrations grant it. session_user=${context.session}`,
+    ).toEqual({ role: "marginsheet_sync", readable: true });
 
     // THE ROW COUNT IS ASSERTED BEFORE ANYTHING IS READ FROM IT. Every
     // aggregate below returns a defensible-looking answer over zero rows, so a

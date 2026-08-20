@@ -47,6 +47,16 @@ try {
 
   // The specific claim that failed, asked of the catalog rather than inferred
   // from the ledger. A ledger says a file ran; only this says the grant is here.
+  // BOTH FORMS, SIDE BY SIDE, BECAUSE THEY DISAGREED.
+  //
+  // has_column_privilege(role, table, column, priv) names a role and can be
+  // asked from an owner connection. has_column_privilege(table, column, priv)
+  // answers for current_user, which is what a query actually exercises after
+  // SET ROLE. On 20 Aug 2026 the first version of this probe asked only the
+  // 4-argument form, reported the grant as present, and the test on the same
+  // database in the same job could not read the column. THE PROBE HAD THE
+  // DEFECT IT WAS BUILT TO FIND: it asked a question in a form that does not
+  // match how the grant is used, so it could not disagree with reality.
   const checks = [
     ["households", "first_sync_completed_at", "SELECT"],
     ["households", "first_sync_completed_at", "UPDATE"],
@@ -54,29 +64,52 @@ try {
     ["household_state_signals", "enqueued_at", "UPDATE"],
   ];
   for (const [table, column, priv] of checks) {
+    let named = "?";
+    let effective = "?";
     try {
       const [row] = await sql`
         select has_column_privilege('marginsheet_sync', ${table}, ${column}, ${priv}) as allowed
       `;
-      console.log(`marginsheet_sync ${priv} on ${table}.${column}: ${row.allowed}`);
+      named = String(row.allowed);
     } catch (error) {
-      console.log(`marginsheet_sync ${priv} on ${table}.${column}: could not ask (${(error).message})`);
+      named = `could not ask (${error.message})`;
     }
+    try {
+      await sql`set role marginsheet_sync`;
+      const [row] = await sql`
+        select has_column_privilege(${table}, ${column}, ${priv}) as allowed
+      `;
+      effective = String(row.allowed);
+    } catch (error) {
+      effective = `could not ask (${error.message})`;
+    } finally {
+      await sql`reset role`;
+    }
+    const flag = named !== effective ? "   <-- THE TWO FORMS DISAGREE" : "";
+    console.log(`${priv} on ${table}.${column}: named=${named} effective=${effective}${flag}`);
   }
 
-  // THE RECONCILIATION, which is the whole point: a ledger that names a
-  // migration whose grant is absent is a schema behind its own ledger, and that
-  // is a different problem from talking to the wrong database.
-  const [g] = await sql`
-    select has_column_privilege('marginsheet_sync','households','first_sync_completed_at','SELECT') as granted
-  `;
+  // THE RECONCILIATION. A ledger that names a migration whose grant is absent
+  // is a schema behind its own ledger, which is a different problem from
+  // talking to the wrong database. Asked in the EFFECTIVE form, because that is
+  // the one a query obeys.
+  let granted = false;
+  try {
+    await sql`set role marginsheet_sync`;
+    const [g] = await sql`
+      select has_column_privilege('households','first_sync_completed_at','SELECT') as granted
+    `;
+    granted = g.granted;
+  } finally {
+    await sql`reset role`;
+  }
   const has0028 = applied.some((r) => r.name.startsWith("0028"));
-  if (has0028 && !g.granted) {
-    console.log("MISMATCH: the ledger records 0028 and the grant it makes is absent. The schema is behind its own ledger.");
+  if (has0028 && !granted) {
+    console.log("MISMATCH: the ledger records 0028 and marginsheet_sync cannot use the grant it makes.");
   } else if (!has0028) {
     console.log("NOTE: 0028 is not in this ledger tail, so this database is older than the grant.");
   } else {
-    console.log("consistent: the ledger records 0028 and the grant is present.");
+    console.log("consistent: the ledger records 0028 and the role can use the grant.");
   }
 } catch (error) {
   console.log(`harness-db-identity: could not probe (${error.message})`);
