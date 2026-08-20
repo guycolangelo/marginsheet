@@ -293,6 +293,20 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The fix is the one already recorded for `worker-secrets.json` against `REQUIRED_SECRETS`: **derive rather than restate.** Both now run `pnpm -r test`, which covers every package that has a test script, so a new package is covered the day it exists rather than the day somebody remembers two files.
 
+- **A FIELD THAT EXISTS IN A TYPE AND IN A DATABASE IS TWO STATEMENTS OF ONE FACT.** Same drift shape as every other pair, with one difference that makes it harder to see: **a hand-built fixture satisfies the type without ever touching the schema the type is supposed to mirror.**
+
+  A TypeScript interface is a claim about a SHAPE. A test that constructs that shape by hand proves the code handles it, and proves nothing about whether a database has it. The type and the fixture agree with each other, the suite is green, and both disagree with reality.
+
+  **Paid for on 20 Aug 2026, and it had shipped in 4.4.** `sweepReason()` takes an `ItemSyncState` with a `lastCursorAt` field. **`last_cursor_at` was in no migration and never had been.** Every watchdog test built the object by hand, so no test ever read it from a database, and the whole suite passed.
+
+  **The consequence was not a missing column, it was a disabled control.** The watchdog distinguishes a stuck sync from a slow backfill by asking WHEN A CURSOR WAS LAST WRITTEN, because measured from start a 20,000 transaction backfill reads as stuck. With the column absent the progress branch could never fire, so every sweep fell through to elapsed time and **the watchdog would have swept exactly the healthy backfills it exists to protect.**
+
+  It surfaced on the first statement that tried to WRITE it, which was the first real sync. Deploy verification could not have caught it: it compares migration COUNTS, and the count was right, because the column was never in one to be counted.
+
+  **`columns-the-code-writes-exist` is the first thing connecting the two statements**, comparing columns the code writes against columns the migrations create. Where a type mirrors a schema, something has to reconcile them, or the pair drifts silently in the direction where tests keep passing.
+
+  **AND THE MUTATION-KIND QUESTION HAS THE OPPOSITE ANSWER HERE, FOR THE RIGHT REASON.** The 0026 policy controls needed `kind: "sql"`, because a policy lives in the database and a source edit on an applied migration proves only that a file changed. This control reads migration TEXT, so **the file IS where the thing it guards lives** and `kind: "source"` is correct. Recorded explicitly because the pair reads as inconsistent otherwise: it is the same question, **where does the thing this control guards actually live**, with two different answers because the subjects differ.
+
 - **WHEN A CONTROL GUARDS DATABASE STATE, THE MUTATION MUST BE DATABASE STATE.** A source mutation on an applied migration proves the file changed and nothing else.
 
   **A migration is applied ONCE, when the CI branch is created, and the harness runs afterwards.** Rewriting an already-applied `.sql` changes no database anywhere, so the harness edits the file, proves the FILE changed, runs the test against an unchanged schema, and reports the control as insensitive.
