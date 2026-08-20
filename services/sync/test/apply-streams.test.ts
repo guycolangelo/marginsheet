@@ -1,15 +1,26 @@
 // The two rules that fail silently if broken (4.4.4).
 
 import { describe, it, expect } from "vitest";
-import { applyRemoved, markFirstSyncCompleted, didChange } from "../src/apply-streams.js";
+import { applyRemoved, applyAddedAndModified, markFirstSyncCompleted, didChange } from "../src/apply-streams.js";
 
 const HOUSEHOLD = "11111111-1111-4111-8111-111111111111";
 
-/** Records the SQL each call issues, so the SHAPE can be asserted. */
+/** Records the SQL each call issues, so the SHAPE can be asserted.
+ *
+ *  INTERPOLATED VALUES ARE RECORDED TOO, and that is not cosmetic. The first
+ *  version joined only the static template parts, so anything passed as `${...}`
+ *  was invisible: an assertion that the writer emits `expense` for a positive
+ *  amount could not see the value it was asserting on, and failed against
+ *  correct code. A recorder that drops half the statement can only test the
+ *  half it kept. */
 function recorder(rowsFor: (sql: string) => unknown[] = () => []) {
   const issued: string[] = [];
-  const tx = ((strings: TemplateStringsArray, ..._v: unknown[]) => {
-    const text = strings.join(" ").replace(/\s+/g, " ").trim();
+  const tx = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings
+      .map((part, i) => part + (i < values.length ? String(values[i]) : ""))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
     issued.push(text);
     return Promise.resolve(rowsFor(text));
   }) as never;
@@ -104,5 +115,74 @@ describe("the removed stream names the household", () => {
     // the same shape as a control that cannot fail.
     const { tx } = recorder(() => [{ id: "one" }]);
     expect(await applyRemoved(tx, HOUSEHOLD, ["tx_1", "tx_2", "tx_3"])).toBe(1);
+  });
+});
+
+describe("the transaction writer", () => {
+  it("names the household in the insert, the lookup AND the conflict clause", async () => {
+    // THREE PLACES, AND EACH IS A SEPARATE WAY TO CROSS THE BOUNDARY.
+    // plaid_transaction_id is PLAID's namespace, shared across households: two
+    // households on one joint account see the same id. So the insert scopes the
+    // row, the account lookup scopes which account it may attach to, and the
+    // conflict clause scopes which existing row it may update.
+    //
+    // Migration 0026 constrains this role to the declared household and is the
+    // BACKSTOP rather than the mechanism. Both hold independently, which is why
+    // the removed-stream predicate landed before the policy did.
+    const { tx, issued } = recorder();
+    await applyAddedAndModified(tx, HOUSEHOLD, [
+      { transaction_id: "t1", account_id: "acct_1", date: "2026-08-01", amount: 12.5 },
+    ]);
+    const sql = issued.join(" ");
+    expect(sql, "the account lookup is not scoped to the household").toMatch(
+      /from financial_accounts fa where fa\.household_id =/i
+    );
+    expect(sql, "the conflict clause does not name the household").toMatch(
+      /where transactions\.household_id =/i
+    );
+  });
+
+  it("carries pending through on conflict, because that is the settle", async () => {
+    // A modified row arriving with pending=false IS a pending transaction
+    // becoming posted. If the update did not set pending, the row would stay
+    // pending forever and categorization-spec section 10 would never fire on
+    // real data. This is the transition Sandbox cannot construct, which is why
+    // the assertion is on the statement rather than on an observed settle.
+    const { tx, issued } = recorder();
+    await applyAddedAndModified(tx, HOUSEHOLD, [
+      { transaction_id: "t1", account_id: "a", date: "2026-08-01", amount: 1, pending: false },
+    ]);
+    expect(issued.join(" ")).toMatch(/pending = excluded\.pending/i);
+  });
+
+  it("signs direction from Plaid's convention rather than guessing", async () => {
+    // Plaid signs money LEAVING the account positive. Getting this backwards
+    // would invert every figure in the ledger while every test about counts
+    // stayed green.
+    const { tx, issued } = recorder();
+    await applyAddedAndModified(tx, HOUSEHOLD, [
+      { transaction_id: "out", account_id: "a", date: "2026-08-01", amount: 40 },
+      { transaction_id: "in", account_id: "a", date: "2026-08-01", amount: -40 },
+    ]);
+    expect(issued[0]).toMatch(/expense/);
+    expect(issued[1]).toMatch(/income/);
+  });
+
+  it("returns rows WRITTEN, not rows offered", async () => {
+    // They differ when a transaction names an account this household does not
+    // hold: the select finds nothing and the insert writes nothing. Returning
+    // the input length would report success for work that did not happen.
+    const { tx } = recorder(() => []);
+    expect(
+      await applyAddedAndModified(tx, HOUSEHOLD, [
+        { transaction_id: "t1", account_id: "not-ours", date: "2026-08-01", amount: 1 },
+      ])
+    ).toBe(0);
+  });
+
+  it("writes nothing for an empty stream", async () => {
+    const { tx, issued } = recorder();
+    expect(await applyAddedAndModified(tx, HOUSEHOLD, [])).toBe(0);
+    expect(issued).toEqual([]);
   });
 });
