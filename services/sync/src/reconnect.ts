@@ -99,6 +99,15 @@ export async function createLinkToken(
       user: { client_user_id: householdId },
       client_name: "MarginSheet",
       products: ["transactions"],
+      // CONSENT NOW, BILLED ON FIRST USE. A product cannot be added to an Item
+      // after it is created: adding Liabilities later means taking the Item
+      // through update mode again. additional_consented_products collects the
+      // consent at link time and bills nothing until the endpoint is called,
+      // so the credit-card Items connected at 4.5b prime can serve the
+      // Liabilities cases without a second trip through Link.
+      //
+      // Confirmed against Plaid's docs 19 Aug 2026 rather than recalled.
+      additional_consented_products: ["liabilities"],
       country_codes: ["US"],
       language: "en",
       redirect_uri: redirectUri,
