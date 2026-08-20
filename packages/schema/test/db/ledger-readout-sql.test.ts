@@ -76,6 +76,23 @@ describe("the ledger readout's statements execute as marginsheet_sync", () => {
     // cross-household-upsert.test.ts proved nothing for two weeks: when a test
     // tolerates an exception, the exception is part of the fixture.
     await sql`set role marginsheet_sync`;
+
+    // WHO AM I, AND WHAT CAN I ACTUALLY READ, ASKED IN THE FAILING CONTEXT.
+    // The harness probe reported this grant as present on this database minutes
+    // before this test ran, and the test still failed with permission denied.
+    // Two true-looking facts that cannot both describe the same query, so the
+    // question moves inside the transaction rather than being asked from
+    // outside it: an assumption that `set role` took effect is exactly the kind
+    // of join nobody checks.
+    const [ctx] = await sql<{ role: string; session: string; readable: boolean }[]>`
+      select current_user as role, session_user as session,
+             has_column_privilege('households', 'first_sync_completed_at', 'SELECT') as readable
+    `;
+    expect(
+      { role: ctx.role, readable: ctx.readable },
+      `the effective role is not what this test assumes. session_user=${ctx.session}`,
+    ).toEqual({ role: "marginsheet_sync", readable: true });
+
     let readout;
     try {
       readout = await sql.begin(async (tx) => readLedger(tx as unknown as Sql, HOUSEHOLD));
