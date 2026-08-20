@@ -409,6 +409,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   A negative control for a narrowed role attempts **several** forbidden tables from different parts of the schema, not one. One refusal proves a boundary exists; three across different sections prove it is a boundary rather than a single lucky revoke.
 
+- **"THE MECHANISM EXPLAINS IT" IS NOT THE SAME CLAIM AS "THIS IS WHAT HAPPENED", AND THE FIRST IS WHAT MAKES THE SECOND SOUND CHECKED.** (Guy, 20 Aug 2026.) The companion to the rule below, and it is the failure that survives it: the diagnostic was built, it was correct, and it was pointed at the wrong question.
+
+  The instance. Two CI failures could not be read, because GitHub will not serve a job log while its run is in progress. `packages/schema/src/migrate.ts` records applied migrations **by filename**, so an edited migration that has already applied is skipped silently, and `migrations-append-only` compares git trees and cannot see it. All of that is **true**. From it came the conclusion that this is what had happened, offered as near-certain, and **a change to the migration runner was authorised on the strength of it.**
+
+  The log said otherwise on the first line anybody read: `applying 0028_... / up: applied 1`. It applied. It could not have been skipped, because `neon-pr-branch.sh` deletes and recreates the branch on every run, ruled 16 Aug 2026, so the window has no database that persists an edit. **The gap had been closed five days earlier by making the database ephemeral**, and the mechanism that made the story plausible was still sitting there, entirely real, explaining something that did not occur.
+
+  **The true premise is the whole problem.** A guess built on a false mechanism gets challenged, because the mechanism is checkable and wrong. A guess built on a TRUE mechanism inherits its credibility: every step is verifiable, the file says exactly what it was quoted as saying, and the only unverified link is the one joining "this could produce that symptom" to "this produced that symptom". That link is the entire claim, and it is the one part nobody looks at, because everything around it checks out.
+
+  **The tell is grammatical and it is cheap to apply.** An explanation is a statement about a mechanism's CAPABILITIES. A diagnosis is a statement about a PARTICULAR RUN. If the evidence names no particular run, what is in hand is an explanation, however good, and it is reported as one: *"the mechanism that would produce this is X, and I have not read the log."*
+
+  It is the same shape as **verify against the database, never against reports**, one level up: the mechanism is the report, and the log is the database. And it fails the standing question the same way, because **an explanation cannot go red.** No observation refutes "this could have happened", which is precisely why it is not a finding.
+
 - **When a failure message cannot distinguish its causes, build the diagnostic. Do not guess better.** A message that reads the same for several different problems is not evidence, and reasoning harder about which one it means produces confident wrong answers at speed. The fix is a probe that separates the cases and reports which one it is.
 
   Cloudflare returns `10000: Authentication error` identically for an invalid token, a token unscoped to the zone, and a token scoped to the zone but not the endpoint. Those are three different fixes and one of them is not a permission at all. Guessing cost two wrong permissions and forty minutes. Adding one probe, `user/tokens/verify` plus a zone read on any refusal, turned it into a finding in a single run: token valid, zone visible, rulesets refused.
