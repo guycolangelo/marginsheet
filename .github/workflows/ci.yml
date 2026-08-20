@@ -259,6 +259,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Every Worker connects as marginsheet_app, and holds no BYPASSRLS
+        env:
+          # Same reason as deploy.yml: the /debug routes are gated, and an
+          # absent variable makes every probe look like a dead Worker.
+          DEBUG_PROBE_TOKEN: ${{ secrets.DEBUG_PROBE_TOKEN }}
         run: pnpm --filter @marginsheet/api test:db-identity
 
   # Migrations are append-only after merge (CLAUDE.md, ruled 16 Aug 2026).
