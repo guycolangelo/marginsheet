@@ -401,6 +401,22 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **And the direction of the break is part of the review.** A mutation must break the control in the direction the control exists to guard, not in whichever direction is easiest to write. The two-member policy check was first planted with `USING (false)`, which turned the test red and proved almost nothing: nothing was ever going to disable that policy quietly, because disabled breaks loudly for everyone on the first request. Replanted as `AND is_primary`, it narrows visibility to one member while leaving cross-household isolation intact, which is the failure that actually threatened this system and passed every isolation test for two weeks. Both mutations redden the test. Only one of them means anything, and the test for a planted failure is not "does this break something" but **"does this break the thing the register says this test notices"**.
 
+- **REASONING ABOUT THE COLUMN WHILE POSTGRES REASONS ABOUT THE TABLE. The masking rule's third instance, and the first one pointing the other way.**
+
+  A table-level grant covers the table **as a whole, including columns added later**. Every failure in this family follows from that one sentence, and all three were written by people who knew it and were thinking about a column at the time.
+
+  | Instance | Shape | What it hid |
+  |---|---|---|
+  | 15 Aug, 0002 | table grant over a column **revoke** | a hole: `access_token_ciphertext` was writable while a control said otherwise |
+  | 20 Aug, 0023 vs `marginsheet_app` | table grant found wider than its description | reach nobody had ruled on |
+  | 20 Aug, 0025 | table grant over a column **grant** | nothing. It documented a narrowing that was not there |
+
+  **THE MECHANISM IS SYMMETRIC AND THE CONSEQUENCE IS NOT** (Guy, 20 Aug 2026). A table grant masking a column revoke **hides a hole**, and is an exposure. A table grant making a column grant redundant **hides nothing**, and is a false sentence. Only the first can hurt a household. Both are the same misunderstanding, and **neither is visible in the migration text**, which is why the asymmetry cannot be used to decide which one you are looking at before you look.
+
+  **Only a catalog query distinguishes them.** `has_column_privilege` accounts for table-level masking and answers what the role holds; the GRANT statement answers only what somebody wrote. Reading 0025 tells you a narrowing was intended. Asking the catalog tells you the role already had it.
+
+  **The detail that explains how it gets written, and it is the useful part.** 0025's sentence, *"a column added later is not silently writable by a role that was granted the table long ago"*, appeared once and governed two grants. It was **false for `marginsheet_sync`**, which holds `plaid_items` at table level by 0023, and **true for `marginsheet_app`**, which holds no table SELECT there and only the eleven columns 0002 enumerated. One statement, two roles, one holding the table, and the reasoning that fitted one was applied to both. So the question is never "is a column grant right here" but **"what does this role already hold on this table"**, asked per role.
+
 - **A role's documentation is a security claim, and the grant is what is true.** Two roles have now been found wider than the thing describing them, and **both were found by looking, not by anything failing.** That makes it a class rather than a coincidence, and the question belongs in every review that touches a role: **does the grant match the description?**
 
   `marginsheet_app` held table-level INSERT and UPDATE on `plaid_items`, which masked the column control withholding `access_token_ciphertext`: the control was correctly written and did nothing, because a table grant outranks a column revoke. `marginsheet_sync` is described in the custody doc as *"The Plaid sync worker. The only place TOKEN_ENCRYPTION_KEY is used to decrypt"*, and held INSERT, SELECT and UPDATE on **39 tables**, including `messages`, `threads`, `known_context`, `decision_journal` and every LLM log. A component with one job, and a role that can read every household's conversation history, are different things wearing the same sentence.

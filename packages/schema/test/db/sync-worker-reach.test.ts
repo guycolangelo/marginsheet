@@ -90,6 +90,12 @@ function statements(): string[] {
  *  "narrowed" would report the two table grants as findings and teach whoever
  *  read it to stop believing this test.
  *
+ *  ORDERED, AND REVOKES COUNT. Paid for the same day: 0025 column-granted
+ *  plaid_items to this role, 0030 revoked it as inert, and a scan that only
+ *  looked for GRANTs would keep reporting an intent that had been withdrawn.
+ *  The migrations are the ordered history of what was intended; the last
+ *  statement about a pair is the one that stands.
+ *
  *  Read from the migration text on purpose, and it is not the forbidden shape
  *  of a check reading its expectation from its subject. The SUBJECT here is the
  *  catalog, which answers what the role holds; the migrations answer only which
@@ -97,11 +103,17 @@ function statements(): string[] {
  *  different questions. Nothing below takes a privilege from migration text. */
 function columnScopedPairs(): Set<string> {
   const out = new Set<string>();
-  for (const f of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql") && !f.includes(".down."))) {
+  const pattern =
+    /(GRANT|REVOKE)\s+([A-Z]+)\s*\([^)]*\)((?:\s*,\s*[A-Z]+\s*\([^)]*\))*)\s+ON\s+(?:TABLE\s+)?"?([a-z_]+)"?\s+(?:TO|FROM)\s+marginsheet_sync/gi;
+  for (const f of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql") && !f.includes(".down.")).sort()) {
     const text = readFileSync(join(MIGRATIONS, f), "utf8");
-    for (const m of text.matchAll(/GRANT\s+([A-Z]+)\s*\([^)]*\)((?:\s*,\s*[A-Z]+\s*\([^)]*\))*)\s+ON\s+"?([a-z_]+)"?\s+TO\s+marginsheet_sync/gi)) {
-      const privs = [m[1], ...[...m[2].matchAll(/([A-Z]+)\s*\(/gi)].map((x) => x[1])];
-      for (const priv of privs) out.add(`${m[3]}:${priv.toUpperCase()}`);
+    for (const m of text.matchAll(pattern)) {
+      const privs = [m[2], ...[...m[3].matchAll(/([A-Z]+)\s*\(/gi)].map((x) => x[1])];
+      for (const priv of privs) {
+        const key = `${m[4]}:${priv.toUpperCase()}`;
+        if (m[1].toUpperCase() === "GRANT") out.add(key);
+        else out.delete(key);
+      }
     }
   }
   return out;
