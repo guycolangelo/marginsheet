@@ -718,6 +718,21 @@
         "note": "Swaps two adjacent statements, neither of which is wrong on its own. This is the plausible-and-wrong form: persisting the cursor 'as soon as we have it' reads as promptness, and the resulting code is one line different from correct. Verified red 19 Aug 2026."
       },
       "distinction": "PLAID'S CURSOR IS A PROMISE ABOUT WHAT WE HAVE CONSUMED. Persisting it before the rows are stored makes that promise false, and the failure is SILENT: the next run resumes past transactions nobody wrote, there is no error, no retry, and the ledger is missing a page while the cursor says it was read. The assertion is on ORDER rather than on outcome, because the outcome is indistinguishable from correct until the crash that never happens in a test."
+    },
+    {
+      "id": "connect-surface-household-from-session",
+      "control": "the 4.5b prime connect surface's household derivation",
+      "guards": "No connect route accepts a household from the caller, and none is reachable without a session.",
+      "test": "services/api/test/connect-surface.test.ts",
+      "name": "rebuilds the link-token body rather than forwarding the request's",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "              body: JSON.stringify({ householdId }),",
+        "replace": "              body: JSON.stringify({ householdId, ...(await request.clone().json().catch(() => ({}))) }),",
+        "note": "The spread, which is the same mutation the exchange fix carries and the same defect with an extra step: a caller-supplied householdId rides along and wins by key order. Verified red 19 Aug 2026."
+      },
+      "distinction": "THE SURFACE IS THROWAWAY AND THIS ASSERTION IS NOT. M8 replaces the page; what it must not inherit is the shape of the defect that took a day to find. The page sends no householdId AT ALL rather than sending one that is ignored, because /plaid/exchange ignoring it makes sending it harmless TODAY and teaches the next reader it is an input. THE OAUTH RETURN IS DELIBERATELY UNAUTHENTICATED and the test asserts the reason is stated: it arrives from the BANK rather than from our own fetch, so a session check would break the flow it exists to complete, and it reads nothing and writes nothing."
     }
   ]
 }
