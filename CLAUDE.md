@@ -211,6 +211,24 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **The consequence, noted rather than ruled** (`docs/open-items.json`): any read whose empty result would be a plausible business answer should **assert the GUC is set** rather than merely rely on it. The two controls above stop the specific mistake; they do not make an empty result self-describing, and that is the class.
 
+- **`has_column_privilege` HAS TWO FORMS AND THEY ANSWER DIFFERENT QUESTIONS. Naming the role asks what a GRANT SAYS. Omitting it asks what the CURRENT SESSION CAN DO.** (Guy, 20 Aug 2026.) A grant can be present and the session still refused, and **only the second form is the question a query obeys.**
+
+  Found because the diagnostic written to settle a privilege failure **had the defect it was built to find.** `harness-db-identity.mjs` asked `has_column_privilege('marginsheet_sync', 'households', 'first_sync_completed_at', 'SELECT')` from an owner connection and printed **true**. The test, on the same database in the same job, asked the three-argument form after `SET ROLE` and got **false**. Both were correct answers to the questions they asked, and only one of those questions mattered.
+
+  It was written while holding this exact rule in mind, which is the argument for the rule rather than for care, and it is the same note already recorded about planted fixtures.
+
+  **The standing requirement: anywhere a check verifies a privilege, it asks AS THE THING THAT WILL USE IT.** A probe run as an owner, naming a role, is reading the ACL out loud. A session that sets the role and attempts the read is the only thing that answers what happens in production.
+
+  **AND IT PUTS `column-privileges.test.ts` IN QUESTION, which is the part that matters, because that file exists to catch exactly this gap.** Written 15 Aug after a column REVOKE was found to be a no-op under a table grant, its own header says reviewing the GRANT statement is not enough. **Every assertion in it uses the four-argument form**, so it has been asserting what the grants say rather than what the roles can do. The two directions are not equally dangerous and the difference is not yet established: a denial reading `false` from the ACL and a session actually refused are probably the same, while `marginsheet_sync CAN read the Plaid token` asserts `true` in exactly the form that was observed disagreeing. Owed as a rewrite, recorded rather than assumed either way.
+
+- **A TEST THAT CHANGES SESSION STATE RESTORES IT ON EVERY EXIT, NOT ONLY THE EXPECTED ONES.** (Guy, 20 Aug 2026.)
+
+  A role probe was placed **above** the `try` whose `finally` reset the role. When it failed, the session stayed as `marginsheet_sync`, and the suite's cleanup then failed with **`permission denied for table transactions`** -- a second, louder error, about a table that was never involved, produced by the cleanup of the first.
+
+  **The damage is the misdirection, not the extra red.** A cycle went into `transactions`, which had nothing to do with anything. It is the same family as a diagnostic that cannot report its own failure: the loudest message in the log was the one furthest from the cause.
+
+  So: `set role`, `set_config` at session scope, search_path, anything that outlives a statement gets restored in a `finally` that covers **every** statement executed under it, including the assertions.
+
 - **POSTGRES NAMES THE TABLE WHEN THE BOUNDARY IS THE COLUMN, so the error points at the wrong artifact.** (Guy, 20 Aug 2026.) Small, and it cost a wrong first hypothesis, so it is written down.
 
   `permission denied for table plaid_items` was raised because the role lacked **one column**. `marginsheet_app` holds `plaid_items` perfectly well: eleven columns enumerated in 0002 plus `last_completed_cursor` from 0025. What it lacked was `last_cursor_at`, which 0027 added and granted to nobody, exactly as 0002's comment promised it would behave.

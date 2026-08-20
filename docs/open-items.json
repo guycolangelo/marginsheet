@@ -478,5 +478,13 @@
     "trigger": "before M8 renders any household-facing list from an RLS-scoped read, because that is the point at which an empty result stops being a developer reading JSON and becomes a household being told they have nothing",
     "owed_to": "TRIGGER: M8's first household-facing list. Raised 20 Aug 2026 out of the set_config sweep; Guy explicitly declined to rule on it in flight and asked for it to be noted as the class.",
     "raised": "2026-08-20"
+  },
+  {
+    "id": "column-privileges-test-asks-the-grant-not-the-session",
+    "item": "THE FILE THAT EXISTS TO CATCH THIS GAP HAS IT. packages/schema/test/db/column-privileges.test.ts was written 15 Aug 2026 after discovering that a column-level REVOKE is a no-op while the role holds the table-level privilege, and its header says plainly that reviewing the GRANT statement is not enough because the GRANT statement is what fooled the original experiment. EVERY ASSERTION IN IT USES has_column_privilege IN THE FOUR-ARGUMENT FORM, naming the role, executed from an owner connection. That form asks what the ACL says. The three-argument form asks what the CURRENT SESSION can do, and on 20 Aug 2026 the two returned OPPOSITE answers on the same database in the same CI job: named=true, effective=false, for marginsheet_sync on households.first_sync_completed_at. WHAT IS AND IS NOT CLAIMED. The two directions are not equally dangerous and the difference is not yet established. A denial asserting false from the ACL is probably also refused in session, so the DENIALS may well be sound. The positive assertion, 'marginsheet_sync CAN read the Plaid token', asserts TRUE in precisely the form observed disagreeing, and that is the one to re-examine first; note that the sync Worker does decrypt tokens in production, so the capability is real and it is the ASSERTION's form that is weak rather than the claim being false. THE FIX is to run each assertion as the role it names: set role, ask the three-argument form, reset in a finally. THE GENERAL RULE is recorded in CLAUDE.md: anywhere a check verifies a privilege, it asks as the thing that will use it. NOT DONE IN PR 129 deliberately: that PR is already large, and rewriting a security control's assertions is its own change with its own review.",
+    "owner": "build",
+    "trigger": "immediately after PR 129 merges, before any further privilege work relies on that file's assertions",
+    "owed_to": "TRIGGER: PR 129 merging. Raised 20 Aug 2026 by Guy on reading that the harness probe and the test disagreed, and asking whether the 15 Aug test had the same shape. It does.",
+    "raised": "2026-08-20"
   }
 ]
