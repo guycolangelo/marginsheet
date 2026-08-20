@@ -47,6 +47,25 @@ const EXPECTED_TABLES = [
   // The test is not "the pipeline touches it" but "the sync worker's own
   // transaction must contain the write, or the guarantee is lost".
   "household_state_signals",
+  // The eleventh, added 20 Aug 2026, AND IT IS A COLUMN GRANT RATHER THAN A
+  // TABLE GRANT. That distinction is the entry.
+  //
+  // markFirstSyncCompleted writes households.first_sync_completed_at, a
+  // HOUSEHOLD-level milestone: a household with three banks completes its
+  // first sync once. It cannot move to plaid_items without changing meaning,
+  // and routing it through the outbox is indirection with no second component
+  // to receive it. So the write genuinely needs this table.
+  //
+  // IT DOES NOT NEED THE TABLE. households has fifteen columns including
+  // avg_monthly_income, entitlement_state, address, stripe_customer_id and
+  // hardship_flag. The statement needs SELECT on two and UPDATE on two.
+  // Migration 0028 grants exactly those, so the role still cannot read a
+  // household's income or entitlement state.
+  //
+  // On the one path where THE GRANT IS THE WHOLE BOUNDARY (see
+  // sync-grant-is-the-only-boundary-on-that-path), a table grant to solve a
+  // two-column problem is fourteen columns of unnecessary reach.
+  "households",
   "commitments",
   "financial_accounts",
   "institutions",

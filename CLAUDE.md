@@ -72,6 +72,19 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The question to add when reading a suite: **what values can this fixture take, and does the failure case exist among them?** A test that can only construct the passing shape is a tautology wearing an assertion's clothes.
 
+- **A RECORDER PROVES A STATEMENT WAS CONSTRUCTED. IT PROVES NOTHING ABOUT WHETHER IT CAN EXECUTE.** Twice in one morning, 20 Aug 2026, and both times the whole suite was green while the code could not run at all.
+
+  The sync Worker's unit tests pass a **recorder** as `tx`: it captures the SQL and returns canned rows. Every assertion about what the statement says is true, and every one of them is silent about Postgres. So the first real production sync failed twice on things no test could see:
+
+  - `last_cursor_at` was **a column in no migration**, written by 4.4's watchdog. The tests that read it built an `ItemSyncState` **by hand**.
+  - `households` was **a table in no grant**, written by `markFirstSyncCompleted`. Migration 0023 had narrowed the role to ten tables and nothing compared the two.
+
+  **The signature is the same one the ninth finding named, with the fixture moved one step further out.** There, the data could not express the failing case. Here, the *database* is not present at all, so the code and the fixtures agree with each other and both disagree with reality. A recorder is a fixture that can only ever construct the passing shape, and it looks like thorough coverage because the assertions are genuinely about the right statement.
+
+  **Neither was caught by review**, and neither would have been: the statements are correct SQL, correctly parameterised, correctly scoped to a household. Nothing is wrong with them except that they were never allowed to run.
+
+  So: **a recorder test is not evidence a statement works, and a statement's ability to execute is asserted somewhere a real schema and a real role are present.** `columns-the-code-writes-exist` closed the column half against migrations; `sync-worker-reach` closes the privilege half against the catalog, at column level, because `has_column_privilege` is the only thing that knows what a role actually holds.
+
 - **A flaky fixture is worse than an absent one, and a fixture must be asserted large enough to distinguish passing from failing before anything is measured.** This is the ninth finding's rule, written down because the ninth finding recurred within an hour of the M4 plan naming it, in the spike built to avoid it.
 
   **The case, because the abstraction alone would not have caught it.** Spike 1c exists to settle whether Plaid's cursor resumes with no gap and no replay. Its first run reported `noGap: true` and `noReplay: true`, and it was comparing **two empty sets**. The helper waited for `/transactions/sync` to stop returning an error rather than waiting for transactions to exist, so a fresh Sandbox Item that had generated nothing yet answered `200` with an empty page and every assertion passed vacuously. The spike was written by someone who had just finished writing the paragraph warning about exactly this, and it still happened, which is the argument for a rule rather than for care.
@@ -388,6 +401,32 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **And the direction of the break is part of the review.** A mutation must break the control in the direction the control exists to guard, not in whichever direction is easiest to write. The two-member policy check was first planted with `USING (false)`, which turned the test red and proved almost nothing: nothing was ever going to disable that policy quietly, because disabled breaks loudly for everyone on the first request. Replanted as `AND is_primary`, it narrows visibility to one member while leaving cross-household isolation intact, which is the failure that actually threatened this system and passed every isolation test for two weeks. Both mutations redden the test. Only one of them means anything, and the test for a planted failure is not "does this break something" but **"does this break the thing the register says this test notices"**.
 
+- **REASONING ABOUT THE COLUMN WHILE POSTGRES REASONS ABOUT THE TABLE. The masking rule's third instance, and the first one pointing the other way.**
+
+  A table-level grant covers the table **as a whole, including columns added later**. Every failure in this family follows from that one sentence, and all three were written by people who knew it and were thinking about a column at the time.
+
+  | Instance | Shape | What it hid |
+  |---|---|---|
+  | 15 Aug, 0002 | table grant over a column **revoke** | a hole: `access_token_ciphertext` was writable while a control said otherwise |
+  | 20 Aug, 0023 vs `marginsheet_app` | table grant found wider than its description | reach nobody had ruled on |
+  | 20 Aug, 0025 | table grant over a column **grant** | nothing. It documented a narrowing that was not there |
+
+  **THE MECHANISM IS SYMMETRIC AND THE CONSEQUENCE IS NOT** (Guy, 20 Aug 2026). A table grant masking a column revoke **hides a hole**, and is an exposure. A table grant making a column grant redundant **hides nothing**, and is a false sentence. Only the first can hurt a household. Both are the same misunderstanding, and **neither is visible in the migration text**, which is why the asymmetry cannot be used to decide which one you are looking at before you look.
+
+  **Only a catalog query distinguishes them.** `has_column_privilege` accounts for table-level masking and answers what the role holds; the GRANT statement answers only what somebody wrote. Reading 0025 tells you a narrowing was intended. Asking the catalog tells you the role already had it.
+
+  **THE REFORMULATION IS THE DURABLE PART** (Guy, 20 Aug 2026). **A grant is not a fact about a column. It is a fact about a role-and-table pairing.** Every instance above is what happens when a column is treated as the subject: the column looks unprotected, or looks protected, and the answer was never a property of the column at all. So the question is never *"is this column grant right"* but **"what does this role already hold on this table"**, asked per role, of the catalog.
+
+  **AND THE ERROR HAS A SHAPE WORTH NAMING SEPARATELY, BECAUSE IT IS NOT A FALSE BELIEF: A CORRECT THOUGHT ABOUT THE WRONG SUBJECT.** 0025's sentence, *"a column added later is not silently writable by a role that was granted the table long ago"*, appeared once and governed two grants in one statement. It is **true for `marginsheet_app`**, on that exact column: that role holds no table SELECT on `plaid_items`, only the eleven columns 0002 enumerated, so its grant extends a real enumeration and stands. It is **false for `marginsheet_sync`**, which holds the table by 0023.
+
+  **Nothing about the sentence was wrong to write. The mistake was entirely in its scope.** That makes it invisible to every check that examines a claim on its own merits, including review: read it beside the app role's grant and it is correct, and the second role is in the same statement rather than in a different file where a reader might think to re-derive it. A false belief can be argued with. **A true one silently extended to a second subject has nothing in it to argue with**, which is why the remedy is the reformulation rather than more care: name the subject the fact is actually about, and the extension stops being expressible.
+
+  It is the same family as the **near-certainty from a true mechanism** recorded above, and the two are worth reading together. There, a true statement about what a mechanism CAN do was extended to a claim about what DID happen. Here, a true statement about one role was extended to another. **Both are unverified extensions of verified things**, and in both the truth of the premise is exactly what stops anyone checking the join.
+
+  **SO THE CHECK HAS TO BE ON THE JOIN RATHER THAN ON EITHER SIDE** (Guy, 20 Aug 2026). Both halves survive inspection: the mechanism is real, the role's grant is real. **The defect lives only in the step between them, and no examination of either statement can reach it.** That is what makes this family different from everything else in this file, where the flaw is somewhere in an artifact and a sufficiently careful reading finds it. Here there is nothing in either artifact to find.
+
+  **The general question, and it is one sentence long: what was demonstrated, and what is this claim about?** When those differ even slightly, the difference is the join, and the join is where both of today's retractions lived. A test demonstrates something about the fixture it ran; a mechanism demonstrates something about what is possible; a grant demonstrates something about one role on one table. Each is worth exactly what it demonstrates, and **the sentence built on top of it is a separate claim that has not been checked by anything.**
+
 - **A role's documentation is a security claim, and the grant is what is true.** Two roles have now been found wider than the thing describing them, and **both were found by looking, not by anything failing.** That makes it a class rather than a coincidence, and the question belongs in every review that touches a role: **does the grant match the description?**
 
   `marginsheet_app` held table-level INSERT and UPDATE on `plaid_items`, which masked the column control withholding `access_token_ciphertext`: the control was correctly written and did nothing, because a table grant outranks a column revoke. `marginsheet_sync` is described in the custody doc as *"The Plaid sync worker. The only place TOKEN_ENCRYPTION_KEY is used to decrypt"*, and held INSERT, SELECT and UPDATE on **39 tables**, including `messages`, `threads`, `known_context`, `decision_journal` and every LLM log. A component with one job, and a role that can read every household's conversation history, are different things wearing the same sentence.
@@ -395,6 +434,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
   **The fix both times is the same: enumerate, never grant-and-subtract.** Naming the eight tables a pipeline needs fails closed on the thirty-first table somebody adds later; granting broadly and revoking what looks sensitive fails open on everything nobody thought of. Same shape as the enumerated column grants in 0002, 0011, 0017 and 0019, and as allowlisting the rotation target rather than blocklisting long-lived branches.
 
   A negative control for a narrowed role attempts **several** forbidden tables from different parts of the schema, not one. One refusal proves a boundary exists; three across different sections prove it is a boundary rather than a single lucky revoke.
+
+- **"THE MECHANISM EXPLAINS IT" IS NOT THE SAME CLAIM AS "THIS IS WHAT HAPPENED", AND THE FIRST IS WHAT MAKES THE SECOND SOUND CHECKED.** (Guy, 20 Aug 2026.) The companion to the rule below, and it is the failure that survives it: the diagnostic was built, it was correct, and it was pointed at the wrong question.
+
+  The instance. Two CI failures could not be read, because GitHub will not serve a job log while its run is in progress. `packages/schema/src/migrate.ts` records applied migrations **by filename**, so an edited migration that has already applied is skipped silently, and `migrations-append-only` compares git trees and cannot see it. All of that is **true**. From it came the conclusion that this is what had happened, offered as near-certain, and **a change to the migration runner was authorised on the strength of it.**
+
+  The log said otherwise on the first line anybody read: `applying 0028_... / up: applied 1`. It applied. It could not have been skipped, because `neon-pr-branch.sh` deletes and recreates the branch on every run, ruled 16 Aug 2026, so the window has no database that persists an edit. **The gap had been closed five days earlier by making the database ephemeral**, and the mechanism that made the story plausible was still sitting there, entirely real, explaining something that did not occur.
+
+  **The true premise is the whole problem.** A guess built on a false mechanism gets challenged, because the mechanism is checkable and wrong. A guess built on a TRUE mechanism inherits its credibility: every step is verifiable, the file says exactly what it was quoted as saying, and the only unverified link is the one joining "this could produce that symptom" to "this produced that symptom". That link is the entire claim, and it is the one part nobody looks at, because everything around it checks out.
+
+  **The tell is grammatical and it is cheap to apply.** An explanation is a statement about a mechanism's CAPABILITIES. A diagnosis is a statement about a PARTICULAR RUN. If the evidence names no particular run, what is in hand is an explanation, however good, and it is reported as one: *"the mechanism that would produce this is X, and I have not read the log."*
+
+  It is the same shape as **verify against the database, never against reports**, one level up: the mechanism is the report, and the log is the database. And it fails the standing question the same way, because **an explanation cannot go red.** No observation refutes "this could have happened", which is precisely why it is not a finding.
 
 - **When a failure message cannot distinguish its causes, build the diagnostic. Do not guess better.** A message that reads the same for several different problems is not evidence, and reasoning harder about which one it means produces confident wrong answers at speed. The fix is a probe that separates the cases and reports which one it is.
 

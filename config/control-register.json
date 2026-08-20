@@ -763,6 +763,40 @@
         "note": "Renames the column so the code and the schema disagree, which is the state that shipped: the Worker wrote last_cursor_at and no migration created it. THIS IS A SOURCE MUTATION ON A MIGRATION AND THAT IS CORRECT HERE, unlike the 0026 policy controls: this control reads the migration TEXT rather than database state, so the file is where the thing it guards actually lives. Verified red 20 Aug 2026."
       },
       "distinction": "THE THIRD INSTANCE OF SOMETHING PASSING ITS OWN TESTS WHILE BEING UNABLE TO RUN. last_cursor_at is read by the watchdog through sweepReason(), whose tests construct an ItemSyncState BY HAND, so no test ever read it from a database: the code and the fixtures agreed with each other and both disagreed with the schema. 4.4 shipped a watchdog measuring progress by a column that was never created, and its whole suite passed. It surfaced on the first real sync, on the first statement that tried to WRITE it. IT IS A STATIC SCAN AND SAYS SO: it proves a name appears in a CREATE TABLE or ADD COLUMN, not that the migration applied or that the type is right. Direction 2 asserts it parsed real columns and real writes, because a regex that stops matching leaves it comparing two empty sets and passing perfectly."
+    },
+    {
+      "id": "sync-reach-inside-grant",
+      "control": "the reach scan (packages/schema/test/db/sync-worker-reach.test.ts)",
+      "guards": "Every statement the sync Worker issues is one marginsheet_sync is allowed to run, at column level, verified against the catalog.",
+      "test": "packages/schema/test/db/sync-worker-reach.test.ts",
+      "name": "holds every privilege the Worker's statements require",
+      "planted": {
+        "kind": "sql",
+        "apply": "REVOKE SELECT (id, first_sync_completed_at), UPDATE (first_sync_completed_at, updated_at) ON households FROM marginsheet_sync",
+        "restore": "GRANT SELECT (id, first_sync_completed_at), UPDATE (first_sync_completed_at, updated_at) ON households TO marginsheet_sync",
+        "proof": "select has_column_privilege('marginsheet_sync','households','first_sync_completed_at','UPDATE')::int as held",
+        "appliedValue": 0,
+        "restoredValue": 1,
+        "note": "Takes the 0028 grant away, which is HOW IT ACTUALLY WAS on 20 Aug 2026: not a wrong grant, an absent one. The purest form of the plausible mutation, because nobody writes the obviously broken version and the real failure mode is that nobody writes anything. THIS IS A SQL MUTATION AND IT HAS TO BE: the thing this control guards is a privilege, privileges live in the database, and a source mutation on an applied migration changes no database anywhere. Three controls got that wrong in one sitting on 19 Aug."
+      },
+      "distinction": "THE PRIVILEGE HALF OF THE CLASS columns-the-code-writes-exist CLOSED FOR COLUMNS. That one compares columns against migrations; nothing compared TABLES against GRANTS, and the first real production sync failed on 'permission denied for table households'. Both instances passed their own suites for the same reason, which is the finding worth keeping: markFirstSyncCompleted's tests pass a RECORDER as tx, so no statement ever met Postgres. A recorder proves a statement was CONSTRUCTED and proves nothing about whether it can EXECUTE. The reach is derived by static scan and says so; it is written to OVER-claim rather than under-claim, because an over-claim reddens this test and sends somebody to look while an under-claim is the silent gap the file exists to close. Direction 2 asserts the scan derived a reach large enough to distinguish a pass from a failure, and names first_sync_completed_at specifically, because a regex that stops matching would leave it comparing two empty sets and passing perfectly."
+    },
+    {
+      "id": "sync-reach-not-beyond-grant",
+      "control": "the over-grant half of the reach scan (packages/schema/test/db/sync-worker-reach.test.ts)",
+      "guards": "A table narrowed for marginsheet_sync by column stays narrow: no table-level grant covering it, and no enumerated column the Worker never uses.",
+      "test": "packages/schema/test/db/sync-worker-reach.test.ts",
+      "name": "holds nothing beyond that on any table narrowed by column",
+      "planted": {
+        "kind": "sql",
+        "apply": "GRANT SELECT ON households TO marginsheet_sync",
+        "restore": "REVOKE SELECT ON households FROM marginsheet_sync",
+        "proof": "select has_table_privilege('marginsheet_sync','households','SELECT')::int as held",
+        "appliedValue": 1,
+        "restoredValue": 0,
+        "note": "THE CHEAP OBVIOUS FIX, WHICH IS WHY IT IS THE MUTATION. Both people looking at the 20 Aug failure reached for a table grant first, and it is correct about the statement it unblocks: markFirstSyncCompleted runs fine afterwards, control 1 stays green, and the role quietly gains SELECT on avg_monthly_income, entitlement_state, address, hardship_flag and stripe_customer_id. It is also the shape recorded on 15 Aug in column-privileges.test.ts, where a table grant masked a column control and the migration read as a boundary that was not there. Note what the mutation does NOT do: it does not remove the column grant, so a check comparing only column privileges would still find them all present and pass."
+      },
+      "distinction": "The direction the other half cannot see. sync-reach-inside-grant asks whether the role can run the Worker's statements, and a table grant makes that MORE true. This asks whether a narrowing that was ruled on is still a narrowing. It keys off which tables a migration narrows by column rather than off the privileges themselves, which is deliberate and is not a check reading its expectation from its subject: the catalog answers what the role HOLDS, and the migrations answer only which tables somebody INTENDED to be narrow. Nothing here takes a privilege from migration text. Direction 2 asserts at least one table is column-scoped, because with none it would compare nothing and pass."
     }
   ]
 }

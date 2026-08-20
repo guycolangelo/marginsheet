@@ -1,0 +1,54 @@
+-- The announcer's grant, and a correction to what 0024 asserted.
+--
+-- WHY THIS IS A SEPARATE MIGRATION RATHER THAN TWO MORE LINES IN 0028. 0028
+-- had already been applied to this pull request's Neon branch when the outbox
+-- gap was found. The runner records applied migrations BY FILENAME
+-- (packages/schema/src/migrate.ts), so editing 0028 reached no database that
+-- had already seen it: the second CI run reported "Migrations up" green and the
+-- grant was never there. That is the append-only rule arriving BEFORE merge,
+-- where migrations-append-only does not watch, because that check hashes
+-- migrations on main.
+--
+-- ---------------------------------------------------------------------------
+-- 1. THE GRANT
+--
+-- outbox.markEnqueued issues `update household_state_signals set enqueued_at`
+-- from the sync Worker. 0024 granted that role SELECT and INSERT only.
+--
+-- BY COLUMN, for the same reason as households in 0028: one column, named, so
+-- the role still cannot touch claimed_at, counts, changed or occurred_at.
+--
+-- Nothing was broken in production. markEnqueued has no caller yet, so this
+-- would have failed the first time 4.4.5's wiring ran rather than on a sync
+-- today. It is granted now rather than deferred to that wiring because the
+-- statement exists now and the reach scan is red now, and a control silenced by
+-- an exception is worth less than the grant costs (Guy, 20 Aug 2026).
+GRANT UPDATE (enqueued_at) ON "household_state_signals" TO marginsheet_sync;--> statement-breakpoint
+
+-- ---------------------------------------------------------------------------
+-- 2. THE CORRECTION, and the reusable part is not the grant
+--
+-- 0024's grant comment reads: "INSERT and SELECT only: the sync worker writes
+-- signals and reads them for the repair sweep, and has no reason to update or
+-- delete one", and "The consumer claims signals, which is the only UPDATE
+-- anyone needs."
+--
+-- THAT SENTENCE ACCOUNTED FOR ONE UPDATE AND THERE ARE TWO. The consumer writes
+-- claimed_at. The ANNOUNCER writes enqueued_at, after the data commits, by
+-- whoever committed it, which is the sync Worker and is stated in outbox.ts in
+-- the same breath. So "the only UPDATE anyone needs" was false when written.
+--
+-- THE REUSABLE PART: 0024 ENUMERATED FROM A BELIEF ABOUT THE STATEMENTS RATHER
+-- THAN FROM THE STATEMENTS. The grant was written by reasoning about what the
+-- sync Worker ought to need, and the reasoning was careful, plausible and one
+-- case short. Reading the Worker's SQL would have answered it in a minute, and
+-- that is now what sync-worker-reach.test.ts does on every run: it derives the
+-- statements and asks the catalog, so the next enumeration written from belief
+-- fails in CI instead of on a real sync.
+--
+-- Migrations are append-only, so 0024's text stands as written and the
+-- correction travels forward. The table comment is where it lands, because a
+-- comment in a migration file is read by whoever opens that file and the table
+-- comment is read by anyone who introspects the database.
+COMMENT ON TABLE "household_state_signals" IS
+	'The household-state-changed outbox. Contract ruled 18 Aug 2026: a THIN signal carrying no financial data. Never add a column for an amount, a balance, a merchant name, a household activity date, a category name, or any transaction detail. The reason is a boundary rather than a preference: no column privilege, no policy and no role grant travels with a message, so a payload carrying household figures would be the one place in this system where they exist unprotected. The queue notification carries signal_id alone; the consumer reads this row as marginsheet_app with the household GUC set. enqueued_at is set AFTER the data commits, so NULL means no notification was ever announced: the repair sweep is structurally blind to those rows, which is what makes it a repair path rather than a poller, and a separate counter sees them as evidence of a crash in the commit-to-enqueue window. Two controls, opposite directions, same column. CORRECTION, 20 Aug 2026 (migration 0029): 0024 said the consumer''s claim was "the only UPDATE anyone needs". It is not. There are two UPDATEs by two roles, and they are not interchangeable: marginsheet_app writes claimed_at when it claims a signal, and marginsheet_sync writes enqueued_at when it announces one, which by the contract above happens after the data commits and therefore in the Worker that committed it. marginsheet_sync now holds UPDATE on enqueued_at alone, by column. THE ORIGINAL ENUMERATED FROM A BELIEF ABOUT THE STATEMENTS RATHER THAN FROM THE STATEMENTS: it reasoned about what the sync Worker ought to need instead of reading the SQL it issues, and was careful, plausible and one case short. Found by the reach scan on its first run.';
