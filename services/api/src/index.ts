@@ -96,6 +96,7 @@ const handler = {
       url.pathname === "/plaid/link-token" ||
       url.pathname === "/plaid/sync" ||
       url.pathname === "/plaid/accounts" ||
+      url.pathname === "/plaid/ledger-readout" ||
       url.pathname === "/plaid/oauth-return" ||
       url.pathname === "/connect"
     ) {
@@ -189,6 +190,110 @@ const handler = {
              order by i.name nulls last, fa.name
           `;
           return Response.json({ accounts });
+        }
+
+        if (url.pathname === "/plaid/ledger-readout") {
+          // THE READOUT (4.5b prime, throwaway with the rest of this surface).
+          //
+          // 201 transactions across six depository accounts is either the whole
+          // window SoFi gave or a window we truncated, and OUR TABLES CANNOT
+          // TELL THOSE APART because both produce the same rows. So this
+          // reports what we hold, PER ACCOUNT, beside what Plaid says exists,
+          // PER ACCOUNT, and leaves the comparison visible rather than making
+          // it (Guy, 20 Aug 2026).
+          //
+          // PER ACCOUNT AND PER TYPE, NOT AGGREGATE. A uniform backfill window
+          // is an assumption; six accounts on one login can answer differently,
+          // and an Item total that matches hides an account that returned
+          // nothing. The type breakdown answers a different question: the Plaid
+          // research says Transactions cannot return investment history, and if
+          // the two investment accounts carry rows then that research is wrong
+          // about this institution. Better found in a readout than in a Kept
+          // figure three modules from now.
+          await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;
+
+          const accounts = await sql<
+            {
+              plaid_account_id: string; name: string | null; mask: string | null;
+              type: string | null; subtype: string | null; institution: string | null;
+              held: number; oldest: string | null; newest: string | null;
+              oldest_authorized: string | null; pending: number; removed: number;
+            }[]
+          >`
+            select fa.plaid_account_id, fa.name, fa.mask, fa.type, fa.subtype,
+                   i.name as institution,
+                   count(t.id)::int as held,
+                   min(t.date)::text as oldest,
+                   max(t.date)::text as newest,
+                   min(t.authorized_date)::text as oldest_authorized,
+                   count(t.id) filter (where t.pending)::int as pending,
+                   count(t.id) filter (where t.removed)::int as removed
+              from financial_accounts fa
+              join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
+              left join institutions i on i.id = pi.institution_id
+              left join transactions t on t.account_id = fa.id and t.household_id = fa.household_id
+             where fa.household_id = ${householdId}
+             group by fa.plaid_account_id, fa.name, fa.mask, fa.type, fa.subtype, i.name
+             order by i.name nulls last, fa.type, fa.name
+          `;
+
+          const byType = await sql<{ type: string | null; accounts: number; held: number; oldest: string | null }[]>`
+            select fa.type,
+                   count(distinct fa.id)::int as accounts,
+                   count(t.id)::int as held,
+                   min(t.date)::text as oldest
+              from financial_accounts fa
+              left join transactions t on t.account_id = fa.id and t.household_id = fa.household_id
+             where fa.household_id = ${householdId}
+             group by fa.type
+             order by fa.type
+          `;
+
+          const items = await sql<
+            {
+              item_id: string; sync_status: string | null; status: string | null;
+              sync_cursor: string | null; last_completed_cursor: string | null;
+              last_cursor_at: string | null; last_successful_sync: string | null;
+            }[]
+          >`
+            select item_id, sync_status, status, sync_cursor, last_completed_cursor,
+                   last_cursor_at::text, last_successful_sync::text
+              from plaid_items where household_id = ${householdId} order by created_at
+          `;
+
+          const [household] = await sql<
+            { first_sync_completed_at: string | null; connected_first_account_at: string | null }[]
+          >`
+            select first_sync_completed_at::text, connected_first_account_at::text
+              from households where id = ${householdId}
+          `;
+
+          // THE CURSORS ARE REPORTED AS A COMPARISON, not as two opaque
+          // strings. Equal after a clean run; unequal means the pagination
+          // stopped in flight. A reader should not have to diff two base64
+          // blobs by eye to learn which happened.
+          const cursors = items.map((i) => ({
+            itemId: i.item_id,
+            equal: i.sync_cursor === i.last_completed_cursor,
+            inFlightPresent: Boolean(i.sync_cursor),
+            lastCompletedPresent: Boolean(i.last_completed_cursor),
+          }));
+
+          // Plaid's own count. Requested LAST so a Plaid outage still returns
+          // everything above it rather than failing the whole readout.
+          let plaid: unknown = { error: "no SYNC service binding" };
+          if (env.SYNC) {
+            const response = await env.SYNC.fetch(
+              new Request("https://sync.internal/internal/plaid-totals", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ householdId }),
+              })
+            );
+            plaid = await response.json().catch(() => ({ error: `sync returned ${response.status}` }));
+          }
+
+          return Response.json({ ours: { accounts, byType, items, household, cursors }, plaid });
         }
 
         return new Response("not found", { status: 404 });

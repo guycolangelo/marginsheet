@@ -13,6 +13,7 @@
 // Presence is the empty-string incident with a better disguise.
 
 import { readSyncSchemaHealth } from "@marginsheet/shared/db";
+import { readoutForHousehold } from "./ledger-readout.js";
 import { encryptToken, decryptToken } from "./token-crypto.js";
 import { exchangePublicToken } from "./exchange.js";
 import { createLinkToken } from "./reconnect.js";
@@ -231,6 +232,38 @@ export default {
         }
       }
       return Response.json({ items: items.length, results });
+    }
+
+    // POST /internal/plaid-totals: ask Plaid how many transactions exist.
+    //
+    // THE CROSS-CHECK, and it lives here for the same reason link-token does:
+    // the access token and the client secret are both here and neither is in
+    // api. It is throwaway with the rest of the 4.5b prime surface.
+    //
+    // It reads nothing of ours and writes nothing. Our own counts come from
+    // api, which can read the tables; this route exists ONLY to obtain a number
+    // that did not come from us, because a readout assembled from our tables
+    // agrees with itself whatever went wrong.
+    if (url.pathname === "/internal/plaid-totals" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const { householdId } = (await request.json().catch(() => ({}))) as { householdId?: string };
+      if (!householdId) return Response.json({ error: "householdId is required" }, { status: 400 });
+
+      // THE LOOKUP AND THE DECRYPT LIVE IN THE MODULE, not here. This file
+      // calls fetch, so naming a token in it would make it a second place a
+      // Plaid request could be built, and the leak probe guards exactly one.
+      const results = await readoutForHousehold(
+        householdId,
+        { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+        env.TOKEN_ENCRYPTION_KEY,
+        env.NEON_DATABASE_URL
+      );
+      return Response.json({ items: results.length, results });
     }
 
     // POST /internal/link-token: mint a link token for a NEW connection.

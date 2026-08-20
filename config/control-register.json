@@ -797,6 +797,21 @@
         "note": "THE CHEAP OBVIOUS FIX, WHICH IS WHY IT IS THE MUTATION. Both people looking at the 20 Aug failure reached for a table grant first, and it is correct about the statement it unblocks: markFirstSyncCompleted runs fine afterwards, control 1 stays green, and the role quietly gains SELECT on avg_monthly_income, entitlement_state, address, hardship_flag and stripe_customer_id. It is also the shape recorded on 15 Aug in column-privileges.test.ts, where a table grant masked a column control and the migration read as a boundary that was not there. Note what the mutation does NOT do: it does not remove the column grant, so a check comparing only column privileges would still find them all present and pass."
       },
       "distinction": "The direction the other half cannot see. sync-reach-inside-grant asks whether the role can run the Worker's statements, and a table grant makes that MORE true. This asks whether a narrowing that was ruled on is still a narrowing. It keys off which tables a migration narrows by column rather than off the privileges themselves, which is deliberate and is not a check reading its expectation from its subject: the catalog answers what the role HOLDS, and the migrations answer only which tables somebody INTENDED to be narrow. Nothing here takes a privilege from migration text. Direction 2 asserts at least one table is column-scoped, because with none it would compare nothing and pass."
+    },
+    {
+      "id": "connect-routes-are-all-gated",
+      "control": "the per-route gate scan (services/api/test/connect-surface.test.ts)",
+      "guards": "Every /plaid route the api Worker handles sits inside the session gate's condition, or is exempt with its reason in the source.",
+      "test": "services/api/test/connect-surface.test.ts",
+      "name": "names every /plaid route in the gate's condition, or exempts it out loud",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "      url.pathname === \"/plaid/ledger-readout\" ||\n",
+        "replace": "",
+        "note": "OMITS THE LINE, which is the shape this file already records as the purest plausible mutation: nobody writes an ungated route on purpose, and the failure mode is that nobody writes anything. The handler stays exactly where it is and stays correct; it simply stops being reached through the gate and falls through to the unauthenticated part of the Worker. Verified red 20 Aug 2026, on the right assertion, with the route named in the message."
+      },
+      "distinction": "THE BLOCK-LEVEL ASSERTION BESIDE IT CANNOT SEE THIS, and that is why this exists. 'gates link-token, accounts and the page behind getSession' proves the guarded REGION calls getSession, which stays true however many routes are handled somewhere else: its coverage is a property of the region rather than of the routes. Adding /plaid/ledger-readout made it concrete, because the route was gated in fact and nothing asserted it. The two exemptions are named in the test rather than inferred: the OAuth return arrives from the bank rather than from our own fetch, and the exchange carries its own session handling under its own control. Direction 2 asserts the scan found more than three routes, because a regex that stops matching would compare two empty sets and pass."
     }
   ]
 }
