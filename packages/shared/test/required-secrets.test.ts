@@ -31,12 +31,21 @@ describe("requiredSecrets derives from the declaration", () => {
 
 describe("secretPresence reports booleans and nothing else", () => {
   it("is false for an empty string, which is the whole point", () => {
-    expect(
-      secretPresence("sync", "production", {
-        NEON_DATABASE_URL: "postgres://real",
-        TOKEN_ENCRYPTION_KEY: "",
-      })
-    ).toEqual({ NEON_DATABASE_URL: true, TOKEN_ENCRYPTION_KEY: false });
+    // ASSERTED PER KEY RATHER THAN AS A WHOLE OBJECT. A toEqual over the full
+    // shape makes this test fail whenever a secret is ADDED to the declaration,
+    // which is a change to what production requires and not a change to what
+    // this function does. It broke on 19 Aug 2026 when DEBUG_PROBE_TOKEN was
+    // declared, and the failure said nothing about presence reporting.
+    //
+    // The point of this test is the mapping from value to boolean, so that is
+    // what it asserts. Coverage of WHICH secrets are required belongs to
+    // requiredSecrets above, which reads the declaration.
+    const presence = secretPresence("sync", "production", {
+      NEON_DATABASE_URL: "postgres://real",
+      TOKEN_ENCRYPTION_KEY: "",
+    });
+    expect(presence.NEON_DATABASE_URL, "a real value must report true").toBe(true);
+    expect(presence.TOKEN_ENCRYPTION_KEY, "an EMPTY STRING must report false").toBe(false);
   });
 
   it("is false for a missing value as well as an empty one", () => {
