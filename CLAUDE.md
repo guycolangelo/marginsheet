@@ -203,7 +203,13 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   Two controls, named for what each is. A **receiver scan** requires every `set_config` to be on a transaction handle, which is a convention and says so. A **db test** demonstrates the same query returning one row inside a transaction and zero outside it, which makes the claim executable instead of argued.
 
+  **THE GENERAL FORM, AND IT IS BIGGER THAN THIS BUG** (Guy, 20 Aug 2026). **The failure mode of household isolation, when misconfigured, is an empty result.** Not an error, not a refusal: silence, which is indistinguishable from a household that genuinely has nothing. **Every RLS-scoped read in this system has that shape**, so a broken GUC anywhere presents as **a customer with no data rather than as a fault.**
+
+  That is why both defects shipped and neither was noticed. The connect page said *"none yet"* for hours while SoFi was connected, and it read as a page not yet wired rather than as a symptom. **Nothing in the system was in a position to disagree**, because an empty list is a legitimate answer to that question.
+
   **The failure signature to recognise: a query that returns an empty set for every caller, forever, with no error anywhere.** If a list is always empty and nothing is broken, ask what the policy is reading and whether the thing that set it is still in scope.
+
+  **The consequence, noted rather than ruled** (`docs/open-items.json`): any read whose empty result would be a plausible business answer should **assert the GUC is set** rather than merely rely on it. The two controls above stop the specific mistake; they do not make an empty result self-describing, and that is the class.
 
 - **POSTGRES NAMES THE TABLE WHEN THE BOUNDARY IS THE COLUMN, so the error points at the wrong artifact.** (Guy, 20 Aug 2026.) Small, and it cost a wrong first hypothesis, so it is written down.
 

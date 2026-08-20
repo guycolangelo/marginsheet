@@ -408,6 +408,21 @@ jobs:
           DATABASE_URL: ${{ env.PLANTED_DATABASE_URL }}
         run: pnpm --filter @marginsheet/schema migrate:up
 
+      # WHICH DATABASE, AND DOES IT HOLD WHAT THE LEDGER CLAIMS. Added 20 Aug
+      # 2026 after control-register reported "permission denied for table
+      # households" on a column 0028 grants, while the migrate job passed the
+      # same test against a branch with the same parent. "permission denied"
+      # cannot distinguish a wrong database from a schema behind its own ledger,
+      # and reasoning harder about it produces confident wrong answers at speed.
+      #
+      # It reports and never fails the job: a diagnostic that can break the
+      # build is one somebody eventually deletes.
+      - name: What database is the harness talking to
+        if: steps.touched.outputs.hits != ''
+        env:
+          DATABASE_URL: ${{ env.PLANTED_DATABASE_URL }}
+        run: node .github/scripts/harness-db-identity.mjs
+
       - name: This PR changed a control test, so prove it still goes red
         if: steps.touched.outputs.hits != ''
         env:
