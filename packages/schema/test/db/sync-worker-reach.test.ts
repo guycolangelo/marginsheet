@@ -82,19 +82,26 @@ function statements(): string[] {
   return out;
 }
 
-/** Tables some migration narrows for this role BY COLUMN.
+/** The (table, privilege) pairs some migration narrows for this role BY COLUMN.
+ *
+ *  PER PRIVILEGE, NOT PER TABLE, and that precision was paid for immediately:
+ *  household_state_signals holds SELECT and INSERT at table level by 0024 and
+ *  UPDATE by column by 0028, all three deliberately. A per-table notion of
+ *  "narrowed" would report the two table grants as findings and teach whoever
+ *  read it to stop believing this test.
  *
  *  Read from the migration text on purpose, and it is not the forbidden shape
  *  of a check reading its expectation from its subject. The SUBJECT here is the
  *  catalog, which answers what the role holds; the migrations answer only which
- *  tables somebody INTENDED to narrow. Two different artifacts, two different
- *  questions. Nothing below takes a privilege from the migration text. */
-function columnScopedTables(): Set<string> {
+ *  privileges somebody INTENDED to narrow. Two different artifacts, two
+ *  different questions. Nothing below takes a privilege from migration text. */
+function columnScopedPairs(): Set<string> {
   const out = new Set<string>();
   for (const f of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql") && !f.includes(".down."))) {
     const text = readFileSync(join(MIGRATIONS, f), "utf8");
-    for (const m of text.matchAll(/GRANT\s+[A-Z]+\s*\([^)]*\)\s+ON\s+"?([a-z_]+)"?\s+TO\s+marginsheet_sync/gi)) {
-      out.add(m[1]);
+    for (const m of text.matchAll(/GRANT\s+([A-Z]+)\s*\([^)]*\)((?:\s*,\s*[A-Z]+\s*\([^)]*\))*)\s+ON\s+"?([a-z_]+)"?\s+TO\s+marginsheet_sync/gi)) {
+      const privs = [m[1], ...[...m[2].matchAll(/([A-Z]+)\s*\(/gi)].map((x) => x[1])];
+      for (const priv of privs) out.add(`${m[3]}:${priv.toUpperCase()}`);
     }
   }
   return out;
@@ -182,27 +189,26 @@ describe("the sync Worker's reach is inside what marginsheet_sync holds", () => 
     // would be no column privileges left to compare.
     //
     // The second is drift: a column added to the enumerated list over time.
-    const scoped = columnScopedTables();
-    expect(scoped.size, "no table is narrowed by column, so this compared nothing").toBeGreaterThan(0);
+    const scoped = columnScopedPairs();
+    expect(scoped.size, "no privilege is narrowed by column, so this compared nothing").toBeGreaterThan(0);
 
     const findings: string[] = [];
-    for (const table of scoped) {
+    for (const pair of scoped) {
+      const [table, priv] = pair.split(":") as [string, Priv];
       const cols = reach.get(table) ?? new Map<string, Set<Priv>>();
-      for (const priv of ["SELECT", "INSERT", "UPDATE"] as const) {
-        const [t] = await sql<{ allowed: boolean }[]>`
-          select has_table_privilege(${ROLE}, ${table}, ${priv}) as allowed
+      const [t] = await sql<{ allowed: boolean }[]>`
+        select has_table_privilege(${ROLE}, ${table}, ${priv}) as allowed
+      `;
+      if (t.allowed) {
+        findings.push(`${priv} on ${table} is held at TABLE level, which covers every column the column grant enumerates`);
+        continue;
+      }
+      for (const column of schema.get(table) ?? []) {
+        const [c] = await sql<{ allowed: boolean }[]>`
+          select has_column_privilege(${ROLE}, ${table}, ${column}, ${priv}) as allowed
         `;
-        if (t.allowed) {
-          findings.push(`${priv} on ${table} is held at TABLE level, which covers every column the column grant enumerates`);
-          continue;
-        }
-        for (const column of schema.get(table) ?? []) {
-          const [c] = await sql<{ allowed: boolean }[]>`
-            select has_column_privilege(${ROLE}, ${table}, ${column}, ${priv}) as allowed
-          `;
-          if (c.allowed && !cols.get(column)?.has(priv)) {
-            findings.push(`${priv} on ${table}.${column} is granted and never used`);
-          }
+        if (c.allowed && !cols.get(column)?.has(priv)) {
+          findings.push(`${priv} on ${table}.${column} is granted and never used`);
         }
       }
     }

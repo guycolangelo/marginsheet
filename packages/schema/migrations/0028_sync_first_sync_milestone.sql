@@ -26,3 +26,30 @@
 -- EXPECTED_TABLES in scripts/sync-db-url.mts.
 GRANT SELECT (id, first_sync_completed_at) ON "households" TO marginsheet_sync;--> statement-breakpoint
 GRANT UPDATE (first_sync_completed_at, updated_at) ON "households" TO marginsheet_sync;
+--> statement-breakpoint
+
+-- FOUND BY THE REACH SCAN ON ITS FIRST RUN, minutes after it was written, and
+-- it is the fourth instance of the shape in one morning.
+--
+-- outbox.markEnqueued issues `update household_state_signals set enqueued_at`
+-- from the sync Worker. Migration 0024 granted that role SELECT and INSERT
+-- only, and said why: "the sync worker writes signals and reads them for the
+-- repair sweep, and has no reason to update or delete one", with the UPDATE
+-- given to marginsheet_app because "the consumer claims signals, which is the
+-- only UPDATE anyone needs".
+--
+-- THAT SENTENCE ACCOUNTED FOR ONE UPDATE AND THERE ARE TWO. The consumer
+-- writes claimed_at. The ANNOUNCER writes enqueued_at, and by the contract in
+-- the same file, enqueued_at is set AFTER the data commits, by whoever
+-- committed it. That is the sync Worker, not the consumer. 0024 enumerated
+-- from a belief about the statements rather than from the statements.
+--
+-- WHAT IS AND IS NOT CLAIMED. Nothing is broken in production: markEnqueued
+-- has no caller yet, so this would have failed the first time 4.4.5's wiring
+-- ran rather than on a sync today. It is recorded here rather than deferred to
+-- that wiring because the statement exists now and the reach scan is red now,
+-- and a control silenced by an exception is worth less than the grant costs.
+--
+-- BY COLUMN, for the same reason as households above: one column, named, so
+-- the role still cannot touch claimed_at, counts, changed or occurred_at.
+GRANT UPDATE (enqueued_at) ON "household_state_signals" TO marginsheet_sync;
