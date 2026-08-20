@@ -24,6 +24,101 @@ export interface StreamCounts {
 /** Minimal tagged-template shape, so callers own the transaction. */
 export type Tx = (strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown[]>;
 
+/** One transaction as Plaid reports it, narrowed to what M4 stores.
+ *
+ *  M4 stores FACTS AND NOTHING DERIVED. category_id, pl_line, review_state,
+ *  confidence and the transfer fields are M5's, and writing a guess into them
+ *  here would be a filing decision made by the pipeline. `direction` is the one
+ *  judgement call and it is arithmetic rather than interpretation: Plaid signs
+ *  outflows positive, so a positive amount is an expense. */
+export interface PlaidTransaction {
+  transaction_id: string;
+  account_id: string;
+  date: string;
+  authorized_date?: string | null;
+  amount: number;
+  iso_currency_code?: string | null;
+  merchant_name?: string | null;
+  name?: string | null;
+  pending?: boolean;
+  personal_finance_category?: { primary?: string | null; detailed?: string | null } | null;
+  payment_meta?: unknown;
+  counterparties?: unknown;
+}
+
+/** Plaid signs money LEAVING the account positive. */
+function directionOf(amount: number): "income" | "expense" {
+  return amount > 0 ? "expense" : "income";
+}
+
+/** Writes added and modified transactions for ONE household.
+ *
+ *  ONE STATEMENT FOR BOTH STREAMS, deliberately. `modified` is how a PENDING row
+ *  becomes POSTED, which is the transition categorization-spec section 10 turns
+ *  on and the one thing Sandbox could never construct. An insert-or-update on
+ *  the same conflict target handles both, and splitting them would create two
+ *  places for the settle to be got wrong.
+ *
+ *  THE HOUSEHOLD IS NAMED IN THE STATEMENT, NOT ONLY IN THE POLICY.
+ *  plaid_transaction_id is PLAID's namespace and is shared across every
+ *  household: two households on one joint account see the same id. Migration
+ *  0026 constrains this role to the declared household, and that is the
+ *  backstop rather than the mechanism. Both hold independently, which is the
+ *  reason the removed-stream predicate landed before the policy did.
+ *
+ *  ACCOUNT IDS ARE RESOLVED WITHIN THE HOUSEHOLD for the same reason: Plaid's
+ *  account id is Plaid's, so the lookup that turns it into ours is scoped.
+ *
+ *  Returns rows actually written, not rows offered. The two differ when a
+ *  transaction names an account this household does not hold, and a caller that
+ *  cannot see the difference cannot notice the case. */
+export async function applyAddedAndModified(
+  tx: Tx,
+  householdId: string,
+  transactions: PlaidTransaction[]
+): Promise<number> {
+  if (transactions.length === 0) return 0;
+  let written = 0;
+
+  for (const t of transactions) {
+    const rows = await tx`
+      insert into transactions (
+        household_id, account_id, plaid_transaction_id, date, authorized_date,
+        amount, iso_currency, merchant_name, original_description, direction,
+        account_type, plaid_pfc_primary, plaid_pfc_detailed, pending
+      )
+      select
+        ${householdId}, fa.id, ${t.transaction_id}, ${t.date}::date,
+        ${t.authorized_date ?? null}::date, ${Math.abs(t.amount)},
+        ${t.iso_currency_code ?? null}, ${t.merchant_name ?? null},
+        ${t.name ?? null}, ${directionOf(t.amount)}::transaction_direction,
+        fa.type, ${t.personal_finance_category?.primary ?? null},
+        ${t.personal_finance_category?.detailed ?? null}, ${t.pending ?? false}
+      from financial_accounts fa
+      where fa.household_id = ${householdId}
+        and fa.plaid_account_id = ${t.account_id}
+      on conflict (plaid_transaction_id) do update
+        set date = excluded.date,
+            authorized_date = excluded.authorized_date,
+            amount = excluded.amount,
+            merchant_name = excluded.merchant_name,
+            original_description = excluded.original_description,
+            direction = excluded.direction,
+            plaid_pfc_primary = excluded.plaid_pfc_primary,
+            plaid_pfc_detailed = excluded.plaid_pfc_detailed,
+            -- THE SETTLE. A modified row arriving with pending=false is a
+            -- pending transaction becoming posted, and it must land on the
+            -- SAME row rather than creating a second one.
+            pending = excluded.pending,
+            updated_at = now()
+        where transactions.household_id = ${householdId}
+      returning id
+    `;
+    written += rows.length;
+  }
+  return written;
+}
+
 /** Flags removed transactions for ONE household. NEVER deletes.
  *
  * THE HOUSEHOLD IS A PARAMETER BECAUSE THE STATEMENT MUST BE CORRECT WITHOUT

@@ -430,5 +430,13 @@
     "trigger": "4.5b prime, when real institutions connect and actual depths are observable rather than assumed; a ruling on the engine follows the numbers",
     "owed_to": "TRIGGER: 4.5b prime. Found while confirming Plaid prerequisites, from the Capital One 90-day limit, which Guy identified as bigger than Capital One.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "our-silence-is-indistinguishable-from-theirs",
+    "item": "FOUR PLACES WHERE OUR FAILURE READS AS A PROVIDER'S NORMAL BEHAVIOUR, AND ONLY ONE HAS A CONTROL. Named by Guy 19 Aug 2026 after the settle control: a red starts an investigation, but A WRONG ANSWER THAT BLAMES A THIRD PARTY ENDS ONE, and the conclusion gets written down as a finding about Plaid so the next person inherits it as fact rather than as a question. THE TELL THAT GENERALISES: the conclusion is UNFALSIFIABLE FROM INSIDE OUR OWN SYSTEM, so it terminates the investigation rather than starting one. THE FOUR: (1) a settle that never arrives reads as Capital One's documented lack of pending data, and pending-carries-through-the-settle is the only control here that distinguishes our silence from theirs; (2) an empty sync page reads as no new transactions, and nothing distinguishes that from a paginator that stopped early; (3) a missing account reads as the household not selecting it in Link, and nothing distinguishes that from an account we failed to store; (4) a 404 from a gated route read as a dead Worker, and DID, for one deploy, until the raw body showed the gate refusing an empty token. WHAT IS OWED: each of (2) and (3) needs a control that can tell our silence from theirs, in the way the public-surface probe's POSITIVE CONTROL does: it requires a Worker declared public to answer before it believes any silence at all. Until then, an investigation into either will stop at the provider.",
+    "owner": "build",
+    "trigger": "4.5b prime's first real sync, when all four become observable against real data rather than hypothetical",
+    "owed_to": "TRIGGER: the first real sync. Named by Guy 19 Aug 2026; the settle case is controlled, the other three are not.",
+    "raised": "2026-08-19"
   }
 ]

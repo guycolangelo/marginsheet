@@ -673,6 +673,66 @@
         "note": "THE MUTATION IS AN OMISSION, because the defect was an omission. Removing the line restores exactly the state that had marginsheet-sync answering 200 in production while a test named \"unreachable from the public internet\" passed. A mutation that set workers_dev TRUE would prove far less: nobody was ever going to write true, and the failure mode is that nobody writes anything. Verified 19 Aug 2026."
       },
       "distinction": "TWO CONTROLS, DELIBERATELY, AND THEY FAIL AT DIFFERENT MOMENTS. The unit test fails when the config is edited and is what the register plants against. The CI job fails when the DEPLOYED surface disagrees with the declaration, which is the only one that could have caught the original: the config was never wrong in a way a reader would notice, it was silent, and silence is the exposed state. The live job carries a positive control because its passing state is indistinguishable from a network failure."
+    },
+    {
+      "id": "transaction-writer-names-the-household",
+      "control": "applyAddedAndModified's household scoping (services/sync/src/apply-streams.ts)",
+      "guards": "A transaction cannot be written into, or attached to an account of, another household.",
+      "test": "services/sync/test/apply-streams.test.ts",
+      "name": "names the household in the insert, the lookup AND the conflict clause",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/apply-streams.ts",
+        "find": "      where fa.household_id = ${householdId}",
+        "replace": "      where TRUE --",
+        "note": "Removes the household scope from the ACCOUNT LOOKUP, which is the subtlest of the three ways this statement can cross a boundary: the row would carry the right household_id and hang off another household's account. Verified red 19 Aug 2026."
+      },
+      "distinction": "THE PROVIDER-KEY RULE APPLIED AT THE POINT OF WRITING RATHER THAN AFTER (Guy). plaid_transaction_id is PLAID's namespace and shared across households, and this is the table where the ledger lives and where the worst of the four confirmed cross-household writes landed. Migration 0026 constrains this role to the declared household and is the BACKSTOP; the predicate is the mechanism, and both hold independently. THREE PLACES, EACH A SEPARATE CROSSING: the insert scopes the row, the account lookup scopes what it may attach to, and the conflict clause scopes which existing row it may update."
+    },
+    {
+      "id": "pending-carries-through-the-settle",
+      "control": "the pending flag on conflict in applyAddedAndModified",
+      "guards": "A pending transaction becoming posted updates the same row rather than staying pending forever.",
+      "test": "services/sync/test/apply-streams.test.ts",
+      "name": "carries pending through on conflict, because that is the settle",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/apply-streams.ts",
+        "find": "            pending = excluded.pending,",
+        "replace": "            pending = transactions.pending,",
+        "note": "Keeps the OLD pending value on update, which is what somebody writes when they think pending should not be overwritten. The row stays pending forever and every count-based test stays green. Verified red 19 Aug 2026."
+      },
+      "distinction": "THIS IS THE TRANSITION SANDBOX CANNOT CONSTRUCT, which is why the assertion is on the STATEMENT rather than on an observed settle. Plaid reports a settle as a MODIFIED transaction with pending=false, so if the update does not set pending the row stays pending forever and categorization-spec section 10 never fires on real data. The observed settle is 4.5b prime's acceptance criterion and this control is what makes the statement capable of producing one."
+    },
+    {
+      "id": "rows-are-written-before-the-cursor-moves",
+      "control": "the apply-then-persist ordering in runTransactionsSync",
+      "guards": "A cursor never advances past transactions that were not stored.",
+      "test": "services/sync/test/transactions-sync.test.ts",
+      "name": "applies the page, THEN persists the cursor",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/transactions-sync.ts",
+        "find": "        const applied = await applyPage(page);\n        written += applied.written;\n        flagged += applied.flagged;\n\n        // AFTER EVERY PAGE, so a crash resumes rather than replaying from zero.\n        await persistInFlight(cursor);",
+        "replace": "        // PLANTED: cursor first, rows second.\n        await persistInFlight(cursor);\n\n        const applied = await applyPage(page);\n        written += applied.written;\n        flagged += applied.flagged;",
+        "note": "Swaps two adjacent statements, neither of which is wrong on its own. This is the plausible-and-wrong form: persisting the cursor 'as soon as we have it' reads as promptness, and the resulting code is one line different from correct. Verified red 19 Aug 2026."
+      },
+      "distinction": "PLAID'S CURSOR IS A PROMISE ABOUT WHAT WE HAVE CONSUMED. Persisting it before the rows are stored makes that promise false, and the failure is SILENT: the next run resumes past transactions nobody wrote, there is no error, no retry, and the ledger is missing a page while the cursor says it was read. The assertion is on ORDER rather than on outcome, because the outcome is indistinguishable from correct until the crash that never happens in a test."
+    },
+    {
+      "id": "connect-surface-household-from-session",
+      "control": "the 4.5b prime connect surface's household derivation",
+      "guards": "No connect route accepts a household from the caller, and none is reachable without a session.",
+      "test": "services/api/test/connect-surface.test.ts",
+      "name": "rebuilds the link-token body rather than forwarding the request's",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "              body: JSON.stringify({ householdId }),",
+        "replace": "              body: JSON.stringify({ householdId, ...(await request.clone().json().catch(() => ({}))) }),",
+        "note": "The spread, which is the same mutation the exchange fix carries and the same defect with an extra step: a caller-supplied householdId rides along and wins by key order. Verified red 19 Aug 2026."
+      },
+      "distinction": "THE SURFACE IS THROWAWAY AND THIS ASSERTION IS NOT. M8 replaces the page; what it must not inherit is the shape of the defect that took a day to find. The page sends no householdId AT ALL rather than sending one that is ignored, because /plaid/exchange ignoring it makes sending it harmless TODAY and teaches the next reader it is an input. THE OAUTH RETURN IS DELIBERATELY UNAUTHENTICATED and the test asserts the reason is stated: it arrives from the BANK rather than from our own fetch, so a session check would break the flow it exists to complete, and it reads nothing and writes nothing."
     }
   ]
 }

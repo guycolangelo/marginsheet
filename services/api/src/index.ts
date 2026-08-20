@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { scrubEvent } from "@marginsheet/shared/sentry-scrub";
 import { readDbIdentity, readSchemaHealth } from "@marginsheet/shared/db";
 import { secretPresence } from "@marginsheet/shared/required-secrets";
+import { CONNECT_PAGE, OAUTH_RETURN_PAGE } from "./connect-page.js";
 import { createAuth } from "./auth.js";
 import { postmarkSender } from "./email.js";
 import { confirmSignIn, confirmLandingPage } from "./confirm.js";
@@ -84,6 +85,100 @@ const handler = {
     //
     // Everything past this line happens inside marginsheet-sync, which has no
     // public route and holds the only copy of the encryption key.
+    // The connect surface (4.5b prime). Three routes, all session-gated by the
+    // same helper the exchange uses, all deriving the household from the
+    // session and never from the request.
+    //
+    // NO SECOND GATE. auth is production-only by the 19 Aug ruling and every
+    // one of these requires a session, so the page works only in production
+    // signed in. Two gates where one is real is how a gate stops being read.
+    if (
+      url.pathname === "/plaid/link-token" ||
+      url.pathname === "/plaid/accounts" ||
+      url.pathname === "/plaid/oauth-return" ||
+      url.pathname === "/connect"
+    ) {
+      // The OAuth return is the URL registered with Plaid. It carries no
+      // secrets and does nothing but hand control back to the page, which
+      // re-opens Link with the stored token. It is deliberately the ONLY
+      // unauthenticated route here: an OAuth redirect arrives from the bank,
+      // not from our own fetch, and refusing it would break the flow it exists
+      // to complete. It reads nothing and writes nothing.
+      if (url.pathname === "/plaid/oauth-return") {
+        return new Response(OAUTH_RETURN_PAGE, {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+
+      if (!env.NEON_DATABASE_URL || !env.BETTER_AUTH_SECRET || !env.BETTER_AUTH_URL) {
+        return Response.json({ error: "auth is not configured" }, { status: 503 });
+      }
+      const auth = createAuth({
+        NEON_DATABASE_URL: env.NEON_DATABASE_URL,
+        ENVIRONMENT: env.ENVIRONMENT,
+        BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL: env.BETTER_AUTH_URL,
+      });
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (!session?.session) return Response.json({ error: "not_signed_in" }, { status: 401 });
+
+      const sql = postgres(env.NEON_DATABASE_URL, { max: 1, idle_timeout: 5, connect_timeout: 10 });
+      try {
+        const [row] = await sql<{ household_id: string | null }[]>`
+          select public.auth_household_id(${session.user.id}) as household_id
+        `;
+        if (!row?.household_id) return Response.json({ error: "no_household" }, { status: 403 });
+        const householdId = row.household_id;
+
+        if (url.pathname === "/connect") {
+          return new Response(CONNECT_PAGE, {
+            headers: { "content-type": "text/html; charset=utf-8" },
+          });
+        }
+
+        if (url.pathname === "/plaid/link-token" && request.method === "POST") {
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/link-token", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              // REBUILT, never forwarded: the household comes from the session.
+              body: JSON.stringify({ householdId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/accounts") {
+          // THE LIST, NOT THE HEURISTIC (Guy, 19 Aug 2026). What is already
+          // connected, so a household can see a duplicate for themselves.
+          // Mask-plus-type-plus-institution matching stays owed to M8, because
+          // a heuristic that acts silently is wrong invisibly and only the
+          // household can say "no, that is a different card".
+          await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;
+          const accounts = await sql<
+            { name: string | null; mask: string | null; type: string | null; institution: string | null; item_id: string }[]
+          >`
+            select fa.name, fa.mask, fa.type, i.name as institution, pi.item_id
+              from financial_accounts fa
+              join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
+              left join institutions i on i.id = pi.institution_id
+             where fa.household_id = ${householdId}
+               and fa.is_active = true
+             order by i.name nulls last, fa.name
+          `;
+          return Response.json({ accounts });
+        }
+
+        return new Response("not found", { status: 404 });
+      } finally {
+        await sql.end();
+      }
+    }
+
     if (url.pathname === "/plaid/exchange" && request.method === "POST") {
       // AN AUTHORIZATION INPUT NEVER COMES FROM THE REQUEST BODY.
       //

@@ -67,6 +67,55 @@ export async function reconnectItem(
   }
 }
 
+/** Mints a link token for a NEW connection (4.5b prime).
+ *
+ *  THE SAME CALL AS UPDATE MODE, MINUS access_token. Its presence is what makes
+ *  a link token repair an existing Item; its absence is what makes Link create
+ *  a new one. That single field is the whole difference, which is why both live
+ *  in this file rather than in two that drift.
+ *
+ *  redirect_uri IS REQUIRED FOR OAUTH INSTITUTIONS and must match the Plaid
+ *  dashboard allowlist exactly: HTTPS, no fragment, no query string, no
+ *  wildcard. Without it, desktop web still works and MOBILE WEBVIEW BREAKS,
+ *  which is a failure nobody testing on a laptop would see.
+ *
+ *  NO webhook FIELD, DELIBERATELY (Guy, 19 Aug 2026). The receiver is 4.5's
+ *  other half and does not exist, so setting one would have Plaid retrying into
+ *  nothing and generating failures we cannot see. Syncs are manual until the
+ *  provider_events path lands, and that is a stated limitation rather than
+ *  something to be discovered when a household wonders why nothing updates. */
+export async function createLinkToken(
+  householdId: string,
+  credentials: PlaidCredentials,
+  redirectUri: string
+): Promise<{ linkToken: string; expiration: string | null }> {
+  const link = await callPlaid<{ link_token: string; expiration?: string }>(
+    "/link/token/create",
+    credentials,
+    {
+      // client_user_id is the household rather than the member: an Item belongs
+      // to a household, and a second member of the same household reconnecting
+      // must reach the same Plaid user.
+      user: { client_user_id: householdId },
+      client_name: "MarginSheet",
+      products: ["transactions"],
+      // CONSENT NOW, BILLED ON FIRST USE. A product cannot be added to an Item
+      // after it is created: adding Liabilities later means taking the Item
+      // through update mode again. additional_consented_products collects the
+      // consent at link time and bills nothing until the endpoint is called,
+      // so the credit-card Items connected at 4.5b prime can serve the
+      // Liabilities cases without a second trip through Link.
+      //
+      // Confirmed against Plaid's docs 19 Aug 2026 rather than recalled.
+      additional_consented_products: ["liabilities"],
+      country_codes: ["US"],
+      language: "en",
+      redirect_uri: redirectUri,
+    }
+  );
+  return { linkToken: link.link_token, expiration: link.expiration ?? null };
+}
+
 /** Clears needs_reauth on ONE Item, after the household completes update mode. */
 export async function markReconnected(
   itemRowId: string,

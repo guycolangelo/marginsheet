@@ -259,6 +259,40 @@ The plan said the question was whether Sentry scrubbing survives a Plaid error o
 
 ---
 
+## 3b. What 4.4 delivered, and what M4's percentage was counting
+
+**Recorded 19 August 2026, because M4's status was reported as 80% for three days
+and the number was WRONG RATHER THAN STALE.**
+
+4.4 delivered, and all of it is correct and tested:
+
+- a paginator that handles both cursors and the mutation branch
+- `applyRemoved`, which flags rather than deletes
+- the coordination state machine and the watchdog
+- the outbox, with its two readers pointing opposite ways at one column
+
+**And nothing that writes a transaction row.** `runTransactionsSync` counts
+`page.added.length` and `page.modified.length` and discards the rows;
+`apply-streams.ts` has no `applyAdded` and no `applyModified`. Nothing in the
+repository turns a Plaid page into a household's ledger.
+
+**This is not a criticism of 4.4**, which was scoped to the cursor semantics and
+the state machine and did those things. It is a criticism of the percentage. **The
+task list 80% was measured against did not contain the ledger writer at all**, so
+the figure was not a stale reading of a moving number, it was an accurate reading
+of an incomplete list.
+
+**The general form, worth more than the correction:** a completion percentage is
+only as honest as the enumeration under it, and an enumeration written before the
+work is understood will omit the thing nobody has looked at yet. A percentage
+against a list nobody has re-derived is a claim with no author, which is the same
+shape as a count that lives in a conversation.
+
+The writer and the runner are built at **4.5b prime**, where connecting real
+institutions forces them.
+
+---
+
 ## 4. Sub-tasks
 
 - **4.0** The spike: Durable Objects, cursor semantics, Sandbox fixture inventory. Findings before design.

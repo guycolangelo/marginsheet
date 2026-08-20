@@ -97,8 +97,22 @@
   // its inherited delete was refused with code 10074 and it was given an
   // explicit empty list).
   "migrations": [{ "tag": "v3", "new_sqlite_classes": ["HouseholdSync"] }],
+  // PLAID_BASE_URL IS SET EXPLICITLY IN EVERY ENVIRONMENT, and production is
+  // the reason. plaid-client defaults to sandbox.plaid.com when it is absent,
+  // so a production Worker with production credentials and no base URL would
+  // call SANDBOX and be rejected for credentials that are perfectly valid.
+  // That failure names the credentials and the cause is the missing variable.
+  //
+  // Absent means sandbox, which is safe for dev and wrong for production, so
+  // it is declared rather than defaulted. Same rule as workers_dev.
+  //
+  // PLAID_REDIRECT_URI is the exact URI registered in the Plaid dashboard.
+  // It is a public URL rather than a credential, so it lives here where it is
+  // reviewable instead of in a secret nobody can read back.
   "vars": {
     "ENVIRONMENT": "dev",
+    "PLAID_BASE_URL": "https://sandbox.plaid.com",
+    "PLAID_REDIRECT_URI": "https://api.marginsheet.com/plaid/oauth-return",
     "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
   },
   "env": {
@@ -113,6 +127,8 @@
       "migrations": [{ "tag": "v3", "new_sqlite_classes": ["HouseholdSync"] }],
       "vars": {
         "ENVIRONMENT": "staging",
+        "PLAID_BASE_URL": "https://sandbox.plaid.com",
+        "PLAID_REDIRECT_URI": "https://api.marginsheet.com/plaid/oauth-return",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
       }
     },
@@ -145,6 +161,8 @@
       "migrations": [{ "tag": "v3", "new_sqlite_classes": ["HouseholdSync"] }],
       "vars": {
         "ENVIRONMENT": "production",
+        "PLAID_BASE_URL": "https://production.plaid.com",
+        "PLAID_REDIRECT_URI": "https://api.marginsheet.com/plaid/oauth-return",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
       }
     }

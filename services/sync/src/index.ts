@@ -15,6 +15,7 @@
 import { readSyncSchemaHealth } from "@marginsheet/shared/db";
 import { encryptToken, decryptToken } from "./token-crypto.js";
 import { exchangePublicToken } from "./exchange.js";
+import { createLinkToken } from "./reconnect.js";
 import { secretPresence } from "@marginsheet/shared/required-secrets";
 import { HouseholdSync } from "./household-sync-do.js";
 
@@ -31,6 +32,7 @@ export interface Env {
   PLAID_CLIENT_ID?: string;
   PLAID_SECRET?: string;
   PLAID_BASE_URL?: string;
+  PLAID_REDIRECT_URI?: string;
   HOUSEHOLD_SYNC?: DurableObjectNamespace;
 }
 
@@ -168,6 +170,42 @@ export default {
     // it is asserted by test, because a token here would break nothing: the
     // exchange would still work, the household would still connect, and every
     // other test would still pass.
+    // POST /internal/link-token: mint a link token for a NEW connection.
+    //
+    // It lives here rather than in api because the Plaid credentials do. api
+    // holds a public token briefly and never an access token, and it never
+    // holds the client secret either.
+    if (url.pathname === "/internal/link-token" && request.method === "POST") {
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_REDIRECT_URI) {
+        // REQUIRED RATHER THAN OPTIONAL. Absent, OAuth institutions still work
+        // on desktop and break in mobile webview, which is a failure that
+        // passes every test run on a laptop. Failing closed here makes the
+        // missing configuration loud instead of latent.
+        return Response.json({ error: "PLAID_REDIRECT_URI is not configured" }, { status: 503 });
+      }
+      const { householdId } = (await request.json().catch(() => ({}))) as { householdId?: string };
+      if (!householdId) {
+        return Response.json({ error: "householdId is required" }, { status: 400 });
+      }
+      try {
+        const token = await createLinkToken(
+          householdId,
+          { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+          env.PLAID_REDIRECT_URI
+        );
+        return Response.json(token);
+      } catch (error) {
+        const shaped = error as { toJSON?: () => unknown; name?: string };
+        return Response.json(
+          { error: "link token failed", detail: shaped.toJSON ? shaped.toJSON() : { name: shaped.name ?? "Error" } },
+          { status: 502 }
+        );
+      }
+    }
+
     if (url.pathname === "/internal/exchange" && request.method === "POST") {
       const { publicToken, householdId } = (await request.json()) as {
         publicToken?: string;

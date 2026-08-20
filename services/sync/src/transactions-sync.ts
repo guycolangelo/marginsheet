@@ -13,6 +13,7 @@
 // on, and nothing about it is exceptional.
 
 import { callPlaid, PlaidError, type PlaidCredentials } from "./plaid-client.js";
+import type { PlaidTransaction } from "./apply-streams.js";
 
 export const MUTATION_DURING_PAGINATION = "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION";
 const PAGE_SIZE = 500;
@@ -20,9 +21,9 @@ const PAGE_SIZE = 500;
 const MAX_RESTARTS = 3;
 
 export interface SyncPage {
-  added: unknown[];
-  modified: unknown[];
-  removed: unknown[];
+  added: PlaidTransaction[];
+  modified: PlaidTransaction[];
+  removed: { transaction_id: string }[];
   next_cursor: string;
   has_more: boolean;
 }
@@ -39,6 +40,10 @@ export interface SyncOutcome {
   modified: number;
   removed: number;
   pages: number;
+  /** Rows actually written and flagged, which differ from the offered counts
+   *  when a transaction names an account this household does not hold. */
+  written: number;
+  flagged: number;
   /** How many times the mutation branch was taken. Zero is the common case. */
   restarts: number;
   /** The cursor to store as BOTH in-flight and last-completed on success. */
@@ -53,11 +58,24 @@ export interface SyncOutcome {
  *  transaction and this module owns the loop. */
 export type PersistCursor = (cursor: string) => Promise<void>;
 
+/** Hands one page's rows to the caller, which owns the transaction.
+ *
+ *  PER PAGE RATHER THAN ACCUMULATED, so a long backfill does not hold every
+ *  transaction in memory before writing one, and so a crash loses at most a
+ *  page rather than a whole history.
+ *
+ *  THIS PARAMETER IS WHY THIS FILE EXISTS IN ITS CURRENT FORM. Until 19 Aug
+ *  2026 the paginator counted `page.added.length` and DISCARDED the rows, so a
+ *  sync was correct about cursors and wrote nothing. The counts were real and
+ *  the ledger was empty. */
+export type ApplyPage = (page: SyncPage) => Promise<{ written: number; flagged: number }>;
+
 export async function runTransactionsSync(
   accessToken: string,
   cursors: Cursors,
   credentials: PlaidCredentials,
-  persistInFlight: PersistCursor
+  persistInFlight: PersistCursor,
+  applyPage: ApplyPage
 ): Promise<SyncOutcome> {
   let restarts = 0;
 
@@ -71,6 +89,8 @@ export async function runTransactionsSync(
     let added = 0;
     let modified = 0;
     let removed = 0;
+    let written = 0;
+    let flagged = 0;
     let pages = 0;
 
     try {
@@ -84,6 +104,15 @@ export async function runTransactionsSync(
         modified += page.modified.length;
         removed += page.removed.length;
         cursor = page.next_cursor;
+
+        // THE ROWS ARE WRITTEN BEFORE THE CURSOR MOVES. If the cursor were
+        // persisted first and the write then failed, the next run would resume
+        // PAST transactions nobody stored, and the gap would be invisible: no
+        // error, no retry, and a ledger missing a page with a cursor that says
+        // it was read.
+        const applied = await applyPage(page);
+        written += applied.written;
+        flagged += applied.flagged;
 
         // AFTER EVERY PAGE, so a crash resumes rather than replaying from zero.
         await persistInFlight(cursor);
@@ -118,6 +147,8 @@ export async function runTransactionsSync(
       added,
       modified,
       removed,
+      written,
+      flagged,
       pages,
       restarts,
       cursor: cursor as string,

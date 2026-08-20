@@ -46,12 +46,26 @@ const files = [...sources("services"), ...sources("packages")];
  * for a signal that matches no file in the repo and passed forever.
  *
  * The signal now is a fetch beside any Plaid credential field, which is what
- * building one of these requests actually requires. */
+ * building one of these requests actually requires.
+ *
+ * AND IT EXCLUDES cdn.plaid.com, WHICH IS NOT AN API HOST. On 19 Aug 2026 the
+ * connect page matched, because it loads Plaid Link's browser SDK from
+ * cdn.plaid.com beside a fetch to our own endpoints. That page never sees a
+ * client secret and never sees an access token: the link token is minted
+ * server-side and Link runs in the household's browser.
+ *
+ * THE DETECTOR WAS FIXED RATHER THAN THE PAGE, for the same reason as every
+ * other time: making somebody restructure correct code to satisfy a scanner is
+ * the ceremony that gets a rule suppressed. What this control guards is a
+ * server-side call that could carry a CREDENTIAL, so it now looks for an API
+ * host or a credential field, and a script tag is neither. */
+const PLAID_API_HOST = /\b(sandbox|production|development|api)\.plaid\.com/;
+
 function constructsPlaidRequest(path: string): boolean {
   const body = readFileSync(join(ROOT, path), "utf8");
   const sends = /\bfetch\s*\(/.test(body);
   const plaidShaped =
-    /plaid\.com/.test(body) || /client_id/.test(body) || /access_token/.test(body);
+    PLAID_API_HOST.test(body) || /client_id/.test(body) || /access_token/.test(body);
   return sends && plaidShaped;
 }
 
