@@ -94,6 +94,7 @@ const handler = {
     // signed in. Two gates where one is real is how a gate stops being read.
     if (
       url.pathname === "/plaid/link-token" ||
+      url.pathname === "/plaid/sync" ||
       url.pathname === "/plaid/accounts" ||
       url.pathname === "/plaid/oauth-return" ||
       url.pathname === "/connect"
@@ -143,6 +144,23 @@ const handler = {
               method: "POST",
               headers: { "content-type": "application/json" },
               // REBUILT, never forwarded: the household comes from the session.
+              body: JSON.stringify({ householdId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/sync" && request.method === "POST") {
+          // THE HAND-RUN TRIGGER. Session-gated like everything else here, and
+          // the household comes from the session rather than the request.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/sync-run", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
               body: JSON.stringify({ householdId }),
             })
           );

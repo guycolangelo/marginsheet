@@ -24,6 +24,7 @@ export const CONNECT_PAGE = `<!doctype html>
 <h1>Connect accounts</h1>
 <p>Temporary surface for connecting real institutions. M8 replaces it.</p>
 <button id="go">Connect an institution</button>
+<button id="sync">Run a sync</button>
 <div id="out" hidden></div>
 <h2>Already connected</h2>
 <table id="accounts"><tbody></tbody></table>
@@ -52,6 +53,18 @@ async function listAccounts() {
       ).join("")
     : "<tr><td colspan=4>none yet</td></tr>";
 }
+
+document.getElementById("sync").onclick = async () => {
+  // THE NUMBERS ARE THE POINT. added versus written is the pair that matters:
+  // equal is correct, and "added: 340, written: 0" is the failure that looks
+  // like success, because Plaid sent rows and every one named an account this
+  // household does not hold.
+  show("syncing... a first backfill can take a while");
+  const res = await fetch("/plaid/sync", { method: "POST" });
+  const body = await res.json().catch(() => ({}));
+  show(body, !res.ok);
+  listAccounts();
+};
 
 document.getElementById("go").onclick = async () => {
   show("requesting a link token...");
