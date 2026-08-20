@@ -39,6 +39,35 @@ describe("every connect route requires a session, except the one that cannot", (
     expect(guarded, "a session without a household is not refused").toMatch(/no_household.*403/s);
   });
 
+  it("names every /plaid route in the gate's condition, or exempts it out loud", () => {
+    // THE BLOCK-LEVEL ASSERTION ABOVE CANNOT SEE A ROUTE THAT SKIPPED THE GATE.
+    // It proves the guarded region calls getSession, which stays true however
+    // many routes are handled somewhere else, so its coverage is a property of
+    // the region rather than of the routes. Adding /plaid/ledger-readout on
+    // 20 Aug made that concrete: the route was gated in fact and nothing
+    // asserted it, and a route added to the file without being added to the
+    // condition list would have passed exactly as loudly.
+    //
+    // Two exemptions, both deliberate and both with their reason in the source:
+    // the OAuth return arrives from the bank rather than from our own fetch,
+    // and the exchange carries its own session handling with its own control.
+    const EXEMPT = new Set(["/plaid/oauth-return", "/plaid/exchange"]);
+    const condition = INDEX.slice(
+      INDEX.indexOf('url.pathname === "/plaid/link-token" ||'),
+      INDEX.indexOf('url.pathname === "/connect"')
+    );
+    const handled = [...INDEX.matchAll(/url\.pathname === "(\/plaid\/[a-z-]+)"/g)].map((m) => m[1]);
+    expect(new Set(handled).size, "no /plaid routes found: this scan matched nothing").toBeGreaterThan(3);
+
+    const ungated = [...new Set(handled)].filter(
+      (route) => !EXEMPT.has(route) && !condition.includes(`"${route}"`)
+    );
+    expect(
+      ungated,
+      `these /plaid routes are handled but are not in the session gate's condition, so they fall through to the unauthenticated part of the Worker:\n  ${ungated.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
   it("returns 403 rather than 500 when the session has no household", () => {
     // A missing members row reads as a broken gate unless it is named. This is
     // the first thing that will go wrong for a real household, and "no_household"

@@ -25,6 +25,7 @@ export const CONNECT_PAGE = `<!doctype html>
 <p>Temporary surface for connecting real institutions. M8 replaces it.</p>
 <button id="go">Connect an institution</button>
 <button id="sync">Run a sync</button>
+<button id="readout">Ledger readout</button>
 <div id="out" hidden></div>
 <h2>Already connected</h2>
 <table id="accounts"><tbody></tbody></table>
@@ -64,6 +65,16 @@ document.getElementById("sync").onclick = async () => {
   const body = await res.json().catch(() => ({}));
   show(body, !res.ok);
   listAccounts();
+};
+
+document.getElementById("readout").onclick = async () => {
+  // OURS BESIDE PLAID'S, never one summarised into the other. The whole point
+  // is that our tables cannot say whether a count is what exists or what we
+  // kept, so the two numbers are printed side by side and the reader compares.
+  show("reading...");
+  const res = await fetch("/plaid/ledger-readout");
+  const body = await res.json().catch(() => ({}));
+  show(body, !res.ok);
 };
 
 document.getElementById("go").onclick = async () => {
