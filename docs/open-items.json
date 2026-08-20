@@ -438,5 +438,13 @@
     "trigger": "4.5b prime's first real sync, when all four become observable against real data rather than hypothetical",
     "owed_to": "TRIGGER: the first real sync. Named by Guy 19 Aug 2026; the settle case is controlled, the other three are not.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "investment-accounts-are-visible-and-excluded-from-the-ledger",
+    "item": "RULED 20 AUG 2026 (Guy): INVESTMENT ACCOUNTS ARE VISIBLE AS ACCOUNTS AND EXCLUDED FROM THE SPENDING LEDGER. Arrived by default rather than by ruling: SoFi's first connection brought two investment accounts into financial_accounts, and the sync writes transactions against any account it holds. THE REASONING IS ALREADY DOCTRINE RATHER THAN NEW. A transfer to a brokerage is a DEPLOYMENT, not spending: money moving from cash to net worth, which the two-ledger rule already covers. A stock purchase INSIDE a brokerage is not a household transaction at all, it is an account rebalancing itself. Counting either as spending makes Kept wrong IN THE DIRECTION THAT PUNISHES EXACTLY THE BEHAVIOUR THE METHOD EXISTS TO ENCOURAGE. WHAT THIS MEANS: investment accounts appear in the accounts list and on the Balance Sheet at M8, and their transactions never enter the P&L. The transfer that funds them is already handled, because a transfer is not spending and deployment attribution is what it becomes. WHAT THE ADVICE GATE DOES NOT COVER: it refuses investment QUESTIONS and does not stop investment TRANSACTIONS being counted as spending. The harm is in the ledger, not in the replies. TWO THINGS TO SETTLE RATHER THAN ASSUME. (1) WHETHER INVESTMENT TRANSACTIONS ARE STORED AT ALL, or fetched and discarded. Guy's lean is STORE THEM, FLAGGED, EXCLUDED FROM THE LEDGER, the same shape as removed transactions which are flagged rather than deleted: storing costs nothing and gives a future Balance Sheet history, while discarding means M8 backfills. (2) WHAT HAPPENS TO THE ACCOUNT BALANCE. It is the number a household would actually want on a Balance Sheet, and it is NET-WORTH-SHAPED, so the net worth doctrine governs HOW IT RENDERS rather than whether it is held: never a hero metric, never celebrated, reported as position rather than scored.",
+    "owner": "build, gated on Guy's approval where it amends ledger-spec",
+    "trigger": "before M5 files a single transaction, because the first investment row filed as spending is a Kept figure that is wrong in the flattering-to-punishing direction; and M8 for the Balance Sheet rendering",
+    "owed_to": "TRIGGER: M5, and M8 for rendering. Ruled by Guy 20 Aug 2026 after SoFi's connection brought two investment accounts through by default.",
+    "raised": "2026-08-20"
   }
 ]
