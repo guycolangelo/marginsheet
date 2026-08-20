@@ -129,6 +129,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The last is the purest: nobody writes `true`, and the failure mode is that nobody writes anything.
 
+- **A CONTROL THAT WORKS CORRECTLY AGAINST AN IMPOSSIBLE RISK, AND CHARGES FOR IT.** Its own species, and the closest relative of the control pointed at a shape that does not occur. The difference is that this one is not merely useless: **it has a running cost, paid by whoever needs the thing it withholds.**
+
+  `PlaidError.toJSON()` enumerates what may be published, because a raw error must never be returned: the REQUEST carries the token, so anything serialising what we sent is the real exposure. That reasoning is correct and the enumeration stays.
+
+  **It withheld `error_message`**, guarding against an error body echoing a credential. **The seven-class capture had already shown that does not occur** — an identical seven-key envelope, no nesting, no request echo, and no credential even in the error whose entire subject is a bad secret.
+
+  **The cost landed on the first real diagnosis.** Plaid's `INVALID_FIELD` names the offending field in `error_message` and nowhere else. The first production link-token failure reported `INVALID_FIELD` with the field withheld, and the only way forward was to reproduce the call outside the system.
+
+  **THE TELL IS THAT THE STUDY EXISTED AND THE CONTROL PREDATED IT** (Guy, 20 Aug 2026). Nobody revisited the guard after the evidence arrived, because **a guard that costs nothing until it costs a diagnosis produces no signal in between.** There is no failing test, no red, and no moment where anybody is prompted to ask whether it is still earning its place.
+
+  So: when a study establishes that a risk does not take the shape a control assumes, **the controls written against that shape are part of what the study is about**, and revisiting them belongs to the same change. Otherwise the evidence and the guard live in the same repository disagreeing silently.
+
 - **A CONTROL WHOSE CORRECT OPERATION BLINDS OTHER CONTROLS.** Its own species, and the eleventh entry here. Not a control that cannot observe, and not one that depends on a vulnerability: **this one works exactly as designed and takes the watchers down with it.**
 
   The near-miss, 19 Aug 2026. Gating `/debug` on `ENVIRONMENT === "production"` is the cheap obvious fix and it is correct about what it refuses. It would also have 404'd the production routes `db-identity.test.ts` and `verify-deploy.sh` depend on, **blinding five live controls** in the one environment that matters, including the check that closes the `rls-not-forced` debt by proving every Worker connects as `marginsheet_app` without `BYPASSRLS`.

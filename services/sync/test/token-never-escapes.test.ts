@@ -84,12 +84,62 @@ describe("a failed Plaid call leaks neither the token nor the secret", () => {
   });
 
   it("toJSON enumerates, so a field added later is not published by default", async () => {
+    // THIS TEST FIRED WHEN errorMessage WAS ADDED, WHICH IS THE CONTROL
+    // WORKING. Publishing a new field is a DECISION, and this is what forces
+    // somebody to make it deliberately rather than by widening a spread.
+    //
+    // errorMessage was added on 20 Aug 2026 after its absence cost a
+    // diagnosis: Plaid's INVALID_FIELD names the offending field in
+    // error_message and nowhere else. The seven-class capture had already
+    // established that Plaid error bodies carry no credential, including in
+    // the error whose subject is a bad secret, so the field it was withheld
+    // to guard against does not exist.
     vi.stubGlobal("fetch", async () =>
       new Response(JSON.stringify(REAL_ERROR_BODY), { status: 400 })
     );
     const error = (await callPlaid("/x", creds, { access_token: TOKEN }).catch((e) => e)) as PlaidError;
     expect(Object.keys(error.toJSON()).sort()).toEqual([
-      "endpoint", "errorCode", "errorType", "name", "requestId", "status",
+      "endpoint", "errorCode", "errorMessage", "errorType", "name", "requestId", "status",
+    ]);
+  });
+});
+
+describe("a Plaid error names the field it is complaining about", () => {
+  it("publishes errorMessage, because INVALID_FIELD says which field there", () => {
+    // WITHHELD UNTIL 20 AUG 2026, and the cost landed on the first real
+    // diagnosis: a production link token failed with INVALID_FIELD and the
+    // field name was the one thing not published.
+    //
+    // The guard was aimed at an error body echoing a credential. The
+    // seven-class capture had already shown that does not occur, including in
+    // the error whose entire subject is a bad secret. A guard aimed at a shape
+    // that does not occur COSTS NOTHING UNTIL IT COSTS A DIAGNOSIS, and
+    // produces no signal in between, which is why the study existing did not
+    // cause anybody to revisit it.
+    const error = new PlaidError("/link/token/create", 400, {
+      error_type: "INVALID_REQUEST",
+      error_code: "INVALID_FIELD",
+      error_message: "redirect_uri must be registered in the dashboard",
+      request_id: "req-1",
+    });
+    expect(error.toJSON().errorMessage).toBe("redirect_uri must be registered in the dashboard");
+  });
+
+  it("still publishes nothing beyond the enumerated fields", () => {
+    // The enumeration is the control and it is unchanged: adding a field is a
+    // decision, and a field nobody named is still excluded. This is what stops
+    // the fix above from becoming a spread.
+    const error = new PlaidError("/x", 400, {
+      error_code: "C",
+      error_message: "m",
+      request_id: "r",
+      // A field Plaid does not send today and might tomorrow.
+      access_token: "access-production-LEAKED",
+    });
+    const published = JSON.stringify(error.toJSON());
+    expect(published, "an unenumerated field reached the output").not.toContain("LEAKED");
+    expect(Object.keys(error.toJSON()).sort()).toEqual([
+      "endpoint", "errorCode", "errorMessage", "errorType", "name", "requestId", "status",
     ]);
   });
 });

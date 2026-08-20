@@ -24,6 +24,7 @@ control:** if the thing this guards failed, would anything go red?
 | `set +e`, or `set -e` absent | Every failure after that point |
 | A report chained after a fallible operation with `;` | The failure, behind a success message |
 | A parser reading a failed command's output | The failure, behind a value |
+| A prompt that never ran (`read -p` in zsh) | The empty value, behind a provider's error |
 
 **The fourth's tell is the hardest to grep for and the easiest to miss reading:
 the success message is a separate statement from the thing it describes.** A
@@ -83,6 +84,41 @@ absence is exactly the shape that reads as a finding.
 **The remedy is not a better parser.** It is checking the exit status before
 parsing at all, and treating a non-zero exit as a refusal to answer rather than
 as an answer of "nothing".
+
+---
+
+## A sixth pattern, added 20 August 2026: a prompt that never ran, spending the request anyway
+
+**`read -p` is bash syntax.** In zsh the variables are never set, so `$VAR`
+expands to empty and the command proceeds with nothing in it.
+
+The instance: a probe written to read Plaid's full error message prompted with
+`read -rs -p`. In zsh nothing was assigned, the request went out with **empty
+credentials**, and Plaid answered `MISSING_FIELDS` naming `client_id` and
+`secret`.
+
+**An empty credential produced an error naming the credential.** Telling that
+apart from genuinely wrong keys required knowing about the zsh quirk; without
+it, the investigation goes to the Plaid dashboard. That is the
+wrong-answer-with-a-plausible-external-cause shape **inside a diagnostic written
+to avoid exactly it**.
+
+**The identical failure hit `verify-decoupling-probe.sh` on 15 August 2026 and
+was fixed there**, with the reason recorded in a comment two lines long. The fix
+existed in this repository and was not applied to the new probe, which is the
+sweep-for-the-pattern rule: a fix written where a defect was noticed is not a fix
+applied where the defect lives.
+
+**The rule for anything handed to a person to run:**
+
+- **prompt with `printf` plus `IFS= read -rs`**, which behaves identically in
+  bash and zsh
+- **check every value is non-empty BEFORE spending the request**, and refuse with
+  a message saying nothing was sent
+- **check it is plausible, not merely present** — a two-character secret is a
+  paste that went wrong, and catching it costs one comparison
+
+`scripts/plaid-link-token-probe.sh` is the worked example.
 
 ---
 
