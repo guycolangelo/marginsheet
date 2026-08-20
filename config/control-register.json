@@ -816,17 +816,17 @@
     {
       "id": "readout-statements-execute",
       "control": "the readout execution test (packages/schema/test/db/ledger-readout-sql.test.ts)",
-      "guards": "The ledger readout's SQL parses, is permitted to marginsheet_app, and returns the household's rows under RLS.",
+      "guards": "The ledger readout's SQL parses and every column it names is permitted to marginsheet_sync, proven by executing it as that role.",
       "test": "packages/schema/test/db/ledger-readout-sql.test.ts",
       "name": "runs every statement and returns the seeded rows",
       "planted": {
         "kind": "source",
-        "file": "services/api/src/ledger-readout-sql.ts",
+        "file": "services/sync/src/ledger-readout-sql.ts",
         "find": "           (count(t.id) filter (where t.pending))::int as pending,",
         "replace": "           (count(t.id) filter (where t.pending)::int) as pending,",
         "note": "MOVES THE CAST INSIDE THE FILTER CLAUSE, which is the plausible-and-wrong version rather than an obvious break: it reads as the same expression, a reviewer scanning for a missing column or a wrong table sees nothing, and it is the exact class of mistake a typecheck cannot see because SQL in a template literal is a string. A source mutation is right here even though the control touches a database: the thing it guards is a STATEMENT, and a statement lives in source. Contrast the 0028 grant controls, which guard a privilege and therefore need kind sql."
       },
-      "distinction": "THE THIRD INSTANCE OF ONE SHAPE TODAY, and the one that finally got a test. last_cursor_at was a column no migration created; households was a table no grant covered; the readout was a statement nothing ran. All three passed their own suites and all three surfaced on a real run, because a typecheck proves a statement was CONSTRUCTED and says nothing about whether it can EXECUTE. It imports readLedger rather than restating the SQL, so the test cannot drift into agreeing with a copy of itself, and it runs as marginsheet_app rather than the owner, because the owner passes through every grant and every policy and would hide two of the three things that can break. Direction 2 asserts the account row count BEFORE reading any aggregate: min, max and count all return defensible answers over zero rows, so a readout that matched nothing would satisfy every other assertion here."
+      "distinction": "THE THIRD INSTANCE OF ONE SHAPE TODAY, and the one that finally got a test. last_cursor_at was a column no migration created; households was a table no grant covered; the readout was a statement nothing ran. All three passed their own suites and all three surfaced on a real run, because a typecheck proves a statement was CONSTRUCTED and says nothing about whether it can EXECUTE. It imports readLedger rather than restating the SQL, so the test cannot drift into agreeing with a copy of itself, and it runs as marginsheet_sync rather than the owner, because the owner passes through every grant and every policy and would hide two of the three things that can break. Direction 2 asserts the account row count BEFORE reading any aggregate: min, max and count all return defensible answers over zero rows, so a readout that matched nothing would satisfy every other assertion here. THE ROLE IS PART OF THE CONTROL: the first version ran in api and threw permission denied on plaid_items, because marginsheet_app holds that table as an enumerated column list and last_cursor_at was added by 0027 and granted to nobody. An owner connection would have reported the same statement as healthy."
     }
   ]
 }

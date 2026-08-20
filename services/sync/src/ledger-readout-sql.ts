@@ -1,5 +1,26 @@
 // The readout's four statements, in a module so a test can run THE SAME ONES.
 //
+// IT LIVES IN THE SYNC WORKER, AND THAT IS THE RULING RATHER THAN A DETAIL
+// (Guy, 20 Aug 2026). The first version ran in api and threw "permission denied
+// for table plaid_items". The message misleads: marginsheet_app HAS plaid_items,
+// as eleven enumerated columns from 0002 plus last_completed_cursor from 0025.
+// What it does not have is last_cursor_at, which migration 0027 added and
+// granted to nobody. 0002's comment promised exactly that: "a column added
+// later is not silently readable by this role". THE ENUMERATION WORKED AND THE
+// STATEMENT REACHED PAST IT.
+//
+// THE FIX IS NOT A GRANT. This reads plaid_items, financial_accounts,
+// transactions and institutions and calls Plaid, which is the sync Worker's
+// shape and not api's. Moving it widens nothing; granting api the table to fix
+// a DIAGNOSTIC would be the worst available reason to touch a boundary that
+// took a day to establish. api proxies over the service binding instead.
+//
+// AND IT IS NOW COVERED BY sync-worker-reach.test.ts, which derives every
+// column the sync Worker's SQL touches and compares it against what
+// marginsheet_sync actually holds. The class that produced this failure is
+// checked in CI for this Worker, which is why the statements belong here and
+// not in the one Worker where nothing checks them.
+//
 // WHY THEY ARE NOT INLINE IN index.ts ANY MORE. The readout shipped on 20 Aug
 // 2026, its typecheck passed, 230 unit tests passed, and the Ledger readout
 // button returned `{}`. NONE OF THOSE TESTS EVER RAN THESE STATEMENTS AGAINST A
@@ -36,7 +57,6 @@ export interface ItemRow {
 }
 export interface HouseholdRow {
   first_sync_completed_at: string | null;
-  connected_first_account_at: string | null;
 }
 
 export interface Readout {
@@ -47,8 +67,18 @@ export interface Readout {
   cursors: Array<{ itemId: string; equal: boolean; inFlightPresent: boolean; lastCompletedPresent: boolean }>;
 }
 
-/** Reads everything the readout reports from OUR tables. Sets the household
- *  GUC first, because every policy on this path reads it. */
+/** Reads everything the readout reports from OUR tables.
+ *
+ *  IT TAKES A TRANSACTION, NOT A CONNECTION, AND THAT IS LOAD-BEARING.
+ *  set_config's third argument is is_local: the setting reverts at the end of
+ *  the current transaction, and outside an explicit one every statement IS its
+ *  own transaction, so the GUC would be gone before the next query ran. Passing
+ *  a connection here would leave every policy reading an unset household.
+ *
+ *  The queries do not DEPEND on that, because each names the household in its
+ *  own WHERE clause, which is the 19 Aug rule that a statement should be
+ *  correct even when the policy is wrong. The GUC is for the policies that read
+ *  it, and it should be right for the same reason. */
 export async function readLedger(sql: Sql, householdId: string): Promise<Readout> {
   await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;
 
@@ -92,9 +122,12 @@ export async function readLedger(sql: Sql, householdId: string): Promise<Readout
       from plaid_items where household_id = ${householdId} order by created_at
   `;
 
+  // ONLY first_sync_completed_at. Migration 0028 granted marginsheet_sync two
+  // columns of households by name, and connected_first_account_at is not one of
+  // them. Reading it here would mean widening that grant for a diagnostic,
+  // which is the thing the 0028 ruling exists to refuse.
   const households = await sql<HouseholdRow[]>`
-    select (first_sync_completed_at)::text as first_sync_completed_at,
-           (connected_first_account_at)::text as connected_first_account_at
+    select (first_sync_completed_at)::text as first_sync_completed_at
       from households where id = ${householdId}
   `;
 

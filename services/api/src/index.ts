@@ -5,7 +5,6 @@ import { scrubEvent } from "@marginsheet/shared/sentry-scrub";
 import { readDbIdentity, readSchemaHealth } from "@marginsheet/shared/db";
 import { secretPresence } from "@marginsheet/shared/required-secrets";
 import { CONNECT_PAGE, OAUTH_RETURN_PAGE } from "./connect-page.js";
-import { readLedger, type Sql } from "./ledger-readout-sql.js";
 import { createAuth } from "./auth.js";
 import { postmarkSender } from "./email.js";
 import { confirmSignIn, confirmLandingPage } from "./confirm.js";
@@ -194,61 +193,27 @@ const handler = {
         }
 
         if (url.pathname === "/plaid/ledger-readout") {
-          // THE READOUT (4.5b prime, throwaway with the rest of this surface).
+          // A PROXY AND NOTHING ELSE. The statements live in the sync Worker
+          // because the tables do: api threw "permission denied for table
+          // plaid_items" reading a column 0027 granted to nobody, and the fix
+          // is where the readout runs rather than what api may reach.
           //
-          // Our tables cannot say whether a count is what exists or what we
-          // kept, because both produce the same rows. So this reports what we
-          // hold, per account and per type, beside what Plaid says exists, and
-          // leaves the comparison visible rather than making it.
-          //
-          // EVERY FAILURE COMES BACK AS JSON WITH ITS DETAIL. The first version
-          // let an exception escape, Cloudflare answered with its own error
-          // page, the page could not parse it, and the button printed `{}`:
-          // indistinguishable from a successful call with nothing to report.
-          // A diagnostic that cannot report its own failure is worse than none,
-          // because it reports something.
-          try {
-            const ours = await readLedger(sql as unknown as Sql, householdId);
-
-            // Plaid's own count, requested LAST so a Plaid outage still returns
-            // everything above it rather than failing the whole readout.
-            let plaid: unknown = { error: "no SYNC service binding" };
-            if (env.SYNC) {
-              const response = await env.SYNC.fetch(
-                new Request("https://sync.internal/internal/plaid-totals", {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ householdId }),
-                })
-              );
-              const text = await response.text();
-              try {
-                plaid = JSON.parse(text);
-              } catch {
-                // The body is reported rather than replaced. "sync returned
-                // 500" tells the reader nothing they can act on; the body does.
-                plaid = { error: `sync returned ${response.status}`, body: text.slice(0, 2000) };
-              }
-            }
-            return Response.json({ ours, plaid });
-          } catch (error) {
-            const shaped = error as { message?: string; code?: string; detail?: string; hint?: string; position?: string };
-            return Response.json(
-              {
-                error: "readout failed",
-                // Postgres puts the useful part in code, detail, hint and
-                // position, and a message alone loses all four.
-                detail: {
-                  message: shaped.message ?? String(error),
-                  code: shaped.code,
-                  detail: shaped.detail,
-                  hint: shaped.hint,
-                  position: shaped.position,
-                },
-              },
-              { status: 500 }
-            );
-          }
+          // The status and the body travel through UNCHANGED. Replacing a
+          // failure with a summary of it is how the first version produced an
+          // empty object, and this is a diagnostic: the raw answer is the
+          // product.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/ledger-readout", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
         }
 
         return new Response("not found", { status: 404 });

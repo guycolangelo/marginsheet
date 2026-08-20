@@ -17,13 +17,16 @@
 // copy of the queries drifts from them by default, and then both sides are
 // green while disagreeing, which is the failure this file is named after.
 //
-// IT RUNS AS marginsheet_app, not as the owner. The owner would pass through
-// every grant and every policy, so a privilege error and an RLS mismatch would
-// both be invisible, and those are two of the three things that can break here.
+// IT RUNS AS marginsheet_sync, not as the owner, and the role matters as much
+// as the execution. The first version ran these statements in api and threw
+// "permission denied for table plaid_items": marginsheet_app holds that table
+// as an enumerated column list, and last_cursor_at was added by 0027 and
+// granted to nobody. An owner connection passes through every grant and every
+// policy, so it would have reported that statement as perfectly healthy.
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import postgres from "postgres";
-import { readLedger, type Sql } from "../../../../services/api/src/ledger-readout-sql.js";
+import { readLedger, type Sql } from "../../../../services/sync/src/ledger-readout-sql.js";
 
 const sql = postgres(process.env.DATABASE_URL ?? "", { max: 1 });
 
@@ -62,15 +65,20 @@ afterAll(async () => {
   await sql.end();
 });
 
-describe("the ledger readout's statements execute as marginsheet_app", () => {
+// WHAT THIS DOES NOT PROVE, said plainly. sync_worker_access is USING (true)
+// for marginsheet_sync, so row-level security is not what returns these rows
+// and this test does not exercise it. It proves the statements PARSE, that the
+// role is permitted every column they name, and that the results are shaped as
+// the readout claims. That is the whole of it, and it is what broke.
+describe("the ledger readout's statements execute as marginsheet_sync", () => {
   it("runs every statement and returns the seeded rows", async () => {
     // No try/catch. A thrown statement IS the finding, and swallowing it is how
     // cross-household-upsert.test.ts proved nothing for two weeks: when a test
     // tolerates an exception, the exception is part of the fixture.
-    await sql`set role marginsheet_app`;
+    await sql`set role marginsheet_sync`;
     let readout;
     try {
-      readout = await readLedger(sql as unknown as Sql, HOUSEHOLD);
+      readout = await sql.begin(async (tx) => readLedger(tx as unknown as Sql, HOUSEHOLD));
     } finally {
       await sql`reset role`;
     }
@@ -79,7 +87,7 @@ describe("the ledger readout's statements execute as marginsheet_app", () => {
     // aggregate below returns a defensible-looking answer over zero rows, so a
     // readout that silently matched nothing would satisfy the rest of this test
     // perfectly.
-    expect(readout.accounts, "the seeded account is not visible to the app role").toHaveLength(1);
+    expect(readout.accounts, "the seeded account is not visible to the sync role").toHaveLength(1);
 
     const account = readout.accounts[0];
     expect(account.held).toBe(2);

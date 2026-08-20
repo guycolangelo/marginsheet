@@ -14,6 +14,7 @@
 
 import { readSyncSchemaHealth } from "@marginsheet/shared/db";
 import { readoutForHousehold } from "./ledger-readout.js";
+import { readLedger, type Sql as ReadoutSql } from "./ledger-readout-sql.js";
 import { encryptToken, decryptToken } from "./token-crypto.js";
 import { exchangePublicToken } from "./exchange.js";
 import { createLinkToken } from "./reconnect.js";
@@ -244,6 +245,61 @@ export default {
     // api, which can read the tables; this route exists ONLY to obtain a number
     // that did not come from us, because a readout assembled from our tables
     // agrees with itself whatever went wrong.
+    // POST /internal/ledger-readout: our tables beside Plaid's own count.
+    //
+    // IT RUNS HERE BECAUSE THE TABLES DO. api threw "permission denied for
+    // table plaid_items" reading last_cursor_at, a column 0027 added and
+    // granted to nobody: marginsheet_app holds plaid_items as an enumerated
+    // column list, deliberately, so a column added later is excluded. Moving
+    // the statements to the role that holds these tables widens no grant, and
+    // granting api a table to fix a diagnostic would be the worst available
+    // reason to touch that boundary (Guy, 20 Aug 2026).
+    if (url.pathname === "/internal/ledger-readout" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const { householdId } = (await request.json().catch(() => ({}))) as { householdId?: string };
+      if (!householdId) return Response.json({ error: "householdId is required" }, { status: 400 });
+
+      // EVERY FAILURE COMES BACK AS JSON CARRYING ITS DETAIL. The first version
+      // let the exception escape, Cloudflare answered with its own error page,
+      // and the button printed an empty object: indistinguishable from a
+      // successful call with nothing to report, in a diagnostic built to
+      // resolve exactly that kind of ambiguity. Postgres puts the useful part
+      // in code, detail, hint and position, and a message alone loses all four.
+      const sql = postgres(env.NEON_DATABASE_URL, { max: 1 });
+      try {
+        const ours = await sql.begin(async (tx) => readLedger(tx as unknown as ReadoutSql, householdId));
+        const plaid = await readoutForHousehold(
+          householdId,
+          { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+          env.TOKEN_ENCRYPTION_KEY,
+          env.NEON_DATABASE_URL
+        );
+        return Response.json({ ours, plaid: { items: plaid.length, results: plaid } });
+      } catch (error) {
+        const e = error as { message?: string; code?: string; detail?: string; hint?: string; position?: string };
+        return Response.json(
+          {
+            error: "readout failed",
+            detail: {
+              message: e.message ?? String(error),
+              code: e.code,
+              detail: e.detail,
+              hint: e.hint,
+              position: e.position,
+            },
+          },
+          { status: 500 }
+        );
+      } finally {
+        await sql.end();
+      }
+    }
+
     if (url.pathname === "/internal/plaid-totals" && request.method === "POST") {
       if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
         return Response.json({ error: "sync is not configured" }, { status: 503 });
