@@ -744,8 +744,8 @@
         "kind": "source",
         "file": "services/sync/src/index.ts",
         "find": "            await runSyncForItem(",
-        "replace": "            await UNCALLED_runSyncForItem(",
-        "note": "Removes the only call site, restoring the state 4.5b prime shipped in: a runner nobody could reach. Verified red 20 Aug 2026."
+        "replace": "            await neverCallsTheRunner(",
+        "note": "Renames the only call site so the runner is unreachable, restoring the state 4.5b prime shipped in. THE FIRST MUTATION WAS INERT AND THE HARNESS CAUGHT IT: it replaced the call with UNCALLED_runSyncForItem(, which STILL CONTAINS runSyncForItem( as a substring, so the assertion passed. A manual check appeared to confirm it red, but that run had mangled the file with an earlier command and credited the wrong mutation. The harness was right and the hand-verification was wrong, which is the harness earning its place: a mutation that changes the file without changing what the test sees is exactly what it reports."
       },
       "distinction": "WRITTEN BECAUSE THE DEFECT RECURRED ONE TASK AFTER BEING CRITICISED. 4.4 was faulted for runTransactionsSync counting rows with no caller, and 4.5b prime was reported as six pieces built when it was five plus a function nobody could call. NOTHING ELSE IN THE SUITE WOULD NOTICE: every test of the runner calls it directly, so a runner with no route passes its own tests completely. This asserts the caller exists, which is the one property a unit test structurally cannot check."
     }
