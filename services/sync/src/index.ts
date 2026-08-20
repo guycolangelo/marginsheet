@@ -24,6 +24,7 @@ export { HouseholdSync };
 
 export interface Env {
   ENVIRONMENT: string;
+  DEBUG_PROBE_TOKEN?: string;
   BUILD_SHA?: string;
   NEON_DATABASE_URL?: string;
   TOKEN_ENCRYPTION_KEY?: string;
@@ -86,6 +87,33 @@ export default {
     //
     // Returns three booleans and no key material, no ciphertext and no
     // plaintext beyond a fixed literal that is not a token.
+    // EVERY /debug ROUTE REQUIRES A PROBE TOKEN. Refused by default.
+    //
+    // WHAT THEY DISCLOSE, captured live on 19 Aug 2026: no values, and that is
+    // not the same as nothing. Environment, build, migration and table counts,
+    // the database role, and WHICH SECRETS EXIST BY NAME, which names our
+    // vendors. Reconnaissance rather than credentials.
+    //
+    // GATED BY CREDENTIAL, NOT BY ENVIRONMENT, and that distinction was paid
+    // for. An `ENVIRONMENT === "production"` refusal was written first and
+    // would have 404'd the production routes that db-identity.test.ts and
+    // verify-deploy.sh depend on, BLINDING FIVE LIVE CONTROLS in the one
+    // environment that matters. A gate that silences the checks watching the
+    // thing it guards is not a gate, it is an outage with a rationale.
+    //
+    // The token is REQUIRED, never optional-if-configured: a gate that
+    // activates only when a secret happens to be present fails open exactly
+    // when somebody forgets to paste it. An absent token refuses everything,
+    // which fails closed and is loud.
+    //
+    // 404 rather than 403, because a 403 confirms the route exists.
+    if (url.pathname.startsWith("/debug/")) {
+      const presented = request.headers.get("x-probe-token");
+      if (!env.DEBUG_PROBE_TOKEN || presented !== env.DEBUG_PROBE_TOKEN) {
+        return new Response("Not found", { status: 404 });
+      }
+    }
+
     if (url.pathname === "/debug/crypto-selftest") {
       const keyMaterial = env.TOKEN_ENCRYPTION_KEY;
       if (!keyMaterial) {
