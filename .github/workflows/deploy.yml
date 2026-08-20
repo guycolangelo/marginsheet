@@ -148,6 +148,11 @@ jobs:
       # always(), not success(). See the WHAT GREEN MEANS note at the top.
       - name: Verify dev serves this commit against this schema
         if: always()
+        env:
+          # /debug is gated by credential since #111. Without this the probe
+          # presents an EMPTY token, the gate correctly refuses it, and the
+          # failure reads as a broken Worker rather than a missing variable.
+          DEBUG_PROBE_TOKEN: ${{ secrets.DEBUG_PROBE_TOKEN }}
         run: .github/scripts/verify-deploy.sh dev "${SHA:0:7}" "$WANT_MIGRATIONS"
 
   staging:
@@ -211,6 +216,11 @@ jobs:
       # always(), not success(). See the WHAT GREEN MEANS note at the top.
       - name: Verify staging serves this commit against this schema
         if: always()
+        env:
+          # /debug is gated by credential since #111. Without this the probe
+          # presents an EMPTY token, the gate correctly refuses it, and the
+          # failure reads as a broken Worker rather than a missing variable.
+          DEBUG_PROBE_TOKEN: ${{ secrets.DEBUG_PROBE_TOKEN }}
         run: .github/scripts/verify-deploy.sh staging "${SHA:0:7}" "$WANT_MIGRATIONS"
 
   production:
@@ -315,4 +325,9 @@ jobs:
       # path, including a deploy that shipped half of production, still runs it.
       - name: Verify production serves this commit against this schema
         if: always() && steps.tip.outcome == 'success'
+        env:
+          # /debug is gated by credential since #111. Without this the probe
+          # presents an EMPTY token, the gate correctly refuses it, and the
+          # failure reads as a broken Worker rather than a missing variable.
+          DEBUG_PROBE_TOKEN: ${{ secrets.DEBUG_PROBE_TOKEN }}
         run: .github/scripts/verify-deploy.sh production "${SHA:0:7}" "$WANT_MIGRATIONS"
