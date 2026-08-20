@@ -5,6 +5,7 @@ import { scrubEvent } from "@marginsheet/shared/sentry-scrub";
 import { readDbIdentity, readSchemaHealth } from "@marginsheet/shared/db";
 import { secretPresence } from "@marginsheet/shared/required-secrets";
 import { CONNECT_PAGE, OAUTH_RETURN_PAGE } from "./connect-page.js";
+import { readLedger, type Sql } from "./ledger-readout-sql.js";
 import { createAuth } from "./auth.js";
 import { postmarkSender } from "./email.js";
 import { confirmSignIn, confirmLandingPage } from "./confirm.js";
@@ -195,105 +196,59 @@ const handler = {
         if (url.pathname === "/plaid/ledger-readout") {
           // THE READOUT (4.5b prime, throwaway with the rest of this surface).
           //
-          // 201 transactions across six depository accounts is either the whole
-          // window SoFi gave or a window we truncated, and OUR TABLES CANNOT
-          // TELL THOSE APART because both produce the same rows. So this
-          // reports what we hold, PER ACCOUNT, beside what Plaid says exists,
-          // PER ACCOUNT, and leaves the comparison visible rather than making
-          // it (Guy, 20 Aug 2026).
+          // Our tables cannot say whether a count is what exists or what we
+          // kept, because both produce the same rows. So this reports what we
+          // hold, per account and per type, beside what Plaid says exists, and
+          // leaves the comparison visible rather than making it.
           //
-          // PER ACCOUNT AND PER TYPE, NOT AGGREGATE. A uniform backfill window
-          // is an assumption; six accounts on one login can answer differently,
-          // and an Item total that matches hides an account that returned
-          // nothing. The type breakdown answers a different question: the Plaid
-          // research says Transactions cannot return investment history, and if
-          // the two investment accounts carry rows then that research is wrong
-          // about this institution. Better found in a readout than in a Kept
-          // figure three modules from now.
-          await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;
+          // EVERY FAILURE COMES BACK AS JSON WITH ITS DETAIL. The first version
+          // let an exception escape, Cloudflare answered with its own error
+          // page, the page could not parse it, and the button printed `{}`:
+          // indistinguishable from a successful call with nothing to report.
+          // A diagnostic that cannot report its own failure is worse than none,
+          // because it reports something.
+          try {
+            const ours = await readLedger(sql as unknown as Sql, householdId);
 
-          const accounts = await sql<
-            {
-              plaid_account_id: string; name: string | null; mask: string | null;
-              type: string | null; subtype: string | null; institution: string | null;
-              held: number; oldest: string | null; newest: string | null;
-              oldest_authorized: string | null; pending: number; removed: number;
-            }[]
-          >`
-            select fa.plaid_account_id, fa.name, fa.mask, fa.type, fa.subtype,
-                   i.name as institution,
-                   count(t.id)::int as held,
-                   min(t.date)::text as oldest,
-                   max(t.date)::text as newest,
-                   min(t.authorized_date)::text as oldest_authorized,
-                   count(t.id) filter (where t.pending)::int as pending,
-                   count(t.id) filter (where t.removed)::int as removed
-              from financial_accounts fa
-              join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
-              left join institutions i on i.id = pi.institution_id
-              left join transactions t on t.account_id = fa.id and t.household_id = fa.household_id
-             where fa.household_id = ${householdId}
-             group by fa.plaid_account_id, fa.name, fa.mask, fa.type, fa.subtype, i.name
-             order by i.name nulls last, fa.type, fa.name
-          `;
-
-          const byType = await sql<{ type: string | null; accounts: number; held: number; oldest: string | null }[]>`
-            select fa.type,
-                   count(distinct fa.id)::int as accounts,
-                   count(t.id)::int as held,
-                   min(t.date)::text as oldest
-              from financial_accounts fa
-              left join transactions t on t.account_id = fa.id and t.household_id = fa.household_id
-             where fa.household_id = ${householdId}
-             group by fa.type
-             order by fa.type
-          `;
-
-          const items = await sql<
-            {
-              item_id: string; sync_status: string | null; status: string | null;
-              sync_cursor: string | null; last_completed_cursor: string | null;
-              last_cursor_at: string | null; last_successful_sync: string | null;
-            }[]
-          >`
-            select item_id, sync_status, status, sync_cursor, last_completed_cursor,
-                   last_cursor_at::text, last_successful_sync::text
-              from plaid_items where household_id = ${householdId} order by created_at
-          `;
-
-          const [household] = await sql<
-            { first_sync_completed_at: string | null; connected_first_account_at: string | null }[]
-          >`
-            select first_sync_completed_at::text, connected_first_account_at::text
-              from households where id = ${householdId}
-          `;
-
-          // THE CURSORS ARE REPORTED AS A COMPARISON, not as two opaque
-          // strings. Equal after a clean run; unequal means the pagination
-          // stopped in flight. A reader should not have to diff two base64
-          // blobs by eye to learn which happened.
-          const cursors = items.map((i) => ({
-            itemId: i.item_id,
-            equal: i.sync_cursor === i.last_completed_cursor,
-            inFlightPresent: Boolean(i.sync_cursor),
-            lastCompletedPresent: Boolean(i.last_completed_cursor),
-          }));
-
-          // Plaid's own count. Requested LAST so a Plaid outage still returns
-          // everything above it rather than failing the whole readout.
-          let plaid: unknown = { error: "no SYNC service binding" };
-          if (env.SYNC) {
-            const response = await env.SYNC.fetch(
-              new Request("https://sync.internal/internal/plaid-totals", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ householdId }),
-              })
+            // Plaid's own count, requested LAST so a Plaid outage still returns
+            // everything above it rather than failing the whole readout.
+            let plaid: unknown = { error: "no SYNC service binding" };
+            if (env.SYNC) {
+              const response = await env.SYNC.fetch(
+                new Request("https://sync.internal/internal/plaid-totals", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ householdId }),
+                })
+              );
+              const text = await response.text();
+              try {
+                plaid = JSON.parse(text);
+              } catch {
+                // The body is reported rather than replaced. "sync returned
+                // 500" tells the reader nothing they can act on; the body does.
+                plaid = { error: `sync returned ${response.status}`, body: text.slice(0, 2000) };
+              }
+            }
+            return Response.json({ ours, plaid });
+          } catch (error) {
+            const shaped = error as { message?: string; code?: string; detail?: string; hint?: string; position?: string };
+            return Response.json(
+              {
+                error: "readout failed",
+                // Postgres puts the useful part in code, detail, hint and
+                // position, and a message alone loses all four.
+                detail: {
+                  message: shaped.message ?? String(error),
+                  code: shaped.code,
+                  detail: shaped.detail,
+                  hint: shaped.hint,
+                  position: shaped.position,
+                },
+              },
+              { status: 500 }
             );
-            plaid = await response.json().catch(() => ({ error: `sync returned ${response.status}` }));
           }
-
-          return Response.json({ ours: { accounts, byType, items, household, cursors }, plaid });
         }
 
         return new Response("not found", { status: 404 });

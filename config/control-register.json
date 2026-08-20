@@ -812,6 +812,21 @@
         "note": "OMITS THE LINE, which is the shape this file already records as the purest plausible mutation: nobody writes an ungated route on purpose, and the failure mode is that nobody writes anything. The handler stays exactly where it is and stays correct; it simply stops being reached through the gate and falls through to the unauthenticated part of the Worker. Verified red 20 Aug 2026, on the right assertion, with the route named in the message."
       },
       "distinction": "THE BLOCK-LEVEL ASSERTION BESIDE IT CANNOT SEE THIS, and that is why this exists. 'gates link-token, accounts and the page behind getSession' proves the guarded REGION calls getSession, which stays true however many routes are handled somewhere else: its coverage is a property of the region rather than of the routes. Adding /plaid/ledger-readout made it concrete, because the route was gated in fact and nothing asserted it. The two exemptions are named in the test rather than inferred: the OAuth return arrives from the bank rather than from our own fetch, and the exchange carries its own session handling under its own control. Direction 2 asserts the scan found more than three routes, because a regex that stops matching would compare two empty sets and pass."
+    },
+    {
+      "id": "readout-statements-execute",
+      "control": "the readout execution test (packages/schema/test/db/ledger-readout-sql.test.ts)",
+      "guards": "The ledger readout's SQL parses, is permitted to marginsheet_app, and returns the household's rows under RLS.",
+      "test": "packages/schema/test/db/ledger-readout-sql.test.ts",
+      "name": "runs every statement and returns the seeded rows",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/ledger-readout-sql.ts",
+        "find": "           (count(t.id) filter (where t.pending))::int as pending,",
+        "replace": "           (count(t.id) filter (where t.pending)::int) as pending,",
+        "note": "MOVES THE CAST INSIDE THE FILTER CLAUSE, which is the plausible-and-wrong version rather than an obvious break: it reads as the same expression, a reviewer scanning for a missing column or a wrong table sees nothing, and it is the exact class of mistake a typecheck cannot see because SQL in a template literal is a string. A source mutation is right here even though the control touches a database: the thing it guards is a STATEMENT, and a statement lives in source. Contrast the 0028 grant controls, which guard a privilege and therefore need kind sql."
+      },
+      "distinction": "THE THIRD INSTANCE OF ONE SHAPE TODAY, and the one that finally got a test. last_cursor_at was a column no migration created; households was a table no grant covered; the readout was a statement nothing ran. All three passed their own suites and all three surfaced on a real run, because a typecheck proves a statement was CONSTRUCTED and says nothing about whether it can EXECUTE. It imports readLedger rather than restating the SQL, so the test cannot drift into agreeing with a copy of itself, and it runs as marginsheet_app rather than the owner, because the owner passes through every grant and every policy and would hide two of the three things that can break. Direction 2 asserts the account row count BEFORE reading any aggregate: min, max and count all return defensible answers over zero rows, so a readout that matched nothing would satisfy every other assertion here."
     }
   ]
 }
