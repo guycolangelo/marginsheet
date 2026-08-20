@@ -72,13 +72,6 @@
     "raised": "2026-08-17"
   },
   {
-    "id": "rule-2-refusal-timing",
-    "item": "RULED ACCEPTABLE, 17 Aug 2026 (Guy), and recorded so it is not revisited as an oversight. Rule 2's cross-household collision is caught at CONFIRM rather than START, because members carries household_isolation and a pre-check cannot see another household's row. The constraint enforces; the code translates the violation. Cost: one wasted SMS and a clear refusal. Weighed against a second SECURITY DEFINER function, which is a permanent widening of the RLS hole, for a case that is genuinely rare: two households legitimately claiming one verified number is either a typo or a person moving between households, and both want support anyway.",
-    "owner": "closed by ruling",
-    "owed_to": "nothing; recorded so the trade is not re-opened as a defect",
-    "raised": "2026-08-17"
-  },
-  {
     "id": "sensitive-actions-unbuilt",
     "item": "Three of the four sensitive actions \u00a71 names do not exist yet: cancellation (M7), member removal (3.5), export (M8). They are enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts each has NO route, so building one without flipping the flag fails and sends the author to where the recent-auth requirement is written. Recent-auth is live on the one that exists.",
     "owner": "M7, 3.5 and M8 respectively",
@@ -137,10 +130,11 @@
   },
   {
     "id": "auth-is-production-only",
-    "item": "BETTER_AUTH_SECRET, BETTER_AUTH_URL and AUTH_FROM_EMAIL exist on api/production and on NEITHER dev nor staging, and they are not vars in wrangler.jsonc either. Found while writing config/worker-secrets.json (4.2.3). Guy's read, 17 Aug 2026: dev and staging genuinely do not serve auth, because nothing has ever signed in there and the magic link path was only ever proven against production. NOT BLESSED INTO THE DECLARATION, because a declaration written from current state agrees with whatever was done. Two ways to close it: either those environments get their own auth config, or we state plainly that auth is production-only and accept that its tests never run outside production. The second is a real cost worth naming rather than discovering: it means every auth control is exercised in exactly one environment, and that environment is the one with households in it.",
-    "owner": "Guy",
+    "item": "RULED 19 Aug 2026 (Guy): AUTH IS PRODUCTION-ONLY AND THAT IS STATED AS A LIMITATION RATHER THAN FIXED WITH CONFIG. Dev and staging do not serve auth and nothing signs in there, so giving them auth configuration would mean maintaining a second set of BETTER_AUTH secrets for a path nobody uses. THE HONEST COST, RECORDED RATHER THAN DISCOVERED: every auth test runs against production only, so auth changes are never exercised in a lower environment before they reach households. Anyone reading a green dev or staging run should know it says nothing about auth. This item stays open as the STATEMENT of that limitation, not as work: it closes when either auth is served in a lower environment or a later ruling changes the trade. ORIGINAL: BETTER_AUTH_SECRET, BETTER_AUTH_URL and AUTH_FROM_EMAIL exist on api/production and on NEITHER dev nor staging, and they are not vars in wrangler.jsonc either. Found while writing config/worker-secrets.json (4.2.3). Guy's read, 17 Aug 2026: dev and staging genuinely do not serve auth, because nothing has ever signed in there and the magic link path was only ever proven against production. NOT BLESSED INTO THE DECLARATION, because a declaration written from current state agrees with whatever was done. Two ways to close it: either those environments get their own auth config, or we state plainly that auth is production-only and accept that its tests never run outside production. The second is a real cost worth naming rather than discovering: it means every auth control is exercised in exactly one environment, and that environment is the one with households in it.",
+    "owner": "build",
     "owed_to": "a ruling, then either config or a stated limitation",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger": "no action owed; it is closed by auth being served in a lower environment, or by a later ruling. Until then it exists so a reader knows what a green dev run does not cover."
   },
   {
     "id": "canon-revision-two-registers-one-voice",
