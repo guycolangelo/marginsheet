@@ -275,6 +275,32 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: after any union of a keyed list, **run whatever check validates that list** rather than reading the merge. The open-items check caught both in a second; reading the diff would not have, because a resurrected row looks exactly like a row that was always there. Where the list has no check, diff the ID SETS in both directions and account for every id present on one side only.
 
+- **ROUTE AND GATE ARE DIFFERENT PROPERTIES, AND ADJACENCY READS AS ONE CLAIM.**
+
+  *"All changes reach production through version control and automated deployment"* says nothing about approval. *"Every production deployment requires explicit human approval"* says nothing about which changes. **Neither is wrong. Together they imply something stronger than either states, and nobody wrote the stronger claim.**
+
+  **The tell is that the combined claim has no author, so nothing can be checked against it.** This is the drift rule with a new mechanism: not two statements of one fact disagreeing, but two true statements of different facts merging into a third nobody made. Review does not catch it because each sentence is defensible on its own, and the defect exists only in the reading.
+
+  Found 19 Aug 2026 in the Information Security Program, where the pair sat adjacent and a reader could take them as gating the whole pipeline. In fact `dev` and `staging` deploy automatically on merge and only `production` carries a reviewer. The fix is to state the scope in the sentence that makes the claim, and to add the consequence that carries the weight: **a bad deploy is caught in dev before staging runs, and in staging before production is offered for approval at all.**
+
+  It generalises past compliance documents. Anywhere two true sentences about a system sit together, ask what a reader would take from the pair, and whether anybody would defend that.
+
+- **TWO LISTS OF THE SAME THING DO NOT MERELY DRIFT. THEY DRIFT INDEPENDENTLY, SO NEITHER SIDE'S GREEN MEANS ANYTHING ABOUT THE OTHER'S COVERAGE.**
+
+  On 19 Aug 2026 CI's test job ran `api, conversation, fact-packages, sync` and the deploy gate ran `api, conversation, lint, shared, fact-packages`. **`packages/shared` was tested at deploy and not in CI; `services/sync` in CI and not at deploy.** A change to `shared` passed every pull request check and broke main's deploy on merge, and the reverse hole was open at the same time.
+
+  **"Shared wasn't in CI" describes a gap. "Neither list was a subset of the other" describes why no side could be trusted** (Guy). A single missing entry is a hole somebody can reason about; two lists each missing what the other has means there is no side whose green tells you anything.
+
+  The fix is the one already recorded for `worker-secrets.json` against `REQUIRED_SECRETS`: **derive rather than restate.** Both now run `pnpm -r test`, which covers every package that has a test script, so a new package is covered the day it exists rather than the day somebody remembers two files.
+
+- **WHEN A CONTROL GUARDS DATABASE STATE, THE MUTATION MUST BE DATABASE STATE.** A source mutation on an applied migration proves the file changed and nothing else.
+
+  **A migration is applied ONCE, when the CI branch is created, and the harness runs afterwards.** Rewriting an already-applied `.sql` changes no database anywhere, so the harness edits the file, proves the FILE changed, runs the test against an unchanged schema, and reports the control as insensitive.
+
+  **Three of four new controls got this wrong in one sitting**, which is what makes it a rule rather than a lapse. All three guarded RLS policies and planted `kind: "source"` against the migration text; the harness reported `broke it yes, went red NO` three times, correctly. That is its recorded limitation working: it proves a mutation changed the FILE, never that it changed BEHAVIOUR.
+
+  The test is the standing question one level down: **where does the thing this control guards actually live?** A predicate inside a statement lives in source. A policy, a grant, a constraint or an index lives in the database, so only `kind: "sql"` reaches it, with a `proof` query that reads the state back and refuses to run the test if the mutation did not land.
+
 - **A FIX APPLIED WHERE A DEFECT WAS NOTICED IS NOT A FIX APPLIED WHERE THE DEFECT EXISTS. Sweep for the pattern, not the incident.**
 
   On 19 Aug 2026 `|| true` was removed from `neon-pr-cleanup`, where a leaked Neon branch had just been traced to it. **The identical defect sat in two other files and stayed there**, silently swallowing failed scratch-branch deletions, which is one of the things that filled the project in the first place. Both were found hours later by a sweep that grepped for `|| true` rather than by anyone thinking about branch cleanup again.
