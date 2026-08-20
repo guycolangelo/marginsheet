@@ -265,6 +265,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So the harness asserts its own mutation took effect before running anything, and that assertion is not negotiable.
 
+- **WHEN A CONTROL GUARDS DATABASE STATE, THE MUTATION MUST BE DATABASE STATE.** A source mutation on an applied migration proves the file changed and nothing else.
+
+  **A migration is applied ONCE, when the CI branch is created, and the harness runs afterwards.** Rewriting an already-applied `.sql` changes no database anywhere. So the harness edits the file, proves the FILE changed, runs the test against an unchanged schema, and reports the control as insensitive.
+
+  **Three of four new controls got this wrong in one sitting** on 19 Aug 2026, which is what makes it a rule rather than a lapse. All three guarded RLS policies from migration 0026 and all three planted `kind: "source"` against the migration text. The harness reported `broke it yes, went red NO` three times, correctly.
+
+  It is the harness's own recorded limitation doing its job: **it proves a mutation changed the FILE, never that it changed BEHAVIOUR**, and it erred toward alarm rather than false comfort, which is the direction this file already prefers. It still cost a cycle.
+
+  The test is the same question asked one level down: **where does the thing this control guards actually live?** A predicate inside a statement lives in source, so a source mutation is right. A policy, a grant, a constraint or an index lives in the database, so only `kind: "sql"` can reach it, with a `proof` query that reads the state back and refuses to run the test if the mutation did not land.
+
+  **Audited the register when this was found** rather than trusting memory: no other `source` mutation points at a migration, and the ones that guard behaviour implemented in application code are correctly `source`. The three were the only ones, and they were new.
+
 - **Register mutations are reviewed as code, not as data.** The harness proves a mutation changed the FILE, never that it changed BEHAVIOUR, and proving the second is undecidable in general. A mutation that alters a line without altering what runs makes the harness report an insensitive control when the control was fine.
 
   **That failure leans toward alarm rather than false comfort, which is the safer direction**, and it still costs somebody an afternoon rewriting a test that was never broken. That direction is now a stated preference rather than a happy accident, because it has come up twice: **when a verifier must err, it errs toward refusing to proceed.** The took-effect check was too strict and aborted a run it could have completed. The sync-role boundary harness turned real refusals into red by wrapping each attempt in a transaction. Both cost an afternoon. The mirror images do not cost an afternoon: a took-effect check that is too loose reports every control as correctly red while mutating nothing, and a boundary harness that turned real reads into green would ship a role that can read every household's conversation **while reporting a boundary**. A verifier that fails open is worse than no verifier, because it also carries authority.
