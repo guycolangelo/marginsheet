@@ -568,6 +568,111 @@
         "note": "Restores in the DATABASE exactly the condition under which this statement was CONFIRMED to flag another household's transaction with threw=nothing. Not hypothetical, and not a file edit: a migration already applied cannot be un-applied by rewriting it."
       },
       "distinction": "THE OMISSION OF 4e's HOUSEHOLD PREDICATE IS DELIBERATE AND MUST NOT BE \"FIXED\". This test issues the removed-stream update WITHOUT the predicate applyRemoved now carries, because it tests the POLICY rather than the STATEMENT. Adding the predicate here would make the test pass for the wrong reason and the policy could be reverted with nothing going red. BOTH MUST HOLD INDEPENDENTLY, and that is the entire reason 4e landed before 4c: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal. FREE EVIDENCE, AND THE ONLY ONE OF THE THREE THAT IS NOT HYPOTHETICAL: this statement already did this once, against a real database, before the policy existed. IT OMITS 4e's HOUSEHOLD PREDICATE DELIBERATELY, so it tests the POLICY rather than the statement. Both must hold independently, which is the whole reason 4e landed first: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal."
+    },
+    {
+      "id": "ledgers-diverge-obligates-cash-ledger",
+      "control": "the ledgers_diverge forcing field (fact package)",
+      "guards": "A scenario answer claiming the ledgers diverge cannot omit the cash half.",
+      "test": "packages/fact-packages/test/forcing-fields.test.ts",
+      "name": "ScenarioAnswer.ledgers_diverge obligates cash_ledger",
+      "planted": {
+        "kind": "source",
+        "file": "packages/fact-packages/src/fixtures/index.ts",
+        "find": "      cash_ledger: null,\n      ledgers_diverge: false,",
+        "replace": "      cash_ledger: null,\n      ledgers_diverge: true,",
+        "note": "A fixture claiming divergence with no cash ledger, which is the state the comment forbade and nothing checked. Verified 18 Aug 2026: reddens only its own assertion, and the constructed-violation tests stay green, which is the discrimination that matters."
+      },
+      "distinction": "THE COMMENT SAID FORCES SINCE M2 AND FORCED NOTHING. This is an OMISSION FAILURE: answering one ledger is not a banned word, it is a missing half, so no vocabulary rule reaches it. NULL_BEHAVIOR is the dual and points the other way, governing what a null composes while nothing governed what a populated flag obligates. Its own cash_ledger entry pointed at this enforcement before it existed."
+    },
+    {
+      "id": "honored-fully-obligates-not-honored-part",
+      "control": "the honored_fully forcing field (fact package)",
+      "guards": "A preference confirmation that was not honored fully cannot omit the part left out.",
+      "test": "packages/fact-packages/test/forcing-fields.test.ts",
+      "name": "PreferenceConfirm.honored_fully obligates not_honored_part",
+      "planted": {
+        "kind": "source",
+        "file": "packages/fact-packages/src/fixtures/index.ts",
+        "find": "not_honored_part: \"the split transactions\"",
+        "replace": "not_honored_part: null",
+        "note": "A partial honor with nothing naming the part not honored. Verified 18 Aug 2026, reddens only its own assertion."
+      },
+      "distinction": "Found by sweeping every boolean in the contract after the omission failure was named, and it is the cleanest instance after the archetype. Every word in such a confirmation is true and the household reads FULL agreement into a PARTIAL one. Same shape as answering one ledger: not a banned word, a missing half."
+    },
+    {
+      "id": "mechanism-claims-name-their-enforcement",
+      "control": "the mechanism-claim ratchet (packages/lint)",
+      "guards": "A comment cannot newly assert that a mechanism exists without naming what enforces it.",
+      "test": "packages/lint/test/mechanism-claims.test.ts",
+      "name": "finds no unbacked claim outside the baseline",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/plaid-client.ts",
+        "find": "export class PlaidError extends Error {",
+        "replace": "// PLANTED: this guarantees the token never escapes.\nexport class PlaidError extends Error {",
+        "note": "A NEW unbacked mechanism claim, which is the thing the ratchet exists to refuse. Verified 18 Aug 2026 as a PAIR: the claim alone reddens, and the same claim followed by 'Enforced by token-never-escapes.test.ts' passes. The pair is the point, because a rule that reddens on everything is a rule people suppress."
+      },
+      "distinction": "THIS IS THE FIX; THE 126 ARE CLEANUP. The unbacked claims accumulated because this project records rulings in comments, and that method works when a control enforces the comment and FAILS SILENTLY when none does. Cleanup on a pile that is still growing is not worth starting. Deliberately STRICTER than the survey in docs/imperative-inventory.md, which counts 126 with a broad filter because a survey should over-collect and be read by a human. This counts 18, because a rule firing on legitimate comments is a rule people learn to suppress."
+    },
+    {
+      "id": "household-sync-serialises-over-http",
+      "control": "the household sync chain lock (services/sync)",
+      "guards": "Two sync requests for one household cannot be inside the critical section at once.",
+      "test": "services/sync/test/household-sync-lock.test.ts",
+      "name": "serialises two concurrent syncs for one household",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/household-sync-do.ts",
+        "find": "    // A predecessor that threw must not stop the chain moving.\n    await previous.catch(() => undefined);",
+        "replace": "    // PLANTED: the lock removed, the Durable Object left intact.\n    void previous;",
+        "note": "THE MUTATION REMOVES THE LOCK, NOT THE OBJECT (Guy, 17 Aug 2026). A test that only reddens when the DO is gone proves the wrong thing: the DO is not the lock, and the failure this system faces is a DO that routes correctly and serialises nothing. Verified 19 Aug 2026: fails on 'expected 2 to be 1', the exclusion assertion, with the fixture guard passing."
+      },
+      "distinction": "TESTED OVER HTTP AGAINST wrangler dev, NOT AGAINST withLock. Calling the method proves the promise chain serialises, which is a fact about the chain. The claim is that two requests for one household cannot sync at once, and the route, idFromName, the binding and the runtime's concurrency all sit outside the class. THE COLLISION IS CONSTRUCTED AND THE TEST ABORTS RATHER THAN PASSES IF IT DOES NOT FORM: the fixture guard counts arrivals from outside the lock and fires before the exclusion assertion, because two requests that never overlapped are an empty set and an exclusion assertion over an empty set is zero evidence. The guard counts arrivals rather than waiters for a reason paid for on 19 Aug: reading the lock's own queue depth let the mutation silence the guard, so planting reported a degenerate fixture when the lock was gone."
+    },
+    {
+      "id": "household-sync-chain-holds-same-tick",
+      "control": "the household sync chain lock, against arrivals in one tick",
+      "guards": "The chain is extended before the predecessor is awaited, so two callers in one tick cannot both read the old tail.",
+      "test": "services/sync/test/household-sync-lock.test.ts",
+      "name": "serialises two units of work dispatched in the same tick",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/household-sync-do.ts",
+        "find": "    const previous = this.tail;\n    let release!: () => void;",
+        "replace": "    const previous = this.tail;\n    await previous.catch(() => undefined);  // PLANTED: await before extending\n    let release!: () => void;",
+        "note": "This mutation PASSED every HTTP test, which is why this control exists. It leaves a lock that reads like a chain and serialises nothing. Verified 19 Aug 2026 against the same-tick path: fails on 'expected 2 to be 1'."
+      },
+      "distinction": "THE CONTROL EXISTS BECAUSE A MUTATION PASSED, and the tempting response was to call the window too small to matter. One microtask is smaller than any gap the network can produce, so no HTTP test can ever see it. It is reachable anyway, because sync work is dispatched from inside the object too: a queue batch or an alarm taking the lock per item takes it twice in one tick. Two arrival shapes need two tests."
+    },
+    {
+      "id": "household-sync-survives-a-failed-task",
+      "control": "the household sync chain lock, when a task rejects",
+      "guards": "A failed sync releases the lock, so one failure cannot lock a household out until the object restarts.",
+      "test": "services/sync/test/household-sync-lock.test.ts",
+      "name": "a failed sync does not lock the household out",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/household-sync-do.ts",
+        "find": "    let release!: () => void;\n    // The next arrival waits on THIS promise, so the chain is extended before\n    // any awaiting happens. Extending it after the await is the bug that turns\n    // a chain into no lock at all.\n    this.tail = new Promise<void>((resolve) => { release = resolve; });\n\n    // A predecessor that threw must not stop the chain moving.\n    await previous.catch(() => undefined);\n\n    this.inside += 1;\n    this.maxObserved = Math.max(this.maxObserved, this.inside);\n    try {\n      return await work();",
+        "replace": "    let release!: () => void;\n    let rejectTail!: (e: unknown) => void;\n    this.tail = new Promise<void>((resolve, reject) => { release = resolve; rejectTail = reject; });\n\n    await previous;\n\n    this.inside += 1;\n    this.maxObserved = Math.max(this.maxObserved, this.inside);\n    try {\n      // PLANTED: propagate the failure to whoever is waiting behind us.\n      return await work().catch((e) => { rejectTail(e); throw e; });",
+        "note": "THE MUTATION HAD TO BE THE THIRD ONE TRIED, and that is the finding. Chaining with .then PASSED, because previous.catch() swallows a rejected predecessor. Replacing withLock with the naive implementation broke four tests by bypassing the bookkeeping, which is loud and says nothing about poisoning. Only rejecting the tail on failure, phrased as a sentence a reasonable engineer would write, reddens exactly this test on exactly its final assertion. IT IS DELIBERATELY ONE CONTIGUOUS EDIT COVERING THREE SITES, because poisoning needs all three: the tail must be rejectable, the predecessor must be awaited bare, and the failure must reach the tail. A one-site mutation is inert here, and an inert mutation reports an insensitive control. Verified 19 Aug 2026."
+      },
+      "distinction": "POISONING IS STRUCTURALLY IMPOSSIBLE HERE IN TWO INDEPENDENT WAYS, and the test exists anyway. The tail is a fresh promise resolved by release() in a `finally`, so a rejected task still settles it; and `previous.catch(() => undefined)` swallows a rejected predecessor even if it were. EITHER ALONE IS SUFFICIENT, which is why the first two mutations could not redden it. So this control does not guard against a one-line slip, which cannot produce poisoning: it guards against a REWRITE to the obvious `tail = tail.then(work)` implementation, which is the shape a later author reaches for and where the risk actually lives. A household locked out until the object restarts reads as a sync problem rather than a lock problem, which is what makes it expensive to diagnose."
+    },
+    {
+      "id": "private-workers-answer-nobody",
+      "control": "the public-surface probe (.github/scripts/verify-public-surface.mjs)",
+      "guards": "A Worker declared private in config/public-surface.json cannot be reached from the public internet.",
+      "test": "services/sync/test/no-public-routes.test.ts",
+      "name": "turns workers.dev OFF explicitly, rather than omitting it",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/wrangler.jsonc",
+        "find": "  \"workers_dev\": false,",
+        "replace": "  // PLANTED: omitted, which is how it was for the life of the Worker.",
+        "note": "THE MUTATION IS AN OMISSION, because the defect was an omission. Removing the line restores exactly the state that had marginsheet-sync answering 200 in production while a test named \"unreachable from the public internet\" passed. A mutation that set workers_dev TRUE would prove far less: nobody was ever going to write true, and the failure mode is that nobody writes anything. Verified 19 Aug 2026."
+      },
+      "distinction": "TWO CONTROLS, DELIBERATELY, AND THEY FAIL AT DIFFERENT MOMENTS. The unit test fails when the config is edited and is what the register plants against. The CI job fails when the DEPLOYED surface disagrees with the declaration, which is the only one that could have caught the original: the config was never wrong in a way a reader would notice, it was silent, and silence is the exposed state. The live job carries a positive control because its passing state is indistinguishable from a network failure."
     }
   ]
 }

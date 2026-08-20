@@ -1,0 +1,26 @@
+{
+  "_doc": [],
+  "count": 12,
+  "claims": [
+    "packages/fact-packages/src/classes.ts::Forces the bank-authority sentence.",
+    "packages/fact-packages/src/classes.ts::NEVER COMPOSABLE. Stripped from the composer's view by construction.",
+    "packages/fact-packages/src/classes.ts::true FORCES the two-ledger answer shape.",
+    "packages/fact-packages/src/internal.ts::The composer's input type: the package with every internal field removed, recurs",
+    "services/api/src/invitation-routes.ts::The invitation endpoints (M3 task 3.5). Mounted in the same task that built the ",
+    "services/api/src/phone-change.ts::Refused BEFORE any write. The test asserts on the database row rather than this ",
+    "services/api/src/sensitive-actions.ts::Routes that LOOK sensitive to the scan and deliberately are not. An exclusion li",
+    "services/api/src/tokens.ts::32 bytes of randomness as lowercase hex. 256 bits, URL and email safe. HEX RATHE",
+    "services/api/vitest.config.ts::Vitest's default is 5s, which is a statement about LOCAL latency. Every database",
+    "services/sync/src/outbox.ts::The outbox: writing signals, announcing them, and the two readers that point opp",
+    "services/sync/src/reconnect.ts::Reconnect, in Plaid's update mode (M4 task 4.3.4). KEYED ON THE ITEM, NEVER ON T",
+    "services/sync/src/sync-state.ts::Syncing with neither clock is a row nothing can reason about, so it is swept rat"
+  ],
+  "disclaimedCount": 5,
+  "disclaimed": [
+    ".github/scripts/open-items.mjs::Prints the open items, and fails when one is not accountable. CLAUDE.md has said",
+    "packages/fact-packages/src/classes.ts::True on the first firing of a rule, false on every repeat. A repeat is composed ",
+    "packages/fact-packages/src/classes.ts::True when the correction changes the artifact's verdict, not just a figure. The ",
+    "packages/fact-packages/src/classes.ts::True when the household's confidence band was demoted by a double fault. The doc",
+    "packages/schema/migrations/0020_channel_gate_scope.sql::0001's rule 1 named a recent-auth window as the first half of the no-write-path "
+  ]
+}

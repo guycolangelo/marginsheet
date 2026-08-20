@@ -14,7 +14,19 @@ export type LintContext =
   // A deliverable the household receives: digest, Briefing, close, herald.
   // Rules that govern what may LEAD an artifact bind here, since leading is
   // a property of a whole composed piece rather than of a sentence.
-  | "composed_artifact";
+  | "composed_artifact"
+  // A surface a household READS: app copy, prompt files, marketing strings.
+  //
+  // SEPARATE FROM composed_artifact BECAUSE THE CANON IS. The category canon
+  // bans "financial" in "any household-facing string", which is narrower than
+  // universal and wider than one composed message. Binding it universally
+  // would be wrong BY THE CANON'S OWN TERMS: seven internal code comments in
+  // this repo say "financial data" and "financial life" correctly, describing
+  // what we protect rather than addressing a household.
+  //
+  // The same lesson as no-mycfo-in-composed-output: the context binding is the
+  // rule. A rule that fires on our own reasoning teaches people to suppress it.
+  | "household_copy";
 
 export interface Rule {
   id: string;
@@ -109,8 +121,11 @@ export const RULES: Rule[] = [
   {
     id: "budgeting-apps-quoted",
     contexts: ["universal"],
-    pattern: /(?<!["“])\bbudgeting apps\b(?!["”])/gi,
-    message: '"budgeting apps" always takes quotation marks.',
+    // SINGULAR ADDED 18 Aug 2026 (category canon v3.1, which writes the ban as
+    // "budgeting app" unquoted). The rule matched the plural only, so the
+    // singular has been legal since M0 while the doctrine banned it.
+    pattern: /(?<!["“])\bbudgeting apps?\b(?!["”])/gi,
+    message: '"budgeting app" and "budgeting apps" always take quotation marks.',
   },
   // THE SINGLE ASSISTANT RULING'S ONE LINT-ENFORCEABLE CLAUSE.
   //
@@ -138,6 +153,92 @@ export const RULES: Rule[] = [
       'MyKeeper is the only named assistant. Legitimate in routing config, fact ' +
       'packages, instrumentation and the QA harness; never in composed output.',
   },
+  // === Category canon v3.1, 18 Aug 2026 ==================================
+  //
+  // MarginSheet is a Money Intelligence Platform; MyKeeper is a Personal Money
+  // Intelligence Analyst. The rules below enforce the vocabulary half of that
+  // canon. What they cannot enforce is recorded in docs/open-items.json rather
+  // than assumed to follow from the text existing.
+
+  {
+    // "financial" and variants, in strings a HOUSEHOLD READS. Deliberately not
+    // universal: the canon says "any household-facing string", and this repo
+    // correctly uses "financial data" in comments describing what it protects.
+    //
+    // \b...\b does not match inside `financial_accounts`, because the
+    // underscore is a word character and there is no boundary before it. That
+    // is load-bearing: the table name appears throughout M4 and must not fire.
+    id: "no-financial-in-household-copy",
+    contexts: ["household_copy", "composed_artifact"],
+    pattern: /\bfinanci(?:al|ally|als)\b/gi,
+    message: 'Use "money", never "financial", in anything a household reads.',
+  },
+  {
+    // The category terms competitors own. Universal, because unlike "financial"
+    // these have no legitimate internal use: nothing in this system needs to
+    // call itself financial wellness in a comment.
+    id: "no-competitor-category-terms",
+    contexts: ["universal"],
+    pattern: /\bpersonal finance\b|\bfinancial (?:management|wellness|health)\b/gi,
+    message:
+      'Banned category terms. MarginSheet is a Money Intelligence Platform.',
+  },
+  {
+    // "agent" AS A DESCRIPTOR OF MyKeeper, which is narrower than the word.
+    // `user_agent` is an HTTP header and appears legitimately across M3's
+    // session work, so a bare /\bagent\b/ would fire on privacy code that is
+    // doing exactly what doctrine asks. The canon bans the DESCRIPTOR.
+    //
+    // WHY THE BAN IS DOCTRINE AND NOT STYLE: an analyst produces the
+    // assessment and the decision-maker decides. MyKeeper never holds
+    // authority to act on a household's money, and "agent" implies it does.
+    id: "no-agent-descriptor",
+    contexts: ["universal"],
+    pattern:
+      /\b(?:MarginSheet|MyKeeper|MyCFO)(?:™)?\s+(?:is\s+)?(?:an?\s+|your\s+)?agent\b|\b(?:AI|autonomous|money|financial)\s+agent\b|\bagentic\b/gi,
+    message:
+      'MyKeeper is a Personal Money Intelligence Analyst, never an agent. An analyst produces the assessment; the decision-maker decides.',
+  },
+  {
+    // "AI assistant" and "AI-powered". Distinct from no-ai-on-marks, which
+    // catches "MyKeeper AI": these are the category descriptions the canon
+    // rules out, and neither contains a mark.
+    id: "no-ai-category-language",
+    contexts: ["universal"],
+    pattern: /\bAI[- ]powered\b|\bAI assistants?\b/gi,
+    message:
+      'Banned category language. "AI assistants answer. Money Intelligence understands."',
+  },
+  {
+    // Money Intelligence is a category NOUN and is always capitalised. Case
+    // sensitive by construction: the point is the lowercase form.
+    id: "money-intelligence-capitalized",
+    contexts: ["universal"],
+    pattern: /\bmoney intelligence\b/g,
+    message: '"Money Intelligence" is a category noun and is always capitalised.',
+  },
+  {
+    // THE BURDEN VERBS. Not universal: "locked in" and "tied up" have ordinary
+    // technical uses, and a rule firing on a mutex comment is a rule people
+    // learn to ignore.
+    //
+    // THE LINE THIS DRAWS IS ONE WORD WIDE, which is why it is enforced rather
+    // than trusted. "This commits $2,496 through August 2028" is a fact.
+    // "This ties up your Margin for two years" is a verdict on the household's
+    // choice. A household financing a water heater in an emergency does not
+    // need our opinion.
+    id: "no-burden-verbs",
+    contexts: ["composed_artifact", "analytical", "decision_commentary", "household_copy"],
+    // INFLECTED, not literal. The canon lists "tied up"; the sentence the ban
+    // exists to stop is "this TIES up your Margin for two years". Matching the
+    // canon's exact wording would have passed the one example the doctrine
+    // names as the failure. Found by the fixture, not by review.
+    pattern:
+      /\bt(?:ie|ies|ied|ying) up\b|\block(?:s|ed|ing)? in\b|\bwork(?:s|ed|ing)? to pay\b|\beat(?:s|en|ing)? (?:up|by|into)\b|\bstuck with\b|\bon the hook\b|\bsaddl(?:e|es|ed|ing) (?:you )?with\b|\bweigh(?:s|ed|ing)? down\b/gi,
+    message:
+      "Banned burden verb. State the term and the total. Never judge the tender.",
+  },
+
   {
     id: "no-ai-on-marks",
     contexts: ["universal"],
@@ -171,43 +272,50 @@ export const RULES: Rule[] = [
   {
     id: "no-should",
     contexts: ["analytical"],
-    pattern: /\byou should\b|\bshould\b/gi,
+    // INFLECTED, not literal. Audited 18 Aug 2026 after no-burden-verbs shipped
+    // matching "tied up" and passing "TIES up", which is the exact sentence the
+    // doctrine names as its failure. The audit found ELEVEN gaps across six of
+    // the seven advice rules: every one of them banned a word and permitted its
+    // own inflections.
+    //
+    // A banned-word rule bans a PROHIBITION, not a spelling.
+    pattern: /\bshouldn['\u2019]?t\b|\bshould\b/gi,
     message: '"should" is banned in analytical replies.',
   },
   {
     id: "no-need-to",
     contexts: ["analytical"],
-    pattern: /\bneed to\b/gi,
+    pattern: /\bneed(?:s|ed|ing)? to\b/gi,
     message: '"need to" is banned in analytical replies.',
   },
   {
     id: "no-afford",
     contexts: ["analytical"],
-    pattern: /\bafford(s|ed|ability)?\b/gi,
+    pattern: /\bafford(?:s|ed|ing|able|ability)?\b/gi,
     message: "Affordability verdicts are banned. The brains state facts and costs.",
   },
   {
     id: "no-cut-instruction",
     contexts: ["analytical"],
-    pattern: /\b(cut|cutting) (back|down|your|the|spending|out)\b/gi,
+    pattern: /\bcut(?:s|ting)? (?:back|down|your|the|spending|out)\b/gi,
     message: '"cut" as instruction is banned.',
   },
   {
     id: "no-recommend",
     contexts: ["analytical"],
-    pattern: /\brecommend(s|ed|ation)?\b/gi,
+    pattern: /\brecommend(?:s|ed|ing|ations?)?\b/gi,
     message: '"recommend" is banned in analytical replies.',
   },
   {
     id: "no-delta-variance",
     contexts: ["correction"],
-    pattern: /\b(delta|variance|discrepanc(y|ies))\b/gi,
+    pattern: /\b(?:deltas?|variances?|discrepanc(?:y|ies))\b/gi,
     message: 'No "delta", "variance", or "discrepancy" in corrections.',
   },
   {
     id: "no-nagging",
     contexts: ["follow_up"],
-    pattern: /\bagain\b|\bstill haven'?t\b|\breminder\b/gi,
+    pattern: /\bagain\b|\bstill haven['\u2019]?t\b|\bremind(?:er|ers|ing)\b/gi,
     message: 'No "again", "still haven\'t", or "reminder" in follow-up alerts.',
   },
   {

@@ -35,6 +35,33 @@ describe("repo scan: universal rules over source, prompts, and copy", () => {
   });
 });
 
+// Household-facing trees carry the household_copy context as well as universal.
+//
+// SCOPED RATHER THAN UNIVERSAL, because the category canon scopes it: the ban
+// on "financial" is on "any household-facing string", and this repo uses
+// "financial data" correctly in seven internal comments describing what it
+// protects. A universal rule would fire on privacy code doing exactly what
+// doctrine asks, which is how a rule gets suppressed rather than obeyed.
+describe("repo scan: household-facing trees carry household_copy", () => {
+  const COPY_TREES = ["apps/web", "prompts"]
+    .map((p) => join(ROOT, p))
+    .filter((p) => existsSync(p));
+
+  it("scans a real tree, so this is not vacuous", () => {
+    // apps/web is an M0 placeholder and prompts/ is a .gitkeep. This assertion
+    // is what stops the suite reporting clean over nothing once both fill up.
+    expect(COPY_TREES.length).toBeGreaterThan(0);
+  });
+
+  it("finds no violations", () => {
+    const findings = scanFiles(COPY_TREES, ["universal", "household_copy"]);
+    const report = findings
+      .map((f) => `${f.file}:${f.line} [${f.ruleId}] ${JSON.stringify(f.match)}`)
+      .join("\n");
+    expect(findings, `\n${report}`).toEqual([]);
+  });
+});
+
 describe("repo scan: prompts tree carries every context, strict", () => {
   // Prompt files are outbound-adjacent: everything the doctrine bans in any
   // register is banned here. When real prompts arrive (M10+) and need to

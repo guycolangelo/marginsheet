@@ -2,9 +2,11 @@
 //
 // ALLOWLISTED BY NAME, NEVER BLOCKLISTED. Only `pr-<digits>` is touchable, so
 // dev, staging, main and anything else nobody anticipated are unreachable from
-// here by construction rather than by a list somebody has to maintain. Same
-// shape as the rotation target guard and the enumerated column grants: naming
-// what may be destroyed fails closed on everything else.
+// here. Enforced by the EPHEMERAL pattern below, which every candidate must
+// match before it is considered at all: a name that does not match is skipped
+// before any API call is made. Same shape as the rotation target guard and the
+// enumerated column grants: naming what may be destroyed fails closed on
+// everything else.
 //
 // TWO KINDS OF EPHEMERAL BRANCH, and they are aged differently:
 //   pr-<n> where n is a real PR   -> deletable once that PR is closed

@@ -306,3 +306,133 @@ That makes the asymmetry with removal the wrong way round in the original list. 
 ### What implements it
 
 `SENSITIVE_ACTIONS` in `services/api/src/sensitive-actions.ts` gains the entry, which means the enumeration test requires the route to exist and be guarded. The list is the enforcement mechanism, so amending §1 and amending the list are the same act.
+
+---
+
+# Amendments 11 to 13, approved 19 August 2026
+
+Supersedes the 18 August draft. Three corrections carried in the final: the tender is echoed into the answer as two values rather than a flag; 7b's absence claim is cut rather than given a field; and amendment 13 recommends a discriminated union so "installment obligates term" is structural rather than checked.
+
+Authority: tier 4, level with the spec text amended. Where these conflict with the original spec, these win.
+
+## 11. The two-ledger rule (amends `mycfo-mykeeper-conversational-spec.md`, compliance boundaries and the canonical exchange library)
+
+### What this fixes
+
+The rule has been operating doctrine since the specs were written and **appears nowhere in the document under any name.** Exchange #2 demonstrates it. Nothing stated it.
+
+**The contract was ahead of the spec, not behind it.** `ScenarioAnswer` already carried `margin_ledger`, `cash_ledger` and `ledgers_diverge`. M2 encoded the rule before the conversational spec named it, which is the safe direction to be wrong in.
+
+**And it is now enforced.** The forcing-field check on `ledgers_diverge` was built on 18 August. Before that the contract comment said FORCES and forced nothing, which is why this amendment records a rule that is real rather than one that is aspirational.
+
+### The rule
+
+**Any scenario answer covers both ledgers wherever they diverge, because the household is asking two questions and only knows they asked one.**
+
+**Cash choreography** answers *does the money physically clear.* Timing, balances, what is committed before the next deposit, whether a dip is covered and from where.
+
+**The MarginSheet verdict** answers *what does this do to the month.* Where it lands in Income minus Spending, and what happens to Margin.
+
+Answer only the cash side and the household hears yes. Answer only the Margin side and they hear no. Both are true, and **the honest answer is the tension between them.**
+
+Where `ledgers_diverge` is false, one answer serves and the second ledger is not narrated for its own sake. Where it is true, both are stated and the divergence is the content of the reply, not a footnote to it.
+
+### Margin always moves. Cash moves on the tender's schedule.
+
+The ledgers never disagree about *whether*, only about *when* and *how much*.
+
+| Tender | Gap |
+|---|---|
+| Debit or cash | Zero. Both ledgers move the same day. |
+| Credit card | Margin moves now, cash moves at statement payment. One cycle, and the gap that lets a household stack three purchases that each felt free. |
+| Installment loan | No lump ever reaches the ledger, so the verdict is a **term**, not a month. |
+
+### The tender beat
+
+**A purchase question cannot be answered correctly without knowing the tender, and the tender cannot be inferred before the fact.** Asking is a clarifying question, not advice, and it is permitted.
+
+The beat sits inside the canonical open rather than before it: "Let's look at the math. Debit or card?" It never becomes a form and never blocks a partial answer. **Where the household does not answer, or answers uncertainly, the reply names the tender it assumed and gives both shapes where they differ.**
+
+### Financing: the verdict is a term, never a monthly figure
+
+$104 a month for 24 months is not "3 points this month." It is $2,496 through August 2028.
+
+**Stating the monthly number alone is technically true and is the category's cleanest lie by omission.** $104 looks like nothing. 24 months of a decision the household no longer gets to make is the actual price.
+
+**Interest is folded into the total, never separated.** The purchase cost $2,496. Same rule as measuring Margin on take-home: measure what moves. No separate finance-charge line, no callout, no comment on the rate.
+
+**Banned burden verbs**, added to the banned-word list: tied up, locked in, working to pay, eaten by, stuck with, on the hook, saddled with, weighed down. **Rules match inflections, not literals.**
+
+State the term and the total. **Never judge the tender.** A household financing a water heater in an emergency does not need our opinion, and the scolding ban and the absolution rule both apply at full strength. This is the surface where the true statement and the lecture are one word apart.
+
+### Added to "What failure looks like"
+
+An exchange also fails this spec if it: answers a purchase question on one ledger while `ledgers_diverge` is true; states a financed purchase as a monthly figure without its term and total; separates interest from the total; uses a burden verb; or asserts a tender it never established and never named as an assumption.
+
+---
+
+## 12. Spending recognition, by instrument (amends `ledger-spec.md`)
+
+### The rule
+
+**Spending is recognized once, at the first place it becomes visible on a connected account. The instrument decides where that is. The word "financed" does not.**
+
+| Case | Recognition |
+|---|---|
+| Card purchase, including store-card promotional financing | At the transaction, at full amount, in its ordinary category. Every later payment is settlement. |
+| Installment loan where the lender pays the merchant and nothing reaches a connected account | No transaction exists to recognize, so spending is recognized as each payment lands. |
+| Credit card payments | **Never spending.** The charge was recognized at the transaction; counting the payment would count the same dollars twice. Cash Flow only. |
+| Interest and fees on a carried balance | **Spending.** Not settlement, not attached to any recorded purchase, and new money leaving for something never counted. Without it the statement understates the cost of overspending, which is the direction it must never err in. |
+
+### Why one rule and not four
+
+A card-financed television and a lender-financed television are the same purchase and produce opposite entries, because one is visible on a connected account and the other never is. Sorting by the word "financed" gets both wrong half the time. Sorting by first visibility gets cards, store cards, car loans, mortgages and installment lenders right with no special case for any of them.
+
+Same family as **transfers are never income**: both rules exist to stop the same dollars being counted twice.
+
+### Affirm and BNPL: a lookup, not a ruling
+
+Affirm ships in more than one shape and the shape decides the answer under the rule above. Arriving as a loan or liability with no corresponding transaction means recognition on payment. Arriving as ordinary card charges means recognition at the charge. **Which shape it arrives in is unknown until real Plaid data is inspected**, and it may differ between Pay in 4 and longer terms. Owed to M4.
+
+### The completeness dependency, recorded not built
+
+This rule assumes the card is connected. An unconnected card means a purchase was recognized nowhere and Margin is overstated **in the flattering direction**, which is the one error mode the product cannot tolerate.
+
+Detection exists in principle: a payment leaving a connected bank account for a card account we do not hold. **Recorded as a dependency of this rule and owed to the Margin integrity ruling**, which is not drafted.
+
+---
+
+## 13. Owed fact-package fields for tender and term (amends the `ScenarioAnswer` contract; owed to M2)
+
+### The finding
+
+Established against the code on 18 August. `ScenarioAnswer` carries `margin_ledger`, `cash_ledger` and `ledgers_diverge`. It carries **no** tender, no term, and no total of payments.
+
+CLAUDE.md requires every number in an outbound message to trace to a fact-package field. **Therefore MyKeeper cannot state a financing term today, at all.** Amendment 11 asks it to. This gap is why 11 is recorded rather than fully shippable.
+
+### Tender: supplied on the request, echoed into the answer
+
+The first draft placed tender only on the request, reasoning that it is an input the household supplies. **That was wrong.** The composer cites answer fields, so a field living only on the request cannot be cited, and "assuming debit" would be an uncited assertion in an outbound message.
+
+**Tender is supplied on the request and echoed into the answer block.**
+
+The echo carries **tender and how we know it, as two values rather than a flag.** A boolean named `assumed` sits beside tender and reads as a modifier of it; two distinct values make the reply's two sentences two distinct facts with no third state to invent. This is the same reasoning that makes `unspecified` a value rather than a null, and it is recorded as a **contract design rule**: where a fact has provenance that changes the sentence, provenance is a value, not a flag.
+
+### Term: let the type carry the obligation
+
+`tender: installment` obligates term fields. That obligation should be **structural rather than checked at runtime.**
+
+The preferred shape is a discriminated union on tender: the installment variant carries its term fields as required, every other variant has no term fields to omit. Then "installment obligates term" cannot be forgotten, cannot drift, and needs no test to remember it.
+
+This follows `FraudReply.boundary_line`, typed as the literal `true`, which is the pattern to copy wherever a type can do the work. **Order of preference: type, then runtime check, then comment.**
+
+**Total of payments includes finance charges and there is no separate interest field.** Deliberate, and it follows amendment 11: a separate field would invite a separate sentence. **The absence of the field is the enforcement mechanism**, which is the cheapest kind.
+
+### Constraints on whoever builds it
+
+- Append-only migration rules apply.
+- No confidence field, on any of these, ever.
+- Where the household supplies a term the household stated it, and where the product derives one it derives it. A term read off a signed contract and a term estimated from an advertised rate are not the same number, and the kind label carries which.
+- The golden suite must be able to fail on a term stated without these fields populated.
+
+---

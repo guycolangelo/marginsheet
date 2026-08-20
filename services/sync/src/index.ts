@@ -16,6 +16,11 @@ import { readSyncSchemaHealth } from "@marginsheet/shared/db";
 import { encryptToken, decryptToken } from "./token-crypto.js";
 import { exchangePublicToken } from "./exchange.js";
 import { secretPresence } from "@marginsheet/shared/required-secrets";
+import { HouseholdSync } from "./household-sync-do.js";
+
+// The DO class must be exported from the Worker entry point for the runtime to
+// find it. The binding is declared in wrangler.jsonc against this name.
+export { HouseholdSync };
 
 export interface Env {
   ENVIRONMENT: string;
@@ -25,6 +30,7 @@ export interface Env {
   PLAID_CLIENT_ID?: string;
   PLAID_SECRET?: string;
   PLAID_BASE_URL?: string;
+  HOUSEHOLD_SYNC?: DurableObjectNamespace;
 }
 
 // The required-secret derivation moved to @marginsheet/shared at the point a
@@ -171,6 +177,28 @@ export default {
           { status: 502 }
         );
       }
+    }
+
+    // /internal/sync-lock/:householdId/* routes to the household's Durable
+    // Object. ONE OBJECT PER HOUSEHOLD, by name, so two syncs for one household
+    // meet and two syncs for different households do not.
+    //
+    // idFromName is what makes the lock a lock. A newUniqueId per request would
+    // give every caller its own object, every object its own chain, and no
+    // mutual exclusion whatever, while looking correct in every way a reader
+    // checks. Enforced by household-sync-lock.test.ts, which asserts a fresh
+    // name has seen nothing while a used one has, so per-name and per-request
+    // are distinguishable.
+    if (url.pathname.startsWith("/internal/sync-lock/")) {
+      if (!env.HOUSEHOLD_SYNC) {
+        return Response.json({ error: "HOUSEHOLD_SYNC binding is absent" }, { status: 500 });
+      }
+      const [, , , householdId, ...rest] = url.pathname.split("/");
+      if (!householdId) return Response.json({ error: "household id is required" }, { status: 400 });
+      const stub = env.HOUSEHOLD_SYNC.get(env.HOUSEHOLD_SYNC.idFromName(householdId));
+      const inner = new URL(request.url);
+      inner.pathname = "/" + rest.join("/");
+      return stub.fetch(new Request(inner.toString(), request));
     }
 
     return new Response("not found", { status: 404 });

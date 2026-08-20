@@ -1,7 +1,9 @@
 # CLAUDE.md — MarginSheet™
 ## The constitution. Read before every task. If a task contradicts this file, stop and ask Guy.
 
-MarginSheet is a premium household financial operating system: an AI bookkeeper (MyKeeper™) and an AI CFO (MyCFO™) keep a household's books and watch the month ahead. The core is three things: the brains, the MarginSheet (actuals + projections), and Cash Flow. The product is a belief system — The Margin Method™ — and features are downstream of doctrine.
+MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the household's **Personal Money Intelligence Analyst**. The core is three things: the brains, the MarginSheet (actuals + projections), and Cash Flow. The product is a belief system, The Margin Method™, and features are downstream of doctrine.
+
+**This sentence used to read "a premium household financial operating system", which the category canon bans twice over** (the word, and the category). Corrected 18 Aug 2026, and recorded rather than quietly replaced: the constitution described the product in a competitor's vocabulary for three weeks while banning that vocabulary elsewhere.
 
 ---
 
@@ -27,7 +29,7 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 | M6b projections/goals/cash flow | `projection-spec.md` |
 | M8 app | `app-ui-spec.md` |
 | M9 migration | `migration-spec.md` |
-| Amendments, Aug 2026 | `docs/spec-amendments-2026-08.md` (year-end projection, goal priority, Dashboard, Cash Flow, budgeting scope) |
+| Amendments, Aug 2026 | `docs/spec-amendments-2026-08.md` (year-end projection, goal priority, Dashboard, Cash Flow, budgeting scope; **11 to 13**: two-ledger rule, spending recognition by instrument, owed tender and term fields) |
 | M10–M21 conversation service | conversation-service-spec + conversational spec |
 
 ---
@@ -80,6 +82,147 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 
   **Absent-with-an-owner beats flaky.** A gap in `docs/open-items.json` is honest, it is visible in CI, and somebody owns closing it. A flaky test is a false claim of coverage that also corrodes every true claim next to it. When a fixture cannot be made deterministic, the branch is split: test our **handler** against a synthesised response and say plainly that Plaid's behaviour is not what was proven.
 
+- **A PASSING FIXTURE MUST BE SHOWN TO PASS FOR ITS STATED REASON. Minimal-mutation proof.** Remove or alter **only the element under test** and confirm the pass disappears. If it does not, the fixture is passing on something else and the assertion is decoration.
+
+  The instance: `"reminding you again"` was the fixture for `no-nagging`'s `reminding` inflection, and it passed. It fired on **`again`**. `reminding` alone did not fire at all, and the gap sat under a green assertion.
+
+  **The planted-failure rule does not catch this.** Planting proves a test can go red when the CODE breaks. This proves a test goes green for the reason it claims. A fixture containing two triggers tests whichever one fires first, and says nothing about the other.
+
+  Third order of the same idea, and the three are worth reading together: **planting** proves the test can fail, **doctrine's own sentence** proves it is aimed at the right failure, and **minimal mutation** proves the pass is earned rather than incidental.
+
+- **A GUARD'S EVIDENCE CANNOT COME FROM THE CODE UNDER TEST. Instrument outside the mechanism, always.**
+
+  A fixture guard exists to prove the test exercised the thing it claims. When the guard reads state the mechanism itself maintains, **the mutation that breaks the mechanism also erases the proof the fixture was exercised**, and the run reports a degenerate fixture instead of a broken control.
+
+  The instance, 19 Aug 2026. The chain lock's guard counted **waiters**, a number the lock keeps. Planting removed the lock, so nothing ever waited, and the failure read *"the collision never formed: nothing measured"* when the collision had formed and the lock was gone. It counts **arrivals** now, incremented outside the lock, where no mutation to the lock can reach them.
+
+  **The damage is the message, not the red.** Both versions fail. One says "your fixture was degenerate, re-run", and the other says "the thing you are guarding is broken". The first sends a reader to re-run, which is the habit that gets a real red ignored, and it is the same corrosion a flaky test causes.
+
+  This is the same rule as **a check that reads its expectation from the thing it is checking**, applied one level down: not to the assertion, but to the evidence that the assertion had anything to assert about.
+
+- **A MUTATION THAT PASSES IS A FINDING ABOUT THE TEST, NOT AN EXONERATION OF THE CODE. Default to the test being inadequate.**
+
+  And the mutation set needs **at least one mutation that leaves the code reading correctly.** Removing an `await` proves a test exists. Moving an assignment proves it discriminates. **Coarse mutations only ever prove the first**, and a set made only of them reads as thorough while establishing the weaker claim throughout.
+
+  Paid for twice on 19 Aug 2026, both times on the chain lock.
+
+  **The one that mattered.** Moving `this.tail = ...` from before the `await` to after it leaves code that reads like a chain, is a chain by every description of it, and serialises nothing. **Every HTTP test passed against it.** The window is one microtask and two network arrivals are milliseconds apart, so nothing the network can deliver lands inside it.
+
+  **"The window is too small to matter" was available, defensible, and wrong.** What killed it was asking **which arrival shapes exist** rather than which ones the test could produce: sync work is dispatched from inside the object as well as from the network, and a queue batch or alarm taking the lock per item takes it twice in one tick. That is precisely the arrival the network cannot make. Two arrival shapes, two tests.
+
+  **The one that showed the rule's other half.** Testing chain poisoning, the first mutation passed and the second broke four tests at once by bypassing the bookkeeping entirely, which is this file's `USING (false)`: loud, red, and silent about the thing under test. Only the third, phrased as a sentence a reasonable engineer would write (*"propagate the failure to whoever is waiting behind us"*), reddened exactly one test on exactly the right assertion.
+
+- **A PLANTED MUTATION MAKES THE CODE PLAUSIBLE AND WRONG, NEVER OBVIOUSLY BROKEN.** The general rule behind every mutation in the register, stated once now that the pattern is consistent enough to name.
+
+  An obviously broken mutation proves a test **exists**. A plausible one proves it **discriminates**, and only the second is worth having, because nobody was ever going to write the obvious break. The question is not "does this break something" but "**is this what somebody would actually write**".
+
+  The pairs, each rejected version reddening the test just as reliably:
+
+  | Rejected, obviously broken | Kept, plausible and wrong |
+  |---|---|
+  | `USING (false)` on the policy | `AND is_primary`, narrowing to one member |
+  | delete the session lookup | **spread the caller's body** over the derived value |
+  | disable `household_isolation` | set the GUC to the **legitimate** household, so the write succeeds |
+  | remove the DO | remove the **chain await**, leaving the object |
+  | move the tail assignment (loud) | move it **after the await**, still reading as a chain |
+  | set `workers_dev: true` | **omit the line**, which is how it actually was |
+
+  The last is the purest: nobody writes `true`, and the failure mode is that nobody writes anything.
+
+- **A CONTROL WHOSE CORRECT OPERATION BLINDS OTHER CONTROLS.** Its own species, and the eleventh entry here. Not a control that cannot observe, and not one that depends on a vulnerability: **this one works exactly as designed and takes the watchers down with it.**
+
+  The near-miss, 19 Aug 2026. Gating `/debug` on `ENVIRONMENT === "production"` is the cheap obvious fix and it is correct about what it refuses. It would also have 404'd the production routes `db-identity.test.ts` and `verify-deploy.sh` depend on, **blinding five live controls** in the one environment that matters, including the check that closes the `rls-not-forced` debt by proving every Worker connects as `marginsheet_app` without `BYPASSRLS`.
+
+  **Two tells, and both are why it would have shipped.** It reads as the cheap obvious fix, so review approves it quickly. And **the damage lands in the environment where the checks matter most**, because that is precisely where the gate is active and dev and staging keep working.
+
+  A gate that silences the checks watching the thing it guards is not a gate. It is an outage with a rationale.
+
+  So the question to ask of any refusal, alongside the standing one: **what else was reaching through here, and does it still get through?** Gate by credential and the probes present it; gate by environment and they cannot.
+
+- **SHARED ENVIRONMENTS ARE REACHED THROUGH THE PIPELINE OR NOT AT ALL, AND A BYPASS IS GUY'S CALL RATHER THAN ONE MADE IN FLIGHT.** (Guy, 19 Aug 2026.)
+
+  This is the second time durable state has outlived a hand-deploy, and **both times the reasoning was sound in the moment**, which is why the rule is about the route rather than about care.
+
+  - 16 Aug: `AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE` was set by hand against shared dev, and dev's Workers lost their database until the secret was reissued.
+  - 19 Aug: the chain lock was deployed to dev and staging from a feature branch to close a live exposure quickly. That registered a `HouseholdSync` **Durable Object namespace** on both, and **a DO namespace outlives the deploy that made it.** Every later deploy from main was then refused with `10064`, because main does not export the class. A redeploy cannot undo it; only a migration can.
+
+  **The damage is not the mistake, it is the residue.** A bad deploy that only serves bad code is fixed by the next deploy. A deploy that creates a namespace, a role password, or any other durable object leaves something the pipeline cannot reach, and the fix costs a migration and a ruling instead of a revert.
+
+  If an exposure is urgent enough to justify bypassing the pipeline, that urgency is **a decision, not an inference**, and it is made by Guy before the bypass rather than justified after it.
+
+- **A `try` THAT SWALLOWS THROWS TURNS A SCHEMA ERROR INTO A PASSING TEST.** Its own line in the record, because it is the ninth finding in the most deceptive form yet: **it appeared in a test written specifically to prove the property it failed to prove.**
+
+  `cross-household-upsert.test.ts` attempts a forbidden write inside `try { } catch { }`, then asserts the victim's row survived. Correct in shape. But its insert omitted `financial_accounts.plaid_item_id`, which is `NOT NULL`, **so the statement would have thrown for a SCHEMA reason before reaching any policy.** The catch swallows it, the victim's row survives trivially, the assertions pass, and the test proves nothing whatever about isolation.
+
+  **Found by reading the schema, not by the red.** The test was green on that half.
+
+  The general form: **when a test tolerates an exception, the exception is part of the fixture and has to be identified.** A swallowed throw is an unasserted branch, and an unasserted branch is where a fixture stops being able to tell a pass from a failure. If a `catch` is load-bearing, assert **which** error arrived.
+
+- **CAPTURE THE BASELINE BEFORE THE PROBE, NOT AFTER.** A probe's result is a DIFFERENCE, and a difference needs two measurements. Running the probe first and comparing against a baseline you assume is clean measures nothing.
+
+  Paid for on 18 Aug 2026: a probe on the herald subset reported six typecheck errors, which looked like the probe biting. They were pre-existing, they were mine, and I had reported a clean typecheck minutes earlier. **The probe caught the prober.** The finding was still correct, and it was correct by luck rather than by method.
+
+  So: record the before state, run the probe, compare. It costs one command and it is the difference between evidence and a coincidence.
+
+- **WHERE THE TYPE SYSTEM CAN CARRY AN OBLIGATION, IT SHOULD.** Preferred above a runtime check, which is preferred above a comment. A type **cannot be forgotten, cannot drift, and needs no test to remember it**, and it fails at the moment the mistake is written rather than when a suite next runs.
+
+  `FraudReply.boundary_line` is typed as the literal `true`, so the flag can never be absent or false, and nothing has to enforce that. `_HeraldKeysAreCloseKeys` is the same idea applied to a claim that had been false since M2: the interfaces were unrelated and "BY CONSTRUCTION" described nothing, and a conditional type now makes adding an unmatched herald key fail to compile.
+
+  The ladder is worth stating because the bottom rung is where the 126 came from: **a comment is the weakest form of a rule and the easiest one to write.**
+
+- **PROBE, DO NOT READ. Reading a pattern tells you what its author meant. Probing tells you what it does.** The standing method for auditing any rule expressed as a pattern.
+
+  Eleven inflection gaps sat under a green suite since M0 and were found in one run by testing the rules against inflected strings rather than by reading the regexes. **Reading them had not found the gaps, and the regexes were in front of everyone the whole time**, because a pattern reads as its intent: `\bafford(s|ed|ability)?\b` looks like it covers the inflections until you hand it `affording`.
+
+  Same instinct as **verify against the database, never against reports**, applied to source: the pattern is the report and the probe is the database.
+
+- **THE OMISSION FAILURE: a sentence where every word is permitted, every rule is satisfied, and it still misleads by what is missing.** Named 18 Aug 2026, because it is a different kind of failure from everything the advice gate was designed for and no vocabulary layer will ever reach it.
+
+  The example that named it: **"This costs $104 a month."** True. Complete-sounding. Contains no banned word. And the category canon's own description of it is *"the cleanest lie by omission"*, because $104 looks like nothing and 24 months of a decision you no longer get to make is the actual price.
+
+  **The advice gate as designed checks what is SAID. This is a failure of what is NOT said.** So the gate needs two layers rather than one:
+
+  - **The vocabulary layer.** Deterministic, `packages/lint`, and it bans words. It cannot reach an omission by construction, because there is nothing there to match.
+  - **The completeness layer.** Enforced by **required-field presence in the fact package**, not by the judge. The composer cannot state what it cannot cite, so a field that must be present is a sentence that must be written.
+
+  **Completeness is a contract property rather than a judgement**, which is why it does not belong to M11's model. A judge asked "is anything missing" is guessing; a contract asked "is this field populated" is not.
+
+  **THE FORCING FIELD IS THE MECHANISM, and the codebase already has three of them, none enforced.** The shape is a flag plus a nullable that the flag obligates:
+
+  | Class | Flag | Obligates | State |
+  |---|---|---|---|
+  | `ScenarioAnswer` | `ledgers_diverge: true` | `cash_ledger` non-null | comment says "true FORCES the two-ledger answer shape". Nothing checks it. |
+  | `PreferenceConfirm` | `honored_fully: false` | `not_honored_part` non-null | a confirmation that omits what was NOT honored reads as full agreement |
+  | `ScenarioAnswer` | `tender: installment` | term and total | **the fields do not exist**, so the financing verdict is uncomposable |
+
+  M2 named the first without enforcing it, which is the safe direction to be wrong in and is still short of a control. `NULL_BEHAVIOR` is a completeness mechanism **pointed the other way**: it governs what a null composes, and says nothing about what a populated flag obligates. The two are duals and only one has a mechanism.
+
+  **Consequence recorded now so M11 does not rediscover it:** the adversarial set for omission failures cannot be tested until the forcing fields exist and are checked, which makes the owed `tender` and term fields a prerequisite for testing the class at all rather than a nicety.
+
+  **And the sweep is not finished.** Three were found by reading every boolean in the contract. `Correction.verdict_changed`, `Correction.band_demoted` and `Alert.first_flag` all carry compose obligations in their own comments and none is enforced either.
+
+- **When a fact needs provenance, add a VALUE, never a flag beside it.** A contract design rule, recorded because it will come up the next time someone reaches for a boolean.
+
+  The instance: `tender` needs to carry how we know it, because *"you said debit"* and *"assuming debit"* are two different sentences and the reply has to tell them apart. The tempting shape is `tender` plus `assumed: boolean`. **A boolean sitting beside a field reads as a modifier of it**, and invites composing one sentence from the other. `household_stated` and `system_assumed` as separate values make them two distinct facts with **no third state to invent.**
+
+  Same reasoning that makes `unspecified` a value rather than a null: **a shape that cannot express the ambiguity forces the composer to resolve it, and resolving it is guessing.** The general form is that a contract should make the illegal state unrepresentable rather than merely discouraged, and a flag beside a field is a suggestion where a union is a constraint.
+
+- **State the positive fact and let the absence follow.** Absence assertions are usually a positive fact written backwards, and **the rewrite is almost always cheaper than the field.**
+
+  Canonical exchange #7b said *"the cash leaves when the statement is paid on September 15"* and then *"Checking is not touched this month."* The second restates the first in negative form, and **the negative form is the one nothing traces to**: there is no fact for the absence of an event. Cutting the line cost no field and left the exchange correct.
+
+  So when a claim resists tracing, check first whether it is a positive fact inverted. Adding a field to carry an absence is the expensive answer to a question that usually has a free one.
+
+- **A banned-word rule bans a PROHIBITION, not a spelling, and its fixture is the sentence doctrine names.** Two rules from one failure, both paid for on 18 Aug 2026.
+
+  `no-burden-verbs` was written from the canon's literal list, which says `tied up`. **It shipped passing "this TIES up your Margin for two years", which is the exact sentence the canon quotes as the thing the ban exists to stop.**
+
+  The audit that followed found **eleven gaps across six of the seven advice rules**, every one in place since M0: `should` permitted `shouldn't`; `need to` permitted `needs to` and `needed to`; `afford` permitted `affording`; `recommend` permitted `recommending` and `recommendations`; `cut back` permitted `cuts back`; `delta` permitted `deltas`; `reminder` permitted `reminding`. **One gap was masked**, because "reminding you again" fired on `again` and looked like coverage.
+
+  So: **banned-word patterns are written inflected**, and **where doctrine supplies its own example of the failure, that example IS the fixture.** A synthetic string built from the banned list tests the list. The doctrine's own sentence tests the ban, and it is the one the rule shipped passing.
+
+  This is the second-order version of the planted-failure rule: planting proves a test can fail, and this proves the test is aimed at the failure the doctrine actually named.
+
 - **THE PLANTED FAILURE COMES WITH THE TEST, NOT AFTER THE MODULE.** Planting is not a verification step performed at the end. It is the thing that establishes whether a fixture is real, and **a test that has never been planted against is an assertion nobody has confirmed can fail.**
 
   Four fixture failures in one week, every one caught by planting, **none by review**, and every one written by someone who had just been thinking about that exact failure mode:
@@ -121,6 +264,38 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
   What distinguishes it from the previous nine: those were controls that could not observe, could not run, or could not be exercised by their fixtures. **This was a control-verifier that could have reported every control as correctly red while mutating nothing at all.** Built specifically to catch the pattern, and vulnerable to the pattern. Caught by being run, not by being reasoned about, which is the only way any of the ten were caught.
 
   So the harness asserts its own mutation took effect before running anything, and that assertion is not negotiable.
+
+- **A MERGE THAT TREATS ABSENCE AS ADDITION UNDOES REMOVALS, AND REMOVALS LEAVE NOTHING TO CONFLICT AGAINST.**
+
+  Reconciling two versions of a keyed list by id looks safe and is not. **Absent from main means EITHER new on this branch OR deleted on main, and a union by id cannot tell them apart**, so it silently reverses every deletion the other side made.
+
+  On 19 Aug 2026 a union of `docs/open-items.json` across a long-lived branch resurrected two rows deleted hours earlier: one whose owner was a status rather than a person, and one that had been split into three so that one party owed one thing. **Both decisions were reversed by a merge that reported no conflict**, because a deletion and an absence are the same shape in the data.
+
+  **This is why a deletion is the dangerous direction in any long-lived branch.** An edit conflicts. An addition conflicts. A removal leaves nothing behind for the merge to notice, so the older side simply wins by still having the row.
+
+  So: after any union of a keyed list, **run whatever check validates that list** rather than reading the merge. The open-items check caught both in a second; reading the diff would not have, because a resurrected row looks exactly like a row that was always there. Where the list has no check, diff the ID SETS in both directions and account for every id present on one side only.
+
+- **A FIX APPLIED WHERE A DEFECT WAS NOTICED IS NOT A FIX APPLIED WHERE THE DEFECT EXISTS. Sweep for the pattern, not the incident.**
+
+  On 19 Aug 2026 `|| true` was removed from `neon-pr-cleanup`, where a leaked Neon branch had just been traced to it. **The identical defect sat in two other files and stayed there**, silently swallowing failed scratch-branch deletions, which is one of the things that filled the project in the first place. Both were found hours later by a sweep that grepped for `|| true` rather than by anyone thinking about branch cleanup again.
+
+  **The tell is that the fix was written while looking at the incident.** An incident hands you a file, a line and a cause, and the cause is general while the file is not. Fixing what is on screen feels complete because the reproduction stops reproducing.
+
+  So a fix for a class-shaped defect is not finished until the class has been searched. **The search is usually one grep**, it usually takes a minute, and on this occasion it was the difference between one fix and three.
+
+  **Its companion: the audit is worth more than the fix.** The same sweep found sixteen sites and one defect. The fifteen correct suppressions were written down with the reason each is right, in `docs/silencing-operators.md`, because **a list of examined suppressions is a stronger artifact than zero hits would have been**: the next reader can tell a deliberate suppression from an unexamined one without re-deriving all of them. A clean sweep that leaves no record makes the next sweep start from scratch (Guy, 19 Aug 2026).
+
+- **WHEN A CONTROL GUARDS DATABASE STATE, THE MUTATION MUST BE DATABASE STATE.** A source mutation on an applied migration proves the file changed and nothing else.
+
+  **A migration is applied ONCE, when the CI branch is created, and the harness runs afterwards.** Rewriting an already-applied `.sql` changes no database anywhere. So the harness edits the file, proves the FILE changed, runs the test against an unchanged schema, and reports the control as insensitive.
+
+  **Three of four new controls got this wrong in one sitting** on 19 Aug 2026, which is what makes it a rule rather than a lapse. All three guarded RLS policies from migration 0026 and all three planted `kind: "source"` against the migration text. The harness reported `broke it yes, went red NO` three times, correctly.
+
+  It is the harness's own recorded limitation doing its job: **it proves a mutation changed the FILE, never that it changed BEHAVIOUR**, and it erred toward alarm rather than false comfort, which is the direction this file already prefers. It still cost a cycle.
+
+  The test is the same question asked one level down: **where does the thing this control guards actually live?** A predicate inside a statement lives in source, so a source mutation is right. A policy, a grant, a constraint or an index lives in the database, so only `kind: "sql"` can reach it, with a `proof` query that reads the state back and refuses to run the test if the mutation did not land.
+
+  **Audited the register when this was found** rather than trusting memory: no other `source` mutation points at a migration, and the ones that guard behaviour implemented in application code are correctly `source`. The three were the only ones, and they were new.
 
 - **Register mutations are reviewed as code, not as data.** The harness proves a mutation changed the FILE, never that it changed BEHAVIOUR, and proving the second is undecidable in general. A mutation that alters a line without altering what runs makes the harness report an insensitive control when the control was fine.
 
@@ -204,6 +379,54 @@ MarginSheet is a premium household financial operating system: an AI bookkeeper 
 
   Paid for on 18 Aug 2026: `--admin` merged a pull request whose `control-register` job was red. The red was real. It was hiding a harness that had never executed four registered controls, reporting them as verified because a test that cannot run exits non-zero and non-zero reads as the mutation working. **The override did not cause that defect, it deferred finding it**, which is the whole of what an override ever does.
 
+- **A COUNT THAT LIVES IN A CONVERSATION DRIFTS FROM THE COUNT IN THE CONFIG, AND ONLY A CHECK RECONCILES THEM.**
+
+  On 19 Aug 2026 the workers.dev retraction was discussed as **"all four"** for its entire life, from the original finding through the merge sequencing, by both of us. `config/public-surface.json` declared sync and conversation private in **three** environments each, and the probe list was `["", "-staging", "-dev"]`. **The real number was six.**
+
+  Nothing was ever written down wrongly. "All four" was accurate when first said, about production and staging, and it survived as a phrase long after the config had grown a third environment behind it. **Neither statement was edited into being wrong. They were just two**, which is the drift rule already recorded here about `worker-secrets.json` and `REQUIRED_SECRETS`, arriving in a form neither of us watched for: **one of the two copies was a phrase in conversation rather than a line in a file.**
+
+  What makes it worth its own entry: a phrase has no owner, no diff, and no review. **The only thing that reconciled them was the check**, which was going to fail on the two dev hosts and report exactly which. A count repeated in prose is a claim nothing verifies, and it is most dangerous when it is repeated often enough to sound settled.
+
+  So: **when a number describes a set the repo defines, read it from the repo before acting on it**, and treat an agreed figure that nobody has re-derived as a quotation rather than a fact.
+
+- **A WRITE KEYED ON A PROVIDER-SUPPLIED VALUE MUST NAME THE HOUSEHOLD. A write keyed on our own primary key is scoped by the key itself.**
+
+  **The provider's namespace is shared across every household and none of it is ours.** Plaid issues one `item_id` per Item, one `plaid_account_id` per account, one `plaid_transaction_id` per transaction, and two households linking the same bank login see **the same values**. Our own `uuidv7` primary keys cannot collide across households, because we mint them.
+
+  **All four cross-household findings of 19 August 2026 were reachable through the first case, and none through the second.** `plaid_items.item_id`, `financial_accounts.plaid_account_id`, `transactions.plaid_transaction_id`, and `applyRemoved`'s `where plaid_transaction_id = any(...)`. Meanwhile `outbox.markEnqueued` on `signal_id` and `reconnect` on `id` were audited in the same pass and left alone, deliberately, because the key already scopes them.
+
+  **THE CHECK IS ONE QUESTION AND IT IS CHEAP: whose namespace does this key belong to?** If the answer is **Plaid, Stripe, Twilio or Postmark**, the statement names the household or it is a finding waiting to happen. If the answer is ours, the key is the scope.
+
+  This is why 4e fixed one statement and stopped rather than adding predicates everywhere on principle. **Adding them everywhere would have obscured why `applyRemoved` was different**, and a rule applied uniformly to cases that differ teaches nobody which case mattered.
+
+  **It does not depend on RLS being right, which is the point.** It was written because RLS was wrong: `sync_worker_access` is `USING (true)` for `marginsheet_sync`, so on that path the household GUC constrains nothing. **A statement should be correct even when the policy is wrong.**
+
+- **RETURN WHAT HAPPENED, NOT WHAT WAS ASKED FOR.** `applyRemoved` returned `plaidTransactionIds.length`, the count of ids it was handed. It now returns the rows actually updated.
+
+  **Those two numbers differ exactly when an id belongs to somebody else**, which is the case the function exists to get right. Returning the input length **reports success for work that did not happen**, and that is the shape of a control that cannot fail: no input produces a discrepancy, so no caller can ever detect one.
+
+- **AN EMPTY LIST IS A STATEMENT; SILENCE IS AN INHERITANCE.** Recorded as one rule rather than three incidents, because it produced three in a single day, two of them in the same file, and every one resolved to something other than what its absence suggested.
+
+  | Key | What absence looked like | What absence meant |
+  |---|---|---|
+  | `workers_dev` | not published | **published**, and the test read `undefined` as safe |
+  | `preview_urls` | not published | **follows `workers_dev`**, so a wildcard over every version ever deployed |
+  | `migrations` on a named env | scoped to the environments that declare it | **inherits the top level**, so production received a delete-class it was deliberately left out of |
+
+  The third is the sharpest, because the omission was a **deliberate scoping decision**. Production genuinely had no orphaned Durable Object namespace and genuinely should not have received the migration, and leaving it out looked like exactly how you express that. It was never scoped; it only looked scoped, and the deploy failed with `Cannot apply delete-class migration to class 'HouseholdSync' which was not exported in the previous version of the script`.
+
+  **A default is not always "off". It is whatever the tool decides**, and for a nested config the answer is frequently "whatever the parent said." So a setting that matters is **declared at the level it applies to**, and an empty list, an explicit `false`, or an explicit override is the only way to say "none" out loud.
+
+  **The sweep this implies** (Guy, 19 Aug 2026, not this chain): any per-environment setting we believe is scoped by omission is probably inherited instead. Declare or verify per environment rather than trusting the shape of the file.
+
+- **A DURABLE OBJECT MIGRATION TAG IS APPLIED ONCE, SO REUSING ONE IS SILENTLY SKIPPED.** Same family as append-only, different mechanism, and the failure is quieter.
+
+  Cloudflare records which tags a script has applied. A tag already recorded is **not re-run**, whatever its new contents say. So a `deleted_classes` migration written as `v1` against a script whose `v1` was `new_sqlite_classes` does nothing at all: the deploy fails **with the original error**, and nothing anywhere says a migration was ignored. The reader sees an unchanged symptom and concludes the fix did not work, rather than that it never ran.
+
+  Paid for on 19 Aug 2026, and the aggravating detail is that **the comment warning about it was in the file being edited** and had been written minutes earlier in the same change. Knowing the rule did not prevent reusing the tag; the second deploy attempt did.
+
+  So: a corrective migration takes the **next** tag, and the tags a given environment carries are a property of that environment's history rather than of the file. **Divergent tag lists across environments are the honest state.** Making them uniform claims a migration ran somewhere it did not, which is the same lie as an edited migration.
+
 - **Migrations are append-only after merge.** Once a migration file is on main, its contents are frozen. Corrections go forward as a new migration, never as an edit. The failure mode is worse than an error: an environment that has already applied a migration will never apply it again, so an edit reaches only the databases that have not seen it yet, and you end up with **two databases carrying identical ledgers and different schemas**. Nothing reports a problem until something reads the column. Enforced by the `migrations-append-only` CI job, which hashes every migration on main and fails on any modification. Additions pass; edits do not.
 - Each spec's invariants section seeds that module's test suite. An invariant without a test is not done.
 - Golden tests and the lint layer block merges in CI. No prompt version ships failing either.
@@ -222,12 +445,53 @@ Cloudflare Workers + Pages · Neon Postgres (single DB, branching in CI) · Dura
 - Parsing/extraction/merchant lookup: Haiku 4.5 → Sonnet 5
 - The composer never computes; every number traces to a fact-package field or it is a hard failure.
 
+## THE CATEGORY (locked 18 August 2026, canon v3.1)
+
+**MarginSheet is a Money Intelligence Platform. MyKeeper is your Personal Money Intelligence Analyst.** Money Intelligence is capitalised as a category noun, always.
+
+Your money → MarginSheet → Money Intelligence → MyKeeper → You
+
+**Data is what exists. Intelligence is what it means.** A balance is data. A balance read against what is committed before the next deposit is intelligence. The claim is **context, not prediction, and never advice.**
+
+The competitive line: *budgeting apps track, dashboards organize, AI assistants answer, Money Intelligence understands.*
+
+### Analyst, never agent, and this is a constraint rather than a disclaimer
+
+**An analyst produces the assessment. The decision-maker decides.** MyKeeper never holds authority to act on a household's money and the vocabulary must never imply it. **"Agent" is banned everywhere, including internal docs and prompt files.**
+
+Two sentences carry it. *"MarginSheet understands your money. MyKeeper puts that intelligence to work for you."* And **required wherever the Analyst is introduced**: *"MyKeeper does the work. You make the decisions."*
+
+Enforced as `no-agent-descriptor` in `packages/lint`, which bans the **descriptor** rather than the word: `user_agent` runs through M3's session-privacy work, and a rule that reddens the network-identity doctrine's own implementation is a rule people learn to suppress.
+
+### Margin is the vital sign
+
+Money Intelligence is the system. **Margin is the vital sign it produces:** one number, read at a glance, that tells you the state of your money's health.
+
+**A blood pressure reading is not a diagnosis and it is not a prescription.** It is a fact about you that took instruments and training to produce and now takes 3 seconds to read. That frame explains three existing rules at once, which is why it is recorded rather than treated as an analogy: **why one number is enough** (nobody wants a dashboard of their vitals), **why Margin is never celebrated** (nobody congratulates a blood pressure reading), and **why the system never prescribes** (the instrument reports, the person decides).
+
+Income − Spending = Kept ($) / Margin (%), unchanged. Causal chain control → opportunity → wealth, and only control is promised.
+
+### What sits at spec level rather than here
+
+The canon's operational rules amend named specs and **landed 19 August 2026 as amendments 11 to 13 plus canonical exchange #7**: the two-ledger rule and the tender beat and the financing verdict (`mycfo-mykeeper-conversational-spec.md`), spending recognition by instrument (`ledger-spec.md`), and the owed `tender` and term fields on `ScenarioAnswer` (M2).
+
+**Three corrections separate the final from the draft**, and each is a rule elsewhere in this file doing work. **Tender is echoed into the answer**, because the composer cites answer fields and a field living only on the request cannot be cited, so *"assuming debit"* would be an uncited assertion; it carries tender and how we know it as **two values rather than a flag**. **7b's absence claim was cut rather than given a field.** And **amendment 13 asks for a discriminated union on tender**, so the installment variant carries its term fields as required and every other variant has none to omit: *"installment obligates term"* becomes structural rather than checked, which is `boundary_line`'s pattern applied to the forcing-field class. Order of preference: **type, then runtime check, then comment.**
+
+**7c is canon before it is capability.** No field carries a term, so MyKeeper cannot state $2,496 today, and that is recorded in the fixture's status rather than left for whoever wires the endpoint to discover.
+
+**They are deliberately not restated here.** Two hand-written statements of one requirement drift by default, and the rule against that was recorded the same day. This section carries the category and the constraint; the specs carry the behaviour.
+
+**Not in that draft and owed its own ruling:** Margin integrity, the requirement that Margin holds itself back while an unconnected spending account or material uncategorized inflow is open. It touches `app-ui-spec.md` and `projection-spec.md` and needs a rendering decision.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
 - Negative Margin in parentheses: (6%). Positive figures never take parentheses. Overspent renders as a positive figure and is never behavioral commentary.
 - **No em dashes anywhere**, in any output, code comments included.
-- "budgeting apps" always in quotation marks. "Commandments" banned. Numerals for day counts ("the first 14 days").
+- "budgeting app" and "budgeting apps" always in quotation marks. "Commandments" banned. Numerals for day counts ("the first 14 days").
+- **"financial" and its variants are banned in any string a household reads.** Use "money". Scoped to household-facing text by the canon's own wording, and enforced that way: `no-financial-in-household-copy` binds to `household_copy` and `composed_artifact`, not universally. Seven internal comments in this repo say "financial data" correctly, describing what the system protects, and a rule firing on them would be wrong by the text that authorises it.
+- **Banned category terms:** "personal finance", "financial management", "financial wellness", "financial health". **Banned category language:** "AI-powered", "AI assistant", and "AI" appended to either mark.
+- **Banned burden verbs**, in anything a household reads: tied up, locked in, working to pay, eaten by, stuck with, on the hook, saddled with, weighed down. **State the term and the total. Never judge the tender.** This is the surface where the true statement and the lecture are one word apart: *"this commits $2,496 through August 2028"* is a fact and *"this ties up your Margin for two years"* is a verdict on the household's choice.
 - ™ on first/prominent use: MarginSheet™, The Margin Method™, MyKeeper™, MyCFO™. "AI" never appended to the marks. **"AI" appended is lint-enforced; PLACEMENT IS NOT, deliberately (ruled 16 Aug 2026).** The unit of "first use" is a **journey, not a file**: the sign-in confirm page and the signed-in page are two files and one journey, and a household walking it met the mark twice inside two sentences while each file was individually correct. A file-scoped rule would have passed that and called it checked. **A rule that is wrong about its unit is worse than a human reading the copy**, because it produces confidence rather than merely producing nothing. So trademark placement is a **copy-review item**, checked when a journey's copy is reviewed, and it is not lint's job.
 - P&L lines: income, fixed_obligations, variable_operating, discretionary, interest_fees, transfer, deployment. Taxes is a category ("Taxes After Takehome") under fixed_obligations, **not a line**.
 - Banned in analytical replies: "should," "need to," "afford," "cut" (as instruction), "recommend," affordability verdicts, "delta/variance/discrepancy" in corrections, "again/still haven't/reminder" in follow-up alerts, "good call"/"that cost you" on decisions.

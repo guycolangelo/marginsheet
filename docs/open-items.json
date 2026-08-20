@@ -262,5 +262,173 @@
     "trigger": "M8, when the action is built; the flag flips in the same change or the enumeration test fails",
     "owed_to": "TRIGGER: M8. Split out on 19 Aug 2026 so one party owes one thing.",
     "raised": "2026-08-17"
+  },
+  {
+    "id": "competitive-line-trips-ai-rule",
+    "item": "The canon's own competitive line, 'Budgeting apps track. Dashboards organize. AI assistants answer. Money Intelligence understands', trips no-ai-category-language, which bans 'AI assistant'. RECORDED RATHER THAN ACCOMMODATED. The rule is not weakened for one sentence that has no home in the product yet: the line is marketing copy, apps/site is empty, and a carve-out written before the sentence has a surface is a carve-out nobody can scope. When the line ships, either it is quoted, or the rule gains a narrow exemption for the contrast construction, or the line is reworded. That is a decision with a real trade and it belongs to whoever writes the page.",
+    "owner": "Guy",
+    "trigger": "the first marketing surface that carries the competitive line",
+    "owed_to": "TRIGGER: the first marketing surface carrying the line. Not before: an exemption written now cannot be scoped.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "margin-integrity-conditions-unbuilt",
+    "item": "The canon requires Margin to hold itself back under two known incompleteness conditions: an unconnected spending account, detected from card payments leaving for an account we do not hold, and material uncategorized inflow. Both overstate Margin in the FLATTERING direction, which is the one direction the number must never err in, and the product states the condition plainly rather than rendering a confident figure with a caveat beneath it. NEITHER IS BUILT AND NEITHER IS A LANGUAGE CHANGE: the first needs payment-destination analysis over transactions, the second needs a materiality threshold against uncategorized inflow. Both are engine work and were refused by the language task's scope fence. Recorded here because a canon requirement with no owner is the eighth finding.",
+    "owner": "build",
+    "trigger": "M6a for detection, M6b for the Margin surface's behaviour",
+    "owed_to": "TRIGGER: M6a and M6b. Engine work, not language work.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "bnpl-shape-lookup",
+    "item": "The canon: 'Affirm and BNPL: the shape determines the answer with no special case needed. Which shape they arrive in is an open lookup against real Plaid data.' Whether a BNPL arrangement surfaces as a card transaction (recognized at full amount) or as an installment loan the lender pays directly (recognized per payment) decides which recognition rule applies, and it is an empirical question about Plaid rather than a doctrine question. Answerable against the founder household's real Items at 4.5b, which is the first place real institutions connect.",
+    "owner": "build",
+    "trigger": "4.5b, when real institutions connect and real BNPL rows are visible",
+    "owed_to": "TRIGGER: M4 task 4.5b. An empirical lookup, not a ruling.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "amendments-11-13-and-exchange-7-await-approval",
+    "item": "The category canon's operational rules are DRAFTED and awaiting Guy's approval as spec amendments 11 to 13 plus canonical exchange #7: the two-ledger rule with the tender beat and the financing verdict (amends mycfo-mykeeper-conversational-spec), spending recognition by instrument (amends ledger-spec), and the owed tender and term fields on ScenarioAnswer (owed to M2). DELIBERATELY NOT RESTATED IN CLAUDE.md OR docs/spec-amendments-2026-08.md. Two hand-written statements of one requirement drift by default, and the rule against that was recorded the same day: both are correct when written, neither is ever edited into being wrong, and nothing connects them. CLAUDE.md carries the category and the constraint and points here for the behaviour. UNTIL THESE MERGE the two-ledger rule is enforced structurally by the fact package and nowhere in voice, and exchange #7 cannot be marked full.",
+    "owner": "Guy",
+    "trigger": "approval of the amendments 11 to 13 draft",
+    "owed_to": "TRIGGER: Guy's approval of the drafted amendments. Until then the canon's behaviour half lives in a draft rather than in a spec.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "exchange-7-owed-to-the-spec",
+    "item": "Canonical exchange #7, the purchase question by instrument, is DRAFTED in three variants (7a debit, 7b credit card, 7c installment) and is not yet in mycfo-mykeeper-conversational-spec. Until it is, no two-ledger GOLDEN test can be written: assertGoldenEligible refuses partial and owed canon, and asserting against text nobody ruled would certify whatever a model produced. WORTH RECORDING WITH IT: 7c is CANON BEFORE IT IS CAPABILITY. It states $2,496 through August 2028 and there is no fact-package field for MyKeeper to trace that to, so the financed variant is unshippable as product behaviour until the amendment 13 fields exist. That belongs in the fixture's status rather than being discovered by whoever wires the endpoint.",
+    "owner": "Guy",
+    "trigger": "exchange #7 landing in the conversational spec",
+    "owed_to": "TRIGGER: exchange #7 in the spec. Then the fixture moves from owed to full and the golden tests become writable.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "scenario-answer-owed-tender-and-term-fields",
+    "item": "ScenarioAnswer carries question_as_parsed, margin_ledger, cash_ledger and ledgers_diverge, and NO tender, no term, no total of payments. CLAUDE.md requires every number in an outbound message to trace to a fact-package field, so MYKEEPER CANNOT STATE A FINANCING TERM TODAY, AT ALL, and the canon asks it to. NO FIELDS WERE ADDED, per the scope fence. Proposed shapes are in docs/money-intelligence-language-review.md section 3: a tender enum with unspecified as a first-class value rather than a null, and an InstallmentTerm block present only where tender is installment, carrying monthly amount, payment count, total of payments including finance charges, final payment date, and a basis of household_stated or derived. NO SEPARATE INTEREST FIELD, deliberately: a separate field invites a separate sentence and the absence is the enforcement, the same shape as withholding access_token_ciphertext by column grant. ONE DISAGREEMENT WITH THE DRAFTED AMENDMENT 13, raised as a question rather than a correction: it puts tender on the scenario REQUEST alone, and the reply must NAME the tender it assumed, so if tender is not also on the answer then 'assuming debit' is an uncited assertion in an outbound message. A second, smaller: exchange 7b says 'Checking is not touched this month', which is an assertion about ABSENCE, and it is unclear which field that traces to.",
+    "owner": "Guy and M2",
+    "trigger": "an M2 ruling on the ScenarioAnswer contract",
+    "owed_to": "TRIGGER: an M2 ruling. Blocks the financing verdict and the tender beat entirely.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "m11-adversarial-set-recorded",
+    "item": "The advice-gate adversarial set for the Money Intelligence category is WRITTEN OUT WITH EXACT STRINGS in docs/money-intelligence-language-review.md section 4, so M11 inherits it rather than inventing it. NO FIXTURES WERE BUILT: the judge is M11 and packages/lint is only its deterministic layer, so fixtures now would assert against a gate that does not exist. The set is split by what catches them, and the split is the finding. Five strings the deterministic layer already catches through banned tokens. SIX IT CANNOT: 'the intelligence suggests', 'the analysis points to', 'Money Intelligence says this is the wrong month for it', 'what the intelligence understands here is that the timing is off', 'at 24 months you are committing a long way out', and the hardest, 'this costs $104 a month'. THE LAST IS THE WHOLE PROBLEM IN ONE LINE: it is not a rule violation, it is a CORRECT SENTENCE that misleads by omission, and no vocabulary check can ever catch it. It fails only against a rule requiring the term and total to be present, which makes the amendment 13 fields the prerequisite for testing it at all.",
+    "owner": "build",
+    "trigger": "M11, when the advice-gate judge exists",
+    "owed_to": "TRIGGER: M11's judge. The strings are recorded now so the set is inherited rather than re-derived.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "two-ledger-contract-invariant-unbuilt",
+    "item": "ONE two-ledger test is buildable today and was REMOVED to respect the rescope, not because it could not be written. The contract invariant, that a ScenarioAnswer claiming ledgers_diverge must carry a non-null cash_ledger, needs no owned canon text at all: it asserts the fact package rather than composed output. It was written, planted against (flipping the-car-decision to claim divergence with a null cash ledger reddens it) and verified, then removed because the deliverable was scoped to the lint layer and the review document. One commit whenever wanted. Recorded rather than lost. WORTH SAYING WITH IT: the contract is AHEAD of the spec here rather than behind it. ledgers_diverge carries the comment 'true FORCES the two-ledger answer shape', written by M2 before the conversational spec named the rule, which is the safe direction to be wrong in.",
+    "owner": "build",
+    "trigger": "on request, or with exchange #7 landing",
+    "owed_to": "TRIGGER: on request. Independent of exchange #7, since it asserts the contract rather than composed text.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "car-decision-fixture-assumes-a-tender",
+    "item": "the-car-decision is the only ScenarioAnswer fixture and it answers on one ledger, which is CORRECT BY ITS OWN DATA since it sets ledgers_diverge false. It is also a car, the archetypal financed purchase, and NOTHING IN THE FIXTURE RECORDS HOW IT IS PAID FOR. The false is internally consistent and rests on an assumption nobody stated. DELIBERATELY NOT CHANGED: setting it true would invent the tender, and the canon says the tender cannot be inferred and must be asked. Revisit when the tender field exists, at which point the fixture states its tender explicitly and the divergence follows from it rather than from an omission.",
+    "owner": "build",
+    "trigger": "the tender field landing on ScenarioAnswer",
+    "owed_to": "TRIGGER: the tender field. Then the fixture declares a tender and divergence is derived rather than assumed.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "completeness-layer-for-omission-failures",
+    "item": "NAMED 18 Aug 2026: the OMISSION FAILURE, a sentence where every word is permitted, every rule is satisfied, and it still misleads by what is missing. 'This costs $104 a month' is the example that named it. THE ADVICE GATE AS DESIGNED CHECKS WHAT IS SAID and no vocabulary layer will ever reach this. Structural consequence for M11, recorded now rather than left to be discovered: THE GATE NEEDS A COMPLETENESS LAYER SEPARATE FROM THE VOCABULARY LAYER, and completeness is enforced by REQUIRED-FIELD PRESENCE IN THE FACT PACKAGE rather than by the judge, because a judge asked 'is anything missing' is guessing while a contract asked 'is this field populated' is not. THE FORCING FIELD IS THE MECHANISM and three exist, NONE ENFORCED: ledgers_diverge true obligates cash_ledger, honored_fully false obligates not_honored_part, and tender installment obligates term and total whose fields do not exist. NULL_BEHAVIOR is a completeness mechanism pointed the OTHER WAY: it governs what a null composes and says nothing about what a populated flag obligates. Three more carry compose obligations in their own comments and are unchecked: Correction.verdict_changed, Correction.band_demoted, Alert.first_flag.",
+    "owner": "build",
+    "trigger": "M11, and the forcing-field checks are buildable before it",
+    "owed_to": "TRIGGER: M11 for the gate's shape. The forcing-field assertions need no judge and can land any time.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "banned-word-inflection-audit-done-keep-the-rule",
+    "item": "AUDITED AND FIXED 18 Aug 2026, recorded so the rule survives the fix. no-burden-verbs shipped matching the canon's literal 'tied up' and PASSING 'this TIES up your Margin for two years', the exact sentence the canon quotes as the thing the ban exists to stop. The audit found ELEVEN GAPS ACROSS SIX OF THE SEVEN ADVICE RULES, every one in place since M0: should permitted shouldn't, need to permitted needs to and needed to, afford permitted affording, recommend permitted recommending and recommendations, cut back permitted cuts back, delta permitted deltas, reminder permitted reminding. ONE GAP WAS MASKED because 'reminding you again' fired on 'again' and looked like coverage. All fixed and fixtured. THE STANDING RULES ARE IN CLAUDE.md: a banned-word rule bans a prohibition rather than a spelling, and where doctrine supplies its own example of the failure that example IS the fixture. Any NEW banned-word rule is audited the same way before it ships.",
+    "owner": "build",
+    "trigger": "standing constraint, applied whenever a banned-word rule is added",
+    "owed_to": "TRIGGER: standing. Every new banned-word rule gets the inflection audit and doctrine's own sentence as its fixture.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "mechanism-claim-random-sample",
+    "item": "TWENTY OF THE 126, DRAWN RANDOMLY AND HAND-VERIFIED. Two claims were checked by hand on 18 Aug 2026 and both were false: ledgers_diverge forced nothing, and the herald subset had no construction. THAT IS NOT A RATE. The sample was not random; both were already suspected, which is why they were checked. WHAT THE NUMBER DECIDES: whether 18 Aug found two bad instances, or whether the comment-as-ruling method is systemically not working. If the second, that is a bigger finding than any individual fix and it changes CLAUDE.md rather than the code. Report the rate WITH ITS RANGE and do not round it toward comfort. Draw from docs/imperative-inventory.md section 4 using the reproducible sweep in scripts/imperative-sweep. SECOND JOB, ADDED 18 Aug 2026: the sample also decides whether the RATCHET IS SCOPED CORRECTLY. It guards 12 claims under a strict filter while this survey found 126 under a loose one, so roughly 110 sit outside it and can regrow freely. That is deliberate, because the strict class is the class that can be false and a rule firing on legitimate comments gets suppressed. But if a meaningful share of the loose class turns out to be real, the ratchet is under-scoped and widens; if the loose class is mostly fine, 12 was the right thing to guard. KEEP THE TWO POPULATIONS SEPARATE: the random twenty measures the survey's 126, and hand-checks clean the ratchet's 12. Conflating them produces a third number that means nothing.",
+    "owner": "build",
+    "trigger": "next session, before any further cleanup",
+    "owed_to": "TRIGGER: next session. Until it is drawn, no statement about the rate is supported.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "mistake-doctrine-acceptance-criteria",
+    "item": "THE MISTAKE DOCTRINE'S COMPOSE OBLIGATIONS BECOME ACCEPTANCE CRITERIA, since there is no composer to enforce them against. Correction.verdict_changed obligates the reply to say the verdict MOVED, because a household told only the new number reads the meaning as unchanged. Correction.band_demoted obligates the canonical words 'I have started asking again', so the household is told the system's confidence in itself dropped rather than discovering it from behaviour. Alert.first_flag false obligates the follow-up register, whose banned list IS already enforced by no-nagging in packages/lint; what is unenforced is that the composer SELECTS that context. All three comments were rewritten on 18 Aug from assertions into descriptions that say plainly they are not enforced, which is the honest state rather than a fix. THE FRAMING THAT MATTERS: this is the doctrine governing how the product behaves WHEN IT IS ALREADY WRONG, and a rule that only applies when nothing has gone wrong is not a rule.",
+    "owner": "build",
+    "trigger": "M13 for the correction pair, M10 for the alert register selection",
+    "owed_to": "TRIGGER: M13 and M10. Acceptance criteria, not a backlog item: they cannot be built before a composer exists.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "security-page-mechanism-claims",
+    "item": "THE /security PAGE MAKES TWO MECHANISM CLAIMS THAT NEED TRACING TO THIS REPOSITORY, and it is the second thing today to cross a session boundary, so it is recorded rather than left between them. The claims concern row-level security and CI gating. The repo-side facts they must match: household_isolation is on every policied table with FORCE set on all 37, asserted by an M1 introspection invariant that counts rather than spot-checks; marginsheet_sync is narrowed to ten enumerated tables by migrations 0023 and 0024 with a negative control attempting three forbidden tables; branch protection has no admin override and nothing merges with a red required check; and every control in config/control-register.json carries a planted failure verified by the harness. READ THE COUNT FROM THE REGISTER, NOT FROM HERE: this item said 29 and was stale within a day, which is the two-hand-written-statements shape, on a fact destined for a page the public reads. WHAT TO CHECK: that the page claims no more than those, and that each sentence on it names something a person could verify. A marketing page asserting a mechanism is the same class as a comment asserting one, and it has a wider audience.",
+    "owner": "Guy",
+    "trigger": "the marketing site session, using these repo-side facts",
+    "owed_to": "TRIGGER: the marketing-site session. Small, and it crosses a session boundary, which is why it is written down.",
+    "raised": "2026-08-18"
+  },
+  {
+    "id": "bound-the-work-not-the-lock",
+    "item": "EVERY OUTBOUND CALL A LOCKED SYNC MAKES RUNS UNDER AN AbortSignal DEADLINE (Guy, 19 Aug 2026, rejecting both options offered). A LOCK TIMEOUT IS ALWAYS A LIE: it asserts the holder is dead without knowing, and if the holder is alive it hands out the exact concurrency the lock exists to prevent. Failing the waiter is the honest version of the same non-answer, converting a stuck household into an erroring one without ever ending the thing that is stuck. Bounding the OPERATION means the task always settles, the lock releases in its existing `finally` with no special path, there is never a second writer, and nothing has to decide whether a holder is dead because it made it true instead of assuming it. THE TRAP, and the reason this needs a planted mutation: Promise.race against a timer IS NOT A TIMEOUT. It stops waiting, not working; the hung call keeps running and can still write, so a raced deadline is the release-the-lock horn wearing better clothes and it reads as correct in review. The planted mutation replaces the abort with a race and a test must tell them apart; if nothing reddens, the control cannot distinguish a safe timeout from an unsafe one. THE FINDING TO RECORD RATHER THAN LEAVE IN THE IMPLEMENTATION: a deadline is only safe if every operation under it is genuinely abortable.",
+    "owner": "build",
+    "trigger": "BEFORE 4.5b, not before the re-dispatch wiring. Sandbox does not hang; production does, and production credentials are the moment the risk becomes real.",
+    "owed_to": "TRIGGER: 4.5b, immediately before production Plaid credentials land. Guy corrected the original trigger, which was the sweep wiring and was too late.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "sweep-must-not-enqueue-behind-itself",
+    "item": "THE WATCHDOG SWEEP MUST NOT ENQUEUE FOR A HOUSEHOLD THAT ALREADY HAS ONE QUEUED. Today sweepReason() is a pure function wired to no dispatcher, so this is an acceptance criterion for whatever wires it. WHAT HAPPENS OTHERWISE: each sweep adds a waiter behind a task that is not progressing rather than replacing it, so the watchdog grows the queue it exists to drain, and the state machine reports recovery throughout. A FAILURE THAT AMPLIFIES ITSELF IS A DIFFERENT SEVERITY FROM ONE THAT PERSISTS. Guy, 19 Aug 2026: this is a DISPATCH problem, not a timeout problem, it is the cheaper of the two fixes, and it must not wait on the deadline work. See [bound-the-work-not-the-lock] for the other half, which is genuinely separate: bounding the work means the deadline handles hung work inside a live object and the watchdog handles an object that DIED. Two conditions, two mechanisms, no shared clock, nothing to drift, which dissolves the one-clock concern that was raised against a lock timeout.",
+    "owner": "build",
+    "trigger": "the change that wires sweepReason to a dispatcher",
+    "owed_to": "TRIGGER: wiring the watchdog sweep to a re-dispatch. Independent of the deadline work by Guy's ruling.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "retract-workers-dev-staging-production",
+    "item": "STAGING AND PRODUCTION marginsheet-sync AND marginsheet-conversation ARE STILL REACHABLE ON workers.dev, and the repo fix does not retract them by itself. Verified 19 Aug 2026: with workers_dev false in wrangler.jsonc, `wrangler deploy --env staging` uploads a version and then prints `No targets deployed`, leaving the ALREADY PUBLISHED workers.dev route serving the old version. Dev went silent from the same change; the named environments did not. WHAT IS EXPOSED WHILE THIS IS OPEN: marginsheet-sync holds TOKEN_ENCRYPTION_KEY, and in production /health and /debug/crypto-selftest answer 200 to anyone, while POST /internal/exchange answers 400 to an empty body, which is the handler rejecting the body rather than the route being absent. TWO THINGS ARE NEEDED AND NEITHER IS CLAUDE'S TO DO: the production deploy is Guy's or CI's, and retracting an already-published subdomain looks like it needs the Cloudflare API rather than a deploy, which is an account settings change. DO NOT GUESS WHICH: the enumerating-causes rule applies, so probe the subdomain setting for one script and report what it says before changing anything.",
+    "owner": "Guy",
+    "trigger": "immediately, and BEFORE 4.5b: production Plaid credentials must not land on a Worker that answers the public internet",
+    "owed_to": "TRIGGER: now. Raised 19 Aug 2026 while probing for a Plaid webhook payload. The repo-side fix and both controls are on the branch; what remains is deploy and subdomain retraction.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "wrangler-inherited-settings-sweep",
+    "item": "SWEEP EVERY PER-ENVIRONMENT SETTING IN EVERY WRANGLER CONFIG THAT WE BELIEVE IS SCOPED BY OMISSION. Three settings resolved to something other than what their absence suggested on 19 Aug 2026, two of them in services/sync/wrangler.jsonc: workers_dev absent meant PUBLISHED, preview_urls absent meant FOLLOW workers_dev (a wildcard over every version ever deployed), and migrations absent on a named environment meant INHERIT THE TOP LEVEL, which sent a delete-class migration to production that had been deliberately left out of it and broke the deploy. WHAT TO DO: for each of the three Workers and each of dev, staging and production, list every key that is set at the top level and confirm whether each named environment inherits it, overrides it, or needs an explicit override. Declare or verify per environment rather than trusting the shape of the file. WHAT HAPPENS OTHERWISE: the next one is found the same way these were, by a deploy failing or by a boundary turning out to be open, and the cost is that a config reads as scoped while behaving as inherited. NOT IN THE CURRENT CHAIN by Guy's ruling; the three known instances are already fixed by declaration.",
+    "owner": "build",
+    "trigger": "after the workers.dev chain closes, before the next Worker or environment is added, because a fourth environment inherits everything the third one did",
+    "owed_to": "TRIGGER: the next Worker or environment addition. Raised by Guy 19 Aug 2026 after the third inheritance surprise in one day.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "capital-one-annual-consent-refresh",
+    "item": "CAPITAL ONE CONSENT EXPIRES ANNUALLY AND NOTHING EXPECTS IT. Plaid's OAuth guide states Capital One consent must be refreshed once a year. WHAT HAPPENS IF NOBODY DOES ANYTHING: roughly a year after a household connects Capital One, the Item stops working and surfaces as ITEM_LOGIN_REQUIRED with no explanation, which reads to the household as a broken connection rather than an expiry that was always coming. It arrives ON A CLOCK rather than from any event, so nothing in the pipeline will predict it: the watchdog sees a stuck Item, the reconnect path can repair it, and neither knows it was due. WHAT IS OWED: the reconnect surface should be able to say that a consent expired rather than that a login failed, and the founder household's own Capital One Item is the first one that will hit this, roughly August 2027. Related: a company display-name change ALSO forces Capital One Items into ITEM_LOGIN_REQUIRED, which is why the Plaid application display name is being chosen deliberately rather than casually.",
+    "owner": "build",
+    "trigger": "M8's reconnect surface, and no later than eleven months after the first Capital One Item is connected",
+    "owed_to": "TRIGGER: M8's reconnect copy. Found 19 Aug 2026 while confirming Plaid's OAuth prerequisites before building 4.5b prime.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "pending-institution-coverage-is-not-discoverable",
+    "item": "PLAID PUBLISHES NO WAY TO KNOW WHICH INSTITUTIONS RETURN PENDING TRANSACTIONS. Confirmed 19 Aug 2026 against current docs: there is no institution-level capability field, /institutions/get_by_id reports nothing about it, and no comprehensive list exists. Two are named explicitly in Plaid's own documentation and support articles: CAPITAL ONE AND USAA DO NOT PROVIDE PENDING TRANSACTION DATA. When none is available, pending_transaction_id is null. WHY THIS MATTERS HERE: pending-to-posted is unexercised (see pending-to-posted-unexercised) and it is a stated reason for connecting real institutions at 4.5b prime, so connecting only institutions that never report pending would leave categorization-spec section 10 exactly as unproven as Sandbox left it, while looking like progress. THE CONSEQUENCE FOR 4.5b PRIME: coverage cannot be inferred from a successful connect, so the task is not complete until a pending transaction has been OBSERVED SETTLING in real data, asserted rather than assumed. ALSO FOUND: Capital One provides only 90 days of transaction history, which matters separately for the engines that want real history.",
+    "owner": "build",
+    "trigger": "4.5b prime, as an acceptance criterion rather than a follow-on: at least one connected institution must report pending, and a settle must be observed",
+    "owed_to": "TRIGGER: 4.5b prime. Found while confirming Plaid prerequisites before building, on Guy's instruction to look it up rather than recall it.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "backfill-depth-is-per-institution",
+    "item": "EVERY SPEC ASSUMES A UNIFORM 24 MONTHS OF HISTORY AND BACKFILL DEPTH IS PER-INSTITUTION. Confirmed against Plaid's docs 19 Aug 2026: CAPITAL ONE PROVIDES ONLY 90 DAYS of transaction history. Every other institution's actual depth is UNVERIFIED, and Plaid publishes no per-institution figure, so this is not something a lookup can answer. WHAT ASSUMES 24 MONTHS: the census finds seasonal shape from up to 24 months (M15); spec-amendments-2026-08 rules that trailing-3 alone is wrong at year end BECAUSE it cannot see seasonality, and the error there is DIRECTIONAL rather than random, which is what made it unacceptable; the Annual Planning Session reads seasonal shape; and the day-three state was designed around a household arriving with history. WHAT HAPPENS IF NOBODY DOES ANYTHING: a household whose accounts are mostly Capital One gets a year-end projection built on a quarter of the intended window, and the failure is SILENT and DIRECTIONAL. It does not look like missing data; it looks like a confident projection. That is the one error mode the product cannot tolerate, in the direction that flatters or alarms depending on the season. THE LIKELY CONSEQUENCE, NOT YET RULED: the projection engine may need to know how much history it actually holds PER ACCOUNT rather than assuming a window, and to say so rather than silently narrowing. Guy would rather see real depths before ruling (19 Aug 2026), which is why this is recorded and not designed.",
+    "owner": "build",
+    "trigger": "4.5b prime, when real institutions connect and actual depths are observable rather than assumed; a ruling on the engine follows the numbers",
+    "owed_to": "TRIGGER: 4.5b prime. Found while confirming Plaid prerequisites, from the Capital One 90-day limit, which Guy identified as bigger than Capital One.",
+    "raised": "2026-08-19"
   }
 ]

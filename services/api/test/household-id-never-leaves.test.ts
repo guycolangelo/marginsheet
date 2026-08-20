@@ -106,7 +106,19 @@ for (const file of files) {
     if (!NAMES_A_HOUSEHOLD_ID.test(withoutStringLiterals(line))) return;
     if (isInternalUse(line)) return;
     if (targetsAnInternalBinding(lines, i)) return;
-    if (REACHES_A_CALLER.some((p) => p.test(line))) {
+    // The name must sit INSIDE the thing that reaches a caller, not merely on
+    // the same line as one. `if (!householdId) return Response.json({ error:
+    // "household id is required" })` is a GUARD: the identifier is the
+    // condition and the response carries a static string. Flagging it would
+    // teach people to restructure correct code to satisfy a scanner, which is
+    // the ceremony that gets a rule suppressed.
+    const insidePayload = REACHES_A_CALLER.some((p) => {
+      const m = p.exec(line);
+      if (!m) return false;
+      const after = withoutStringLiterals(line.slice(m.index + m[0].length));
+      return NAMES_A_HOUSEHOLD_ID.test(after);
+    });
+    if (insidePayload) {
       findings.push({ file, line: i + 1, text: line.trim().slice(0, 120) });
     }
   });
