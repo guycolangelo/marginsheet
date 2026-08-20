@@ -494,5 +494,13 @@
     "trigger": "M9 completing, meaning the books are migrated AND reconciled, not M8 completing. The UI being ready is not the condition",
     "owed_to": "TRIGGER: M9 complete. Recorded 20 Aug 2026 at Guy's instruction, with the reasoning for the trigger rather than only the trigger.",
     "raised": "2026-08-20"
+  },
+  {
+    "id": "two-sql-mutation-proofs-still-assert-what-they-did",
+    "item": "THE REMAINDER OF THE 20 AUG 2026 SWEEP, RECORDED SO THE NEXT SWEEP DOES NOT START FROM SCRATCH. Eleven sql mutations in config/control-register.json were read against the rule that a restore proof must assert the state it FOUND rather than the absence of the thing it DID. Two were fixed the same day: sync-reach-not-beyond-grant, whose REVOKE SELECT ON households stripped migration 0028's column grant and poisoned a control three entries later, and sync-role-boundary plus sync-grant-enumeration, whose REVOKE ALL restores are broader than their plants while their proofs asked only about SELECT. TWO REMAIN OWED. (1) THE POLICY DROP/CREATE PROOFS. sync-policy-refuses-ordinary-table, sync-policy-blocks-the-confirmed-finding and sync-policy-admits-unattributed-events each drop a policy and recreate it, and each proof matches a SUBSTRING of pg_policies.qual. That says nothing about WITH CHECK, nothing about the command scope, and nothing about permissive versus restrictive, so a restore that recreates the policy with any of those different reads as clean. The recreate statements do specify FOR ALL and both clauses, so this is a proof that cannot see a defect rather than a known defect. (2) invitation-token-prefix RESTORES BY DELETING ROWS: 'DELETE FROM invitations WHERE token NOT LIKE ms_invite_%' followed by re-adding the constraint. That is destructive beyond anything the plant created, and the proof is a constraint count, which cannot observe a deleted row. Today it is safe because the branch is ephemeral and no legitimate row violates the prefix, and it is the same shape: a restore whose damage its proof is structurally unable to notice. WHAT A CLEAN SWEEP IS WORTH: the other seven were examined and are sound because the state they found is genuinely absence, so the inverse and the found state coincide. That list is the artifact, not the two fixes.",
+    "owner": "build",
+    "trigger": "the next change to any policy control's plant or restore, or the next time a proof is written for a sql mutation, whichever comes first",
+    "owed_to": "TRIGGER: next edit to a sql mutation in the register. Raised 20 Aug 2026 by Guy asking for the pattern to be swept rather than the incident fixed, the same discipline as the || true sweep.",
+    "raised": "2026-08-20"
   }
 ]
