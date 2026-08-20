@@ -748,6 +748,21 @@
         "note": "Renames the only call site so the runner is unreachable, restoring the state 4.5b prime shipped in. THE FIRST MUTATION WAS INERT AND THE HARNESS CAUGHT IT: it replaced the call with UNCALLED_runSyncForItem(, which STILL CONTAINS runSyncForItem( as a substring, so the assertion passed. A manual check appeared to confirm it red, but that run had mangled the file with an earlier command and credited the wrong mutation. The harness was right and the hand-verification was wrong, which is the harness earning its place: a mutation that changes the file without changing what the test sees is exactly what it reports."
       },
       "distinction": "WRITTEN BECAUSE THE DEFECT RECURRED ONE TASK AFTER BEING CRITICISED. 4.4 was faulted for runTransactionsSync counting rows with no caller, and 4.5b prime was reported as six pieces built when it was five plus a function nobody could call. NOTHING ELSE IN THE SUITE WOULD NOTICE: every test of the runner calls it directly, so a runner with no route passes its own tests completely. This asserts the caller exists, which is the one property a unit test structurally cannot check."
+    },
+    {
+      "id": "columns-the-code-writes-exist",
+      "control": "the column existence scan (services/sync/test/columns-the-code-writes-exist.test.ts)",
+      "guards": "The sync Worker never writes a column no migration creates.",
+      "test": "services/sync/test/columns-the-code-writes-exist.test.ts",
+      "name": "names no column the schema does not have",
+      "planted": {
+        "kind": "source",
+        "file": "packages/schema/migrations/0027_last_cursor_at.sql",
+        "find": "ADD COLUMN \"last_cursor_at\" timestamp with time zone;",
+        "replace": "ADD COLUMN \"cursor_written_at\" timestamp with time zone;",
+        "note": "Renames the column so the code and the schema disagree, which is the state that shipped: the Worker wrote last_cursor_at and no migration created it. THIS IS A SOURCE MUTATION ON A MIGRATION AND THAT IS CORRECT HERE, unlike the 0026 policy controls: this control reads the migration TEXT rather than database state, so the file is where the thing it guards actually lives. Verified red 20 Aug 2026."
+      },
+      "distinction": "THE THIRD INSTANCE OF SOMETHING PASSING ITS OWN TESTS WHILE BEING UNABLE TO RUN. last_cursor_at is read by the watchdog through sweepReason(), whose tests construct an ItemSyncState BY HAND, so no test ever read it from a database: the code and the fixtures agreed with each other and both disagreed with the schema. 4.4 shipped a watchdog measuring progress by a column that was never created, and its whole suite passed. It surfaced on the first real sync, on the first statement that tried to WRITE it. IT IS A STATIC SCAN AND SAYS SO: it proves a name appears in a CREATE TABLE or ADD COLUMN, not that the migration applied or that the type is right. Direction 2 asserts it parsed real columns and real writes, because a regex that stops matching leaves it comparing two empty sets and passing perfectly."
     }
   ]
 }
