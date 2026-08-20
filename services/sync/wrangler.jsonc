@@ -71,7 +71,32 @@
   // durable statement.
   "workers_dev": false,
   "preview_urls": false,
-  "migrations": [{ "tag": "v2", "deleted_classes": ["HouseholdSync"] }],
+  "durable_objects": {
+    "bindings": [{ "name": "HOUSEHOLD_SYNC", "class_name": "HouseholdSync" }]
+  },
+  // THE CREATE ALONE, AND THE DELETE IS DELIBERATELY NOT LISTED.
+  //
+  // v1 created this class from a hand-deploy and v2 deleted it, both already
+  // RECORDED on deployed dev and staging. A recorded tag is never re-applied,
+  // and wrangler tolerates a recorded tag that is absent from the file with a
+  // warning, so listing v2 here buys nothing.
+  //
+  // IT COSTS SOMETHING, WHICH IS WHY IT IS GONE: `wrangler dev --local` starts
+  // with EMPTY migration state, so it tries to apply the delete against a class
+  // that was never created and refuses to start with
+  //
+  //   Cannot apply deleted_classes migration to non-existent class HouseholdSync
+  //
+  // That takes the chain lock suite down, since it drives a real wrangler dev.
+  // Found by running it rather than by reasoning about it: the per-environment
+  // tag divergence this file previously described was correct for the three
+  // deployed environments and wrong for the only one that can be tested first.
+  //
+  // v3 applies everywhere that has not recorded it: local (nothing recorded),
+  // dev and staging (v1 and v2 recorded), production (nothing recorded, because
+  // its inherited delete was refused with code 10074 and it was given an
+  // explicit empty list).
+  "migrations": [{ "tag": "v3", "new_sqlite_classes": ["HouseholdSync"] }],
   "vars": {
     "ENVIRONMENT": "dev",
     "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
@@ -82,7 +107,10 @@
       "compatibility_flags": ["nodejs_compat"],
       "workers_dev": false,
       "preview_urls": false,
-      "migrations": [{ "tag": "v2", "deleted_classes": ["HouseholdSync"] }],
+      "durable_objects": {
+        "bindings": [{ "name": "HOUSEHOLD_SYNC", "class_name": "HouseholdSync" }]
+      },
+      "migrations": [{ "tag": "v3", "new_sqlite_classes": ["HouseholdSync"] }],
       "vars": {
         "ENVIRONMENT": "staging",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
@@ -93,6 +121,9 @@
       "compatibility_flags": ["nodejs_compat"],
       "workers_dev": false,
       "preview_urls": false,
+      "durable_objects": {
+        "bindings": [{ "name": "HOUSEHOLD_SYNC", "class_name": "HouseholdSync" }]
+      },
       // EXPLICITLY EMPTY, BECAUSE OMITTING IT INHERITS THE TOP-LEVEL LIST.
       //
       // The delete-class migration was written for dev and staging, which have
@@ -111,7 +142,7 @@
       // SAME SHAPE AS workers_dev: an absent key does not mean "none", it means
       // "take the default", and here the default is the parent's value. An
       // empty list is a statement; silence is an inheritance.
-      "migrations": [],
+      "migrations": [{ "tag": "v3", "new_sqlite_classes": ["HouseholdSync"] }],
       "vars": {
         "ENVIRONMENT": "production",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
