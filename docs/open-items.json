@@ -431,5 +431,13 @@
     "trigger": "4.5b prime's first real sync, when all four become observable against real data rather than hypothetical",
     "owed_to": "TRIGGER: the first real sync. Named by Guy 19 Aug 2026; the settle case is controlled, the other three are not.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "plaid-dashboard-registration-is-unverified-vendor-state",
+    "item": "THE REDIRECT URI IS DECLARED IN THE REPO AND REGISTERED IN PLAID'S DASHBOARD, AND NOTHING RECONCILES THE TWO. PLAID_REDIRECT_URI is a var in services/sync/wrangler.jsonc, asserted per environment by a test. Whether that exact string is ALLOWLISTED IN PLAID'S DASHBOARD is vendor state no check can see, and PLAID KEEPS SEPARATE ALLOWLISTS PER ENVIRONMENT: on 20 Aug 2026 it was registered against Sandbox, production link token creation failed with INVALID_FIELD, and the cause was invisible from inside our system. SAME FAMILY AS THE EDGE RATE LIMIT RULES, which are declared in config/edge-rate-limits.json and verified against the live Cloudflare zone by the edge-rules CI job precisely because a control living only in a dashboard is what broke production deploys on 16 Aug 2026. This is the same shape with a different vendor and no job. WHAT WOULD CLOSE IT: scripts/plaid-link-token-probe.sh IS the reconciliation, run by hand: a successful link token proves the URI is registered for that environment, and a refusal names the field. Making it a check means production Plaid credentials in CI, which is a decision rather than an implementation detail. WHAT HAPPENS OTHERWISE: the next environment, the next URI change, or a dashboard edit by anybody silently breaks connection for that environment only, and the error names a field rather than the registration.",
+    "owner": "Guy",
+    "trigger": "before a second environment is pointed at production Plaid, or any change to PLAID_REDIRECT_URI; the decision is whether production Plaid credentials belong in CI",
+    "owed_to": "TRIGGER: a redirect URI change or a second production-Plaid environment. Found 20 Aug 2026 when the first production link token failed because the URI was registered against Sandbox.",
+    "raised": "2026-08-20"
   }
 ]
