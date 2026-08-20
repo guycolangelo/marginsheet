@@ -703,6 +703,21 @@
         "note": "Keeps the OLD pending value on update, which is what somebody writes when they think pending should not be overwritten. The row stays pending forever and every count-based test stays green. Verified red 19 Aug 2026."
       },
       "distinction": "THIS IS THE TRANSITION SANDBOX CANNOT CONSTRUCT, which is why the assertion is on the STATEMENT rather than on an observed settle. Plaid reports a settle as a MODIFIED transaction with pending=false, so if the update does not set pending the row stays pending forever and categorization-spec section 10 never fires on real data. The observed settle is 4.5b prime's acceptance criterion and this control is what makes the statement capable of producing one."
+    },
+    {
+      "id": "rows-are-written-before-the-cursor-moves",
+      "control": "the apply-then-persist ordering in runTransactionsSync",
+      "guards": "A cursor never advances past transactions that were not stored.",
+      "test": "services/sync/test/transactions-sync.test.ts",
+      "name": "applies the page, THEN persists the cursor",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/transactions-sync.ts",
+        "find": "        const applied = await applyPage(page);\n        written += applied.written;\n        flagged += applied.flagged;\n\n        // AFTER EVERY PAGE, so a crash resumes rather than replaying from zero.\n        await persistInFlight(cursor);",
+        "replace": "        // PLANTED: cursor first, rows second.\n        await persistInFlight(cursor);\n\n        const applied = await applyPage(page);\n        written += applied.written;\n        flagged += applied.flagged;",
+        "note": "Swaps two adjacent statements, neither of which is wrong on its own. This is the plausible-and-wrong form: persisting the cursor 'as soon as we have it' reads as promptness, and the resulting code is one line different from correct. Verified red 19 Aug 2026."
+      },
+      "distinction": "PLAID'S CURSOR IS A PROMISE ABOUT WHAT WE HAVE CONSUMED. Persisting it before the rows are stored makes that promise false, and the failure is SILENT: the next run resumes past transactions nobody wrote, there is no error, no retry, and the ledger is missing a page while the cursor says it was read. The assertion is on ORDER rather than on outcome, because the outcome is indistinguishable from correct until the crash that never happens in a test."
     }
   ]
 }
