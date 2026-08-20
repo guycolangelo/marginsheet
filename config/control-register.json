@@ -827,6 +827,38 @@
         "note": "MOVES THE CAST INSIDE THE FILTER CLAUSE, which is the plausible-and-wrong version rather than an obvious break: it reads as the same expression, a reviewer scanning for a missing column or a wrong table sees nothing, and it is the exact class of mistake a typecheck cannot see because SQL in a template literal is a string. A source mutation is right here even though the control touches a database: the thing it guards is a STATEMENT, and a statement lives in source. Contrast the 0028 grant controls, which guard a privilege and therefore need kind sql."
       },
       "distinction": "THE THIRD INSTANCE OF ONE SHAPE TODAY, and the one that finally got a test. last_cursor_at was a column no migration created; households was a table no grant covered; the readout was a statement nothing ran. All three passed their own suites and all three surfaced on a real run, because a typecheck proves a statement was CONSTRUCTED and says nothing about whether it can EXECUTE. It imports readLedger rather than restating the SQL, so the test cannot drift into agreeing with a copy of itself, and it runs as marginsheet_sync rather than the owner, because the owner passes through every grant and every policy and would hide two of the three things that can break. Direction 2 asserts the account row count BEFORE reading any aggregate: min, max and count all return defensible answers over zero rows, so a readout that matched nothing would satisfy every other assertion here. THE ROLE IS PART OF THE CONTROL: the first version ran in api and threw permission denied on plaid_items, because marginsheet_app holds that table as an enumerated column list and last_cursor_at was added by 0027 and granted to nobody. An owner connection would have reported the same statement as healthy."
+    },
+    {
+      "id": "household-guc-is-transactional",
+      "control": "the GUC receiver scan (services/api/test/guc-is-set-inside-a-transaction.test.ts)",
+      "guards": "Every household GUC is set on a transaction handle, so an is_local setting cannot die before the statement it scopes.",
+      "test": "services/api/test/guc-is-set-inside-a-transaction.test.ts",
+      "name": "sets it on a transaction, never on a connection",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "          const accounts = await sql.begin(async (tx) => {\n            await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;",
+        "replace": "          await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;\n          const accounts = await sql.begin(async (tx) => {",
+        "note": "MOVES THE SETTING OUT OF THE TRANSACTION IT SCOPES, which is exactly how the code shipped rather than an invented break. Both versions read as correct: the GUC is set, the query runs, the household is named. The difference is that is_local ends the setting with its own statement, so household_isolation evaluates household_id = NULL and returns nothing while raising nothing. Nobody writes an obviously ungated query; what they write is this."
+      },
+      "distinction": "A CONVENTION SCAN PAIRED WITH A SEMANTICS PROOF, and each is named for what it is. This one reads the RECEIVER of every set_config call and requires a transaction handle; it cannot prove the handle is really a transaction, and a brace-matching regex over TypeScript would fail in a way nobody could read. packages/schema/test/db/guc-needs-a-transaction.test.ts carries the other half, demonstrating against a real database that the same query returns one row inside a transaction and zero outside it, with the positive case first so the negative one is not satisfied by a broken fixture. FOUND BY WRITING NEW CODE. Three sites were wrong and two were live: /plaid/accounts answered an empty account list for every household, and the invitation actor lookup refused with no_member. Neither raised anything. Direction 2 asserts the scan found more than four call sites, because a regex that stopped matching would iterate over nothing and pass."
+    },
+    {
+      "id": "guc-dies-outside-a-transaction",
+      "control": "the GUC semantics proof (packages/schema/test/db/guc-needs-a-transaction.test.ts)",
+      "guards": "The claim that an is_local GUC does not survive between statements, demonstrated against a real database rather than asserted in a comment.",
+      "test": "packages/schema/test/db/guc-needs-a-transaction.test.ts",
+      "name": "returns the row when the setting and the read share a transaction",
+      "planted": {
+        "kind": "sql",
+        "apply": "ALTER POLICY household_isolation ON financial_accounts USING (household_id = nullif(btrim(current_setting('marginsheet.wrong_key', true)), '')::uuid)",
+        "restore": "ALTER POLICY household_isolation ON financial_accounts USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid)",
+        "proof": "select (position('wrong_key' in pg_get_expr(polqual, polrelid)) > 0)::int as broken from pg_policy where polname = 'household_isolation' and polrelid = 'financial_accounts'::regclass",
+        "appliedValue": 1,
+        "restoredValue": 0,
+        "note": "POINTS THE POLICY AT A KEY NOTHING SETS, which is the same end state the bug produced by other means: the policy reads an unset setting and matches nothing. It reddens the POSITIVE case, which is the one that carries the meaning here, and deliberately not the negative case, which returns zero rows either way. A sql mutation is required because a policy lives in the database and a source edit on an applied migration changes no database anywhere."
+      },
+      "distinction": "IT PROVES A CLAIM RATHER THAN GUARDING A PATH, which is unusual here and is the point. The reasoning for why an is_local GUC breaks outside a transaction is easy to state and easy to get wrong, and it was stated correctly in a comment in phone-change.ts while three other call sites had it wrong. A comment is the weakest form of a rule. This makes the claim executable, and pairs with the receiver scan that enforces the consequence. The positive case runs FIRST and is not decoration: without it the negative case proves only that the query returns nothing, which a typo in the fixture would also produce."
     }
   ]
 }

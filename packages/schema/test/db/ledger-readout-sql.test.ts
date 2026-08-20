@@ -52,8 +52,8 @@ beforeAll(async () => {
   // works: a fixture that cannot tell a pass from a failure is the ninth
   // finding, and it applies to this fixture as much as to any other.
   await sql`insert into transactions (household_id, account_id, date, authorized_date, amount, direction, pending, original_description)
-            values (${HOUSEHOLD}, ${ACCOUNT}, date '2026-05-01', date '2026-04-30', 12.34, 'outflow', false, 'older'),
-                   (${HOUSEHOLD}, ${ACCOUNT}, date '2026-08-19', date '2026-08-18', 56.78, 'outflow', true,  'newer')
+            values (${HOUSEHOLD}, ${ACCOUNT}, date '2026-05-01', date '2026-04-30', 12.34, 'expense', false, 'older'),
+                   (${HOUSEHOLD}, ${ACCOUNT}, date '2026-08-19', date '2026-08-18', 56.78, 'expense', true,  'newer')
             on conflict do nothing`;
 });
 

@@ -191,6 +191,28 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **The practical form is one sentence: say what each possible answer will cause, before looking.** If a result would change nothing whatever it said, the reading is not worth taking. If it would change something, the change is decided now, while nothing has been invested in either branch.
 
+- **AN UNSET GUC IS A VALID STATE, SO THE POLICY HANDLES IT BY RETURNING NOTHING AND NOTHING ERRORS. The join shape, in a runtime rather than in a sentence.** (Guy, 20 Aug 2026.)
+
+  `set_config`'s third argument is `is_local`: the setting reverts at the end of the current transaction, and **outside an explicit transaction every statement IS its own transaction**, so the GUC is gone before the next query runs. `household_isolation` reads `current_setting('marginsheet.household_id', true)`, whose second argument means *return NULL rather than raise*. The policy therefore evaluates `household_id = NULL`, which matches no row, **and raises nothing at all.**
+
+  **A statement that sets a value and a statement that reads it can each be correct while the value does not survive between them.** That is the same join failure as the two retractions above, moved from prose into a runtime: both halves inspect clean, and the defect lives only in the step between them.
+
+  **Three sites had it, and two were live in production.** `/plaid/accounts` answered an **empty account list for every household**, which is indistinguishable from a household that has connected nothing. The invitation actor lookup refused with `no_member`. Neither logged anything, neither appeared in Sentry, and both had shipped.
+
+  **The knowledge existed and did not travel.** `phone-change.ts` carries a comment explaining `is_local` correctly, written by someone who had understood it exactly, while three other call sites got it wrong. **A comment is the weakest form of a rule**, which this file already says, and here is what that costs: the right explanation, in the repository, next to code that obeys it, teaching nothing to the next file.
+
+  Two controls, named for what each is. A **receiver scan** requires every `set_config` to be on a transaction handle, which is a convention and says so. A **db test** demonstrates the same query returning one row inside a transaction and zero outside it, which makes the claim executable instead of argued.
+
+  **The failure signature to recognise: a query that returns an empty set for every caller, forever, with no error anywhere.** If a list is always empty and nothing is broken, ask what the policy is reading and whether the thing that set it is still in scope.
+
+- **POSTGRES NAMES THE TABLE WHEN THE BOUNDARY IS THE COLUMN, so the error points at the wrong artifact.** (Guy, 20 Aug 2026.) Small, and it cost a wrong first hypothesis, so it is written down.
+
+  `permission denied for table plaid_items` was raised because the role lacked **one column**. `marginsheet_app` holds `plaid_items` perfectly well: eleven columns enumerated in 0002 plus `last_completed_cursor` from 0025. What it lacked was `last_cursor_at`, which 0027 added and granted to nobody, exactly as 0002's comment promised it would behave.
+
+  **The message sends every reader to the table grants, which are fine.** The first response to it here was to check whether the role had the table, find that it did, and be briefly confused. **The right question is which columns the statement names and which of those the role holds**, and the error will not prompt it.
+
+  It pairs with the enumerated-grant rule: enumeration means a column added later is excluded **by design**, so this error becomes MORE likely as the schema grows, not less, and it will keep arriving with the wrong noun in it.
+
 - **A FINDING ABOUT THE WORLD, CAUSED BY A PARAMETER WE NEVER SET. When several independent sources agree, check whether they were asked the same question before concluding something about the sources.** (Guy, 20 Aug 2026.) A new species, and worse than the others here, because it would have been written down as a fact about a third party and inherited by everyone who read it afterwards.
 
   The near-miss. SoFi's first sync returned 201 transactions, which is thin, and two earlier institutions had already looked short. The conclusion being drafted was a `projection-spec` finding: **two institutions break the uniform-window assumption, so it is a pattern rather than a Capital One quirk.** Every step was reasonable. Three sources, agreeing, about the outside world.

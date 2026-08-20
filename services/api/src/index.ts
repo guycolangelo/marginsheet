@@ -177,18 +177,28 @@ const handler = {
           // Mask-plus-type-plus-institution matching stays owed to M8, because
           // a heuristic that acts silently is wrong invisibly and only the
           // household can say "no, that is a different card".
-          await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;
-          const accounts = await sql<
-            { name: string | null; mask: string | null; type: string | null; institution: string | null; item_id: string }[]
-          >`
-            select fa.name, fa.mask, fa.type, i.name as institution, pi.item_id
-              from financial_accounts fa
-              join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
-              left join institutions i on i.id = pi.institution_id
-             where fa.household_id = ${householdId}
-               and fa.is_active = true
-             order by i.name nulls last, fa.name
-          `;
+          // ONE TRANSACTION, because set_config's third argument is is_local.
+          // Outside an explicit transaction every statement is its own, so the
+          // GUC died with the statement that set it and household_isolation
+          // evaluated `household_id = NULL` on the very next query. THAT
+          // RETURNS NO ROWS AND RAISES NOTHING: an unset GUC is a valid state
+          // that the policy handles by matching nothing, so this route answered
+          // an empty list for every household, and an empty list is exactly
+          // what "no accounts connected yet" looks like.
+          const accounts = await sql.begin(async (tx) => {
+            await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+            return tx<
+              { name: string | null; mask: string | null; type: string | null; institution: string | null; item_id: string }[]
+            >`
+              select fa.name, fa.mask, fa.type, i.name as institution, pi.item_id
+                from financial_accounts fa
+                join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
+                left join institutions i on i.id = pi.institution_id
+               where fa.household_id = ${householdId}
+                 and fa.is_active = true
+               order by i.name nulls last, fa.name
+            `;
+          });
           return Response.json({ accounts });
         }
 

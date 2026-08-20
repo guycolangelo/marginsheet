@@ -79,13 +79,13 @@ export interface Readout {
  *  own WHERE clause, which is the 19 Aug rule that a statement should be
  *  correct even when the policy is wrong. The GUC is for the policies that read
  *  it, and it should be right for the same reason. */
-export async function readLedger(sql: Sql, householdId: string): Promise<Readout> {
-  await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;
+export async function readLedger(tx: Sql, householdId: string): Promise<Readout> {
+  await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
 
   // The aggregates are parenthesised before the cast. `count(x) filter (where
   // p)::int` is not the same expression, and getting that wrong is exactly the
   // kind of thing a typecheck cannot see and a database says instantly.
-  const accounts = await sql<AccountRow[]>`
+  const accounts = await tx<AccountRow[]>`
     select fa.plaid_account_id, fa.name, fa.mask, fa.type, fa.subtype,
            i.name as institution,
            (count(t.id))::int as held,
@@ -103,7 +103,7 @@ export async function readLedger(sql: Sql, householdId: string): Promise<Readout
      order by i.name nulls last, fa.type, fa.name
   `;
 
-  const byType = await sql<TypeRow[]>`
+  const byType = await tx<TypeRow[]>`
     select fa.type,
            (count(distinct fa.id))::int as accounts,
            (count(t.id))::int as held,
@@ -115,7 +115,7 @@ export async function readLedger(sql: Sql, householdId: string): Promise<Readout
      order by fa.type
   `;
 
-  const items = await sql<ItemRow[]>`
+  const items = await tx<ItemRow[]>`
     select item_id, sync_status, status, sync_cursor, last_completed_cursor,
            (last_cursor_at)::text as last_cursor_at,
            (last_successful_sync)::text as last_successful_sync
@@ -126,7 +126,7 @@ export async function readLedger(sql: Sql, householdId: string): Promise<Readout
   // columns of households by name, and connected_first_account_at is not one of
   // them. Reading it here would mean widening that grant for a diagnostic,
   // which is the thing the 0028 ruling exists to refuse.
-  const households = await sql<HouseholdRow[]>`
+  const households = await tx<HouseholdRow[]>`
     select (first_sync_completed_at)::text as first_sync_completed_at
       from households where id = ${householdId}
   `;
