@@ -7,13 +7,6 @@
     "raised": "2026-08-16"
   },
   {
-    "id": "postmark-test-mode",
-    "item": "Postmark is in test mode pending approval, so production sends are limited to @marginsheet.com recipients. The live send to guy@astonishent.com is still owed once it clears.",
-    "owner": "Guy",
-    "owed_to": "Postmark account approval",
-    "raised": "2026-08-16"
-  },
-  {
     "id": "twilio-trial-caller-id",
     "item": "The Twilio account is a trial, so Verify reaches only allowlisted numbers. The refusal PATH is now built and tested against a refusing sender (honest message naming the number, no hang, no 500), and it is permanent because Twilio refuses numbers for reasons that outlive the trial. What is still owed is one LIVE send to a non-allowlisted number, because only the real account produces the real error body.",
     "owner": "Guy",

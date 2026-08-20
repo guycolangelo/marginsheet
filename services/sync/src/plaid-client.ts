@@ -19,6 +19,7 @@ export class PlaidError extends Error {
   readonly status: number;
   readonly errorType: string | null;
   readonly errorCode: string | null;
+  readonly errorMessage: string | null;
   readonly requestId: string | null;
   readonly endpoint: string;
 
@@ -33,6 +34,10 @@ export class PlaidError extends Error {
     this.status = status;
     this.errorType = typeof body.error_type === "string" ? body.error_type : null;
     this.errorCode = typeof body.error_code === "string" ? body.error_code : null;
+    // THE FIELD THAT NAMES THE PROBLEM. INVALID_FIELD reports which field is
+    // wrong here and nowhere else, so withholding it turns a precise error into
+    // a guessing exercise.
+    this.errorMessage = typeof body.error_message === "string" ? body.error_message : null;
     this.requestId = typeof body.request_id === "string" ? body.request_id : null;
   }
 
@@ -42,6 +47,25 @@ export class PlaidError extends Error {
    * grants in 0023: naming what may be included fails closed on a field
    * somebody adds later, where redacting known-sensitive keys fails open on
    * everything nobody thought of. */
+  /** What may be published. ENUMERATED RATHER THAN SPREAD, because a raw error
+   *  must never be returned: the REQUEST is what carries the token, so anything
+   *  of ours that serialises what we sent is the real exposure.
+   *
+   *  errorMessage IS INCLUDED, AND ITS ABSENCE WAS A FINDING. This enumeration
+   *  withheld it, guarding against an error body echoing a credential. The
+   *  seven-class capture from Sandbox had already shown that does not occur:
+   *  an identical seven-key envelope, no nesting, no request echo, and NO
+   *  CREDENTIAL EVEN IN THE ERROR WHOSE ENTIRE SUBJECT IS A BAD SECRET.
+   *
+   *  THE COST LANDED ON THE FIRST REAL DIAGNOSIS. Plaid's INVALID_FIELD names
+   *  the offending field in error_message and nowhere else, so the first
+   *  production link token failure on 20 Aug 2026 reported INVALID_FIELD with
+   *  the field withheld, and the only way forward was to reproduce the call
+   *  outside the system.
+   *
+   *  A guard aimed at a shape that does not occur costs nothing until it costs
+   *  a diagnosis, and produces no signal in between. That is why the study
+   *  existing did not cause anybody to revisit this. */
   toJSON(): Record<string, unknown> {
     return {
       name: this.name,
@@ -49,6 +73,7 @@ export class PlaidError extends Error {
       status: this.status,
       errorType: this.errorType,
       errorCode: this.errorCode,
+      errorMessage: this.errorMessage,
       requestId: this.requestId,
     };
   }
