@@ -67,6 +67,55 @@ export async function reconnectItem(
   }
 }
 
+/** What products an Item actually carries, asked of Plaid.
+ *
+ *  WHY THIS EXISTS RATHER THAN AN INFERENCE. `additional_consented_products`
+ *  is documented as an UPDATE MODE field, and we send it on an initial link
+ *  token. Plaid does not reject that, so a successful connection proves
+ *  nothing: honored and silently ignored produce the identical result.
+ *
+ *  A LINK TOKEN PROBE CANNOT DISTINGUISH THE TWO CASES, which is why one was
+ *  proposed and withdrawn. Neither can a failed Liabilities call afterwards:
+ *  that is ambiguous between consent not taking, the institution not
+ *  supporting the product, and something else. `consented_products` answers
+ *  the question directly rather than by inference from a failure.
+ *
+ *  RETURNS THE THREE ARRAYS AND NOTHING ELSE. `/item/get` also returns the
+ *  institution id, webhook, error state and consent expiry, and none of that
+ *  is what this is for. Enumerating is the same discipline as PlaidError's
+ *  toJSON: name what may be published so a field added later is excluded by
+ *  default. */
+export async function itemProducts(
+  householdId: string,
+  itemRowId: string,
+  credentials: PlaidCredentials,
+  encryptionKey: string,
+  databaseUrl: string
+): Promise<{ products: string[]; billedProducts: string[]; consentedProducts: string[] }> {
+  const sql = postgres(databaseUrl, { max: 1 });
+  try {
+    const [row] = await sql<{ access_token_ciphertext: string | null }[]>`
+      select access_token_ciphertext from plaid_items
+       where id = ${itemRowId} and household_id = ${householdId}
+    `;
+    if (!row) throw new Error(`no plaid_item ${itemRowId} for this household`);
+    if (!row.access_token_ciphertext) throw new Error(`plaid_item ${itemRowId} holds no token`);
+
+    const accessToken = await decryptToken(row.access_token_ciphertext, encryptionKey);
+    const item = await callPlaid<{
+      item: { products?: string[]; billed_products?: string[]; consented_products?: string[] };
+    }>("/item/get", credentials, { access_token: accessToken });
+
+    return {
+      products: item.item.products ?? [],
+      billedProducts: item.item.billed_products ?? [],
+      consentedProducts: item.item.consented_products ?? [],
+    };
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
 /** Mints a link token for a NEW connection (4.5b prime).
  *
  *  THE SAME CALL AS UPDATE MODE, MINUS access_token. Its presence is what makes

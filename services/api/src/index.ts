@@ -95,6 +95,7 @@ const handler = {
     if (
       url.pathname === "/plaid/link-token" ||
       url.pathname === "/plaid/sync" ||
+      url.pathname === "/plaid/item-products" ||
       url.pathname === "/plaid/accounts" ||
       url.pathname === "/plaid/oauth-return" ||
       url.pathname === "/connect"
@@ -159,6 +160,26 @@ const handler = {
           if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
           const response = await env.SYNC.fetch(
             new Request("https://sync.internal/internal/sync-run", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/item-products") {
+          // WHAT THE ITEM ACTUALLY CARRIES, asked of Plaid rather than
+          // inferred from a connection succeeding. additional_consented_products
+          // is an update-mode field that we send on an initial token, and Plaid
+          // accepts it either way, so consented_products is the only thing that
+          // distinguishes honored from silently ignored.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/item-products", {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ householdId }),

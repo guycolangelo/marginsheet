@@ -25,6 +25,7 @@ export const CONNECT_PAGE = `<!doctype html>
 <p>Temporary surface for connecting real institutions. M8 replaces it.</p>
 <button id="go">Connect an institution</button>
 <button id="sync">Run a sync</button>
+<button id="products">Check consented products</button>
 <div id="out" hidden></div>
 <h2>Already connected</h2>
 <table id="accounts"><tbody></tbody></table>
@@ -53,6 +54,15 @@ async function listAccounts() {
       ).join("")
     : "<tr><td colspan=4>none yet</td></tr>";
 }
+
+document.getElementById("products").onclick = async () => {
+  // consented_products is the answer to whether additional_consented_products
+  // was honored on an initial link token. products is what was added at link
+  // time; billed_products is what has been charged for.
+  show("asking Plaid what each Item carries...");
+  const res = await fetch("/plaid/item-products");
+  show(await res.json().catch(() => ({})), !res.ok);
+};
 
 document.getElementById("sync").onclick = async () => {
   // THE NUMBERS ARE THE POINT. added versus written is the pair that matters:

@@ -763,6 +763,21 @@
         "note": "Renames the column so the code and the schema disagree, which is the state that shipped: the Worker wrote last_cursor_at and no migration created it. THIS IS A SOURCE MUTATION ON A MIGRATION AND THAT IS CORRECT HERE, unlike the 0026 policy controls: this control reads the migration TEXT rather than database state, so the file is where the thing it guards actually lives. Verified red 20 Aug 2026."
       },
       "distinction": "THE THIRD INSTANCE OF SOMETHING PASSING ITS OWN TESTS WHILE BEING UNABLE TO RUN. last_cursor_at is read by the watchdog through sweepReason(), whose tests construct an ItemSyncState BY HAND, so no test ever read it from a database: the code and the fixtures agreed with each other and both disagreed with the schema. 4.4 shipped a watchdog measuring progress by a column that was never created, and its whole suite passed. It surfaced on the first real sync, on the first statement that tried to WRITE it. IT IS A STATIC SCAN AND SAYS SO: it proves a name appears in a CREATE TABLE or ADD COLUMN, not that the migration applied or that the type is right. Direction 2 asserts it parsed real columns and real writes, because a regex that stops matching leaves it comparing two empty sets and passing perfectly."
+    },
+    {
+      "id": "item-products-publishes-three-arrays",
+      "control": "itemProducts' enumeration (services/sync/src/reconnect.ts)",
+      "guards": "The item-products route returns product arrays and never Plaid's whole item object.",
+      "test": "services/sync/test/token-never-escapes.test.ts",
+      "name": "returns the three arrays and nothing else",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/reconnect.ts",
+        "find": "    return {\n      products: item.item.products ?? [],\n      billedProducts: item.item.billed_products ?? [],\n      consentedProducts: item.item.consented_products ?? [],\n    };",
+        "replace": "    return { ...item.item } as never;",
+        "note": "The spread, which is what somebody writes when they want 'everything Plaid told us'. /item/get also returns institution id, webhook, error state and consent expiry. Verified red 20 Aug 2026."
+      },
+      "distinction": "THE ROUTE EXISTS BECAUSE A PROBE COULD NOT ANSWER THE QUESTION. additional_consented_products is documented as an UPDATE MODE field and we send it on an initial link token; Plaid accepts it either way, so a successful connection cannot distinguish HONORED from SILENTLY IGNORED. A link token probe was proposed and withdrawn for exactly that reason, and a failed Liabilities call afterwards is ambiguous between consent not taking, the institution not supporting the product, and something else. consented_products answers directly rather than by inference from a failure. The enumeration is the same discipline as PlaidError.toJSON, which was tightened the same week for the opposite reason: name what may be published, so a field added later is excluded by default."
     }
   ]
 }
