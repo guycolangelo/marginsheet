@@ -84,7 +84,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
       - name: Unit tests, golden suite, and the vocabulary lint layer
-        run: pnpm --filter @marginsheet/api --filter @marginsheet/conversation --filter @marginsheet/lint --filter @marginsheet/shared --filter @marginsheet/fact-packages test
+        # THE SAME COMMAND CI RUNS. These were two hand-written lists that
+        # disagreed, so a change could pass every PR check and break the deploy.
+        # See the note in ci.yml.
+        run: pnpm -r test
 
   # Dev tracks main. No approval gate: it is the always-latest environment,
   # and leaving it out of the pipeline is what let it drift a commit behind

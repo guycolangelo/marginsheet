@@ -32,7 +32,21 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
-      - run: pnpm --filter @marginsheet/api --filter @marginsheet/conversation --filter @marginsheet/fact-packages --filter @marginsheet/sync test
+      # ONE LIST, DERIVED, NOT TWO HAND-WRITTEN ONES. `-r` runs every package
+      # that HAS a test script, so a new package is covered the day it exists.
+      #
+      # THIS DIVERGED AND IT REACHED MAIN. Until 19 Aug 2026 this job ran api,
+      # conversation, fact-packages and sync, while deploy's gates ran api,
+      # conversation, lint, shared and fact-packages. So packages/shared was
+      # tested at DEPLOY and not in CI, and services/sync in CI and not at
+      # deploy. A change to shared passed every pull request check and broke
+      # main's deploy the moment it merged, which is exactly what DEBUG_PROBE_TOKEN
+      # did.
+      #
+      # Same drift as config/worker-secrets.json against REQUIRED_SECRETS: two
+      # statements of one requirement, both correct when written, with nothing
+      # connecting them. The recorded fix is the same. Derive.
+      - run: pnpm -r test
 
   golden:
     runs-on: ubuntu-latest
