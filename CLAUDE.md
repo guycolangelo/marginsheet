@@ -265,6 +265,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So the harness asserts its own mutation took effect before running anything, and that assertion is not negotiable.
 
+- **A FIX APPLIED WHERE A DEFECT WAS NOTICED IS NOT A FIX APPLIED WHERE THE DEFECT EXISTS. Sweep for the pattern, not the incident.**
+
+  On 19 Aug 2026 `|| true` was removed from `neon-pr-cleanup`, where a leaked Neon branch had just been traced to it. **The identical defect sat in two other files and stayed there**, silently swallowing failed scratch-branch deletions, which is one of the things that filled the project in the first place. Both were found hours later by a sweep that grepped for `|| true` rather than by anyone thinking about branch cleanup again.
+
+  **The tell is that the fix was written while looking at the incident.** An incident hands you a file, a line and a cause, and the cause is general while the file is not. Fixing what is on screen feels complete because the reproduction stops reproducing.
+
+  So a fix for a class-shaped defect is not finished until the class has been searched. **The search is usually one grep**, it usually takes a minute, and on this occasion it was the difference between one fix and three.
+
+  **Its companion: the audit is worth more than the fix.** The same sweep found sixteen sites and one defect. The fifteen correct suppressions were written down with the reason each is right, in `docs/silencing-operators.md`, because **a list of examined suppressions is a stronger artifact than zero hits would have been**: the next reader can tell a deliberate suppression from an unexamined one without re-deriving all of them. A clean sweep that leaves no record makes the next sweep start from scratch (Guy, 19 Aug 2026).
+
 - **WHEN A CONTROL GUARDS DATABASE STATE, THE MUTATION MUST BE DATABASE STATE.** A source mutation on an applied migration proves the file changed and nothing else.
 
   **A migration is applied ONCE, when the CI branch is created, and the harness runs afterwards.** Rewriting an already-applied `.sql` changes no database anywhere. So the harness edits the file, proves the FILE changed, runs the test against an unchanged schema, and reports the control as insensitive.
