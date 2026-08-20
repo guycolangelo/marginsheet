@@ -517,6 +517,57 @@
         "note": "Restores the one statement the scan actually found on its first run, which is the historical state rather than an invented break. Verified red 19 Aug 2026, naming outbox.ts and the statement."
       },
       "distinction": "STEP 4c-i, LANDED BEFORE THE POLICY AND ON ITS OWN, because setting a household changes nothing while sync_worker_access is still USING (true). That makes the policy the only variable when 4c lands and something breaks (Guy). IT IS A SOURCE SCAN AND SAYS SO: it proves each write names a household or sits in a file that sets the GUC, and it CANNOT prove the GUC is set on the same transaction as the write, which is a runtime property. The database-level proof is 4c-iii's negative controls, which is why this is not sufficient alone. It also carries the fifth write path, which is a HOLE rather than a statement: runTransactionsSync takes persistInFlight as an injected callback, so the cursor write lives in a caller that does not exist, and a scan cannot find a statement that is not there."
+    },
+    {
+      "id": "sync-policy-refuses-ordinary-table",
+      "control": "sync_worker_write on an ordinary table (migration 0026)",
+      "guards": "The sync role cannot write into another household's row on a table scoped by household_id.",
+      "test": "services/api/test/sync-write-policy.test.ts",
+      "name": "an ORDINARY table refuses a write into another household",
+      "planted": {
+        "kind": "sql",
+        "proof": "select count(*)::int from pg_policies where tablename = 'plaid_items' and policyname = 'sync_worker_write' and qual like '%household_id%'",
+        "apply": "DROP POLICY \"sync_worker_write\" ON \"plaid_items\"; CREATE POLICY \"sync_worker_write\" ON \"plaid_items\" FOR ALL TO marginsheet_sync USING (true) WITH CHECK (true);",
+        "restore": "DROP POLICY \"sync_worker_write\" ON \"plaid_items\"; CREATE POLICY \"sync_worker_write\" ON \"plaid_items\" FOR ALL TO marginsheet_sync USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
+        "appliedValue": 0,
+        "restoredValue": 1,
+        "note": "RESTORES USING (true) IN THE DATABASE, which is the historical state that allowed the confirmed write. IT IS A `sql` MUTATION AND THAT IS THE WHOLE POINT: the first version edited the migration FILE, which is inert, because the branch is migrated before the harness runs and changing an already-applied .sql changes nothing. All three policy controls reported 'broke it yes, went red NO' and the cause was the mutation, not the control."
+      },
+      "distinction": "ONE OF THREE CONTROLS THAT DIFFER IN KIND. One refusal proves a boundary exists; three of the same shape prove one predicate works three times. This is the ordinary case, where household_id is the scope. Its SURVIVAL assertion is the property rather than the error: a refusal by policy and a match of zero rows are both acceptable, and asserting on the exception message would couple the control to Postgres wording."
+    },
+    {
+      "id": "sync-policy-admits-unattributed-events",
+      "control": "the provider_events exception in migration 0026",
+      "guards": "An unattributed webhook is writable and an attributed one is scoped.",
+      "test": "services/api/test/sync-write-policy.test.ts",
+      "name": "provider_events accepts an UNATTRIBUTED row and refuses another household's",
+      "planted": {
+        "kind": "sql",
+        "proof": "select count(*)::int from pg_policies where tablename = 'provider_events' and policyname = 'sync_worker_write' and qual like '%IS NULL%'",
+        "apply": "DROP POLICY \"sync_worker_write\" ON \"provider_events\"; CREATE POLICY \"sync_worker_write\" ON \"provider_events\" FOR ALL TO marginsheet_sync USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
+        "restore": "DROP POLICY \"sync_worker_write\" ON \"provider_events\"; CREATE POLICY \"sync_worker_write\" ON \"provider_events\" FOR ALL TO marginsheet_sync USING (household_id IS NULL OR household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id IS NULL OR household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
+        "appliedValue": 0,
+        "restoredValue": 1,
+        "note": "Removes the NULL clause IN THE DATABASE, which is the tidy-up a future reader would make. It reddens the PERMITTED half: the exception exists to keep webhooks working, and its failure mode is silence rather than an error."
+      },
+      "distinction": "THE EXCEPTION, TESTED IN BOTH DIRECTIONS, because an exception that only proves the permitted half is an exception nobody has checked. Removing the NULL clause refuses the insert whose whole purpose is to record an event we cannot yet attribute, so webhooks stop being processed and Plaid's retries are the only trace. That is why the migration states what BREAKS rather than how the table differs."
+    },
+    {
+      "id": "sync-policy-blocks-the-confirmed-finding",
+      "control": "the removed-stream statement under migration 0026",
+      "guards": "The statement that already crossed households once is refused by the policy, independently of 4e's predicate.",
+      "test": "services/api/test/sync-write-policy.test.ts",
+      "name": "applyRemoved's statement can no longer cross households",
+      "planted": {
+        "kind": "sql",
+        "proof": "select count(*)::int from pg_policies where tablename = 'transactions' and policyname = 'sync_worker_write' and qual like '%household_id%'",
+        "apply": "DROP POLICY \"sync_worker_write\" ON \"transactions\"; CREATE POLICY \"sync_worker_write\" ON \"transactions\" FOR ALL TO marginsheet_sync USING (true) WITH CHECK (true);",
+        "restore": "DROP POLICY \"sync_worker_write\" ON \"transactions\"; CREATE POLICY \"sync_worker_write\" ON \"transactions\" FOR ALL TO marginsheet_sync USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
+        "appliedValue": 0,
+        "restoredValue": 1,
+        "note": "Restores in the DATABASE exactly the condition under which this statement was CONFIRMED to flag another household's transaction with threw=nothing. Not hypothetical, and not a file edit: a migration already applied cannot be un-applied by rewriting it."
+      },
+      "distinction": "THE OMISSION OF 4e's HOUSEHOLD PREDICATE IS DELIBERATE AND MUST NOT BE \"FIXED\". This test issues the removed-stream update WITHOUT the predicate applyRemoved now carries, because it tests the POLICY rather than the STATEMENT. Adding the predicate here would make the test pass for the wrong reason and the policy could be reverted with nothing going red. BOTH MUST HOLD INDEPENDENTLY, and that is the entire reason 4e landed before 4c: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal. FREE EVIDENCE, AND THE ONLY ONE OF THE THREE THAT IS NOT HYPOTHETICAL: this statement already did this once, against a real database, before the policy existed. IT OMITS 4e's HOUSEHOLD PREDICATE DELIBERATELY, so it tests the POLICY rather than the statement. Both must hold independently, which is the whole reason 4e landed first: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal."
     }
   ]
 }

@@ -20,6 +20,26 @@ import { readFileSync, appendFileSync } from "node:fs";
 const PATH = "docs/open-items.json";
 const REQUIRED = ["id", "item", "owner", "owed_to", "raised"];
 
+/** THE ONLY TWO OWNERS. AN ENUM, NOT A PRESENCE TEST.
+ *
+ *  A non-empty string check passed on `owner: "closed by ruling"`, which is a
+ *  STATUS in the owner field, and on `owner: "M7, 3.5 and M8 respectively"`,
+ *  which is THREE obligations pretending to be one: nobody owes it, and the
+ *  check could not fail on either row.
+ *
+ *  An item is a thing somebody owes. A module is not somebody, so modules live
+ *  in the trigger where they already belonged, and a decision belongs in the
+ *  decision record rather than here. Guy, 19 Aug 2026. */
+const OWNERS = ["Guy", "build"];
+
+/** Accepts "Guy", "build", and a qualified form like
+ *  "build, gated on Guy's approval of the plan", which still names one party as
+ *  responsible. Rejects anything whose first word is not an owner. */
+function ownerIsAPerson(value) {
+  const first = String(value).trim().split(/[\s,(]/)[0];
+  return OWNERS.includes(first);
+}
+
 let items;
 try {
   items = JSON.parse(readFileSync(PATH, "utf8"));
@@ -43,6 +63,13 @@ for (const [index, entry] of items.entries()) {
     if (typeof value !== "string" || value.trim() === "") {
       problems.push(`${where} is missing "${field}". An item nobody owns is not tracked.`);
     }
+  }
+  if (typeof entry?.owner === "string" && entry.owner.trim() !== "" && !ownerIsAPerson(entry.owner)) {
+    problems.push(
+      `${where} has owner="${entry.owner}", which is not one of ${OWNERS.join(" or ")}. ` +
+        `A module is not somebody: put it in the trigger. A status is not an owner: ` +
+        `put the decision in the decision record.`
+    );
   }
   if (entry?.id) {
     if (seen.has(entry.id)) problems.push(`duplicate id "${entry.id}"`);
