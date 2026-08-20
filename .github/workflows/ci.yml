@@ -409,6 +409,13 @@ jobs:
       # It carries its own positive control, because its passing state is
       # "nothing answered" and that is also what a broken network produces.
       - name: No Worker declared private answers the public internet
+        env:
+          # Needed to resolve each script's newest version id, which is what a
+          # preview host is built from. Without it the job cannot tell a closed
+          # preview surface from a lookup it could not make, and it fails rather
+          # than guessing.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node .github/scripts/verify-public-surface.mjs
 
   open-items:

@@ -69,11 +69,25 @@ export async function countNeverAnnounced(tx: Tx, now: Date): Promise<number> {
 
 /** Marks a signal announced. Called AFTER the data transaction commits, which
  *  is what makes enqueued_at NULL mean "never announced" rather than "not yet
- *  recorded". */
-export async function markEnqueued(tx: Tx, signalId: string): Promise<void> {
+ *  recorded".
+ *
+ *  THE HOUSEHOLD IS NAMED EVEN THOUGH signal_id ALONE IS SUFFICIENT TODAY, and
+ *  the reason is the policy rather than this statement. `signal_id` is a
+ *  uuidv7 this system mints, so it cannot collide across households the way a
+ *  Plaid id can, and by the provider-key rule this statement was never a
+ *  finding. But 4c narrows sync_worker_access to a predicate on the declared
+ *  household, and a write that names no household is REFUSED under it.
+ *
+ *  So this is declared now, on its own, while it changes nothing: the policy is
+ *  still USING (true), so adding the predicate is a no-op today and the only
+ *  variable when 4c lands is the policy itself. Verified by
+ *  every-write-declares-a-household.test.ts, which found this statement as the
+ *  one write in the Worker that named no household. */
+export async function markEnqueued(tx: Tx, householdId: string, signalId: string): Promise<void> {
   await tx`
     update household_state_signals
        set enqueued_at = now()
-     where signal_id = ${signalId}
+     where household_id = ${householdId}
+       and signal_id = ${signalId}
   `;
 }

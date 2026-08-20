@@ -56,6 +56,26 @@ describe("marginsheet-sync declares no public surface", () => {
       expect(env.route, `${where} has a route; the third-Worker ruling is undone`).toBeUndefined();
     });
 
+    it(`${where} turns the PREVIEW surface off explicitly too`, () => {
+      // TWO SURFACES, NOT ONE. workers.dev has a Production hostname and a
+      // Preview WILDCARD, <version-prefix>-<worker>.<subdomain>, which
+      // publishes EVERY VERSION EVER DEPLOYED at its own address. The exposure
+      // was never limited to the current deployment.
+      //
+      // preview_urls resolves to workers_dev when absent, so the omission would
+      // be correct today. IT IS STILL WRONG TO RELY ON, because that is the
+      // exact mechanism that opened the original hole: the finding was never
+      // "workers_dev was true", it was that an unstated setting resolved to
+      // exposed and a test read absence as safety. A second unstated setting
+      // resolving to safe is the same mechanism pointing the other way, and it
+      // holds only until a default changes.
+      expect(
+        env.preview_urls,
+        `${where} does not set preview_urls: false. It would inherit from ` +
+          `workers_dev today, and inheriting is how the first hole was opened.`
+      ).toBe(false);
+    });
+
     it(`${where} turns workers.dev OFF explicitly, rather than omitting it`, () => {
       // toBe(false), never not.toBe(true). The second passes on `undefined`,
       // and `undefined` is how this Worker came to be published publicly in

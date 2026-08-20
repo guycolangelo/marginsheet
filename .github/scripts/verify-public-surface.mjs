@@ -22,6 +22,37 @@ import { readFileSync } from "node:fs";
 const config = JSON.parse(readFileSync("config/public-surface.json", "utf8"));
 const { subdomain, environments, probe } = config;
 
+const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
+const CF_ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID;
+
+/** The newest version id for a script, or null with the reason.
+ *
+ *  WORKERS.DEV HAS TWO SURFACES AND THIS RESOLVES THE SECOND. Preview URLs are
+ *  a WILDCARD: <version-prefix>-<script>.<subdomain>, one address per version
+ *  ever deployed. Probing only the production hostname reports a boundary while
+ *  every historical version stays reachable, which is what this check did until
+ *  19 Aug 2026. */
+async function latestVersion(script) {
+  if (!CF_TOKEN || !CF_ACCOUNT) return { id: null, why: "CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not set" };
+  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/workers/scripts/${script}/versions`;
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${CF_TOKEN}` },
+      signal: AbortSignal.timeout(20_000),
+    });
+    const body = await res.json();
+    if (!res.ok || body.success === false) {
+      return { id: null, why: `versions API said ${res.status}: ${JSON.stringify(body.errors ?? body).slice(0, 200)}` };
+    }
+    const items = body.result?.items ?? body.result ?? [];
+    const newest = Array.isArray(items) ? items[0] : null;
+    if (!newest?.id) return { id: null, why: "versions API returned no versions" };
+    return { id: newest.id, why: "" };
+  } catch (error) {
+    return { id: null, why: String(error) };
+  }
+}
+
 async function reachable(host) {
   const url = `https://${host}${probe.path}`;
   try {
@@ -39,13 +70,31 @@ async function reachable(host) {
 const targets = [];
 for (const worker of config.workers) {
   for (const suffix of environments) {
-    targets.push({ host: `${worker.name}${suffix}.${subdomain}`, worker });
+    targets.push({ host: `${worker.name}${suffix}.${subdomain}`, worker, surface: "production" });
   }
 }
 
 const results = [];
 for (const target of targets) {
   results.push({ ...target, ...(await reachable(target.host)) });
+}
+
+// THE PREVIEW SURFACE, asked separately because it is a different address.
+const unresolved = [];
+for (const worker of config.workers) {
+  for (const suffix of environments) {
+    const script = `${worker.name}${suffix}`;
+    const { id, why } = await latestVersion(script);
+    if (!id) {
+      // COULD NOT TELL IS NOT SILENCE. A failed lookup produces exactly the
+      // same "nothing answered" as a properly disabled preview surface, so it
+      // is recorded as unresolved and fails the run rather than passing it.
+      unresolved.push({ script, why });
+      continue;
+    }
+    const host = `${id.slice(0, 8)}-${script}.${subdomain}`;
+    results.push({ host, worker, surface: "preview", ...(await reachable(host)) });
+  }
 }
 
 // THE POSITIVE CONTROL, evaluated before any conclusion is drawn from silence.
@@ -59,13 +108,22 @@ if (shouldAnswer.length > 0 && answered.length === 0) {
   process.exit(1);
 }
 
+if (unresolved.length > 0) {
+  console.error("COULD NOT TELL whether the preview surface is closed, for:");
+  for (const u of unresolved) console.error(`  ${u.script}: ${u.why}`);
+  console.error("A version id is required to build a preview host. Not resolving one");
+  console.error("looks identical to a closed preview surface, so this fails rather");
+  console.error("than reporting a boundary it did not observe.");
+  process.exit(1);
+}
+
 const exposed = results.filter((r) => !r.worker.public && r.ours);
 
 console.log(`Probed ${results.length} hosts. Positive control: ${answered.length}/${shouldAnswer.length} public Workers answered.`);
 for (const r of results) {
   const verdict = r.ours ? "ANSWERS" : "silent ";
   const expected = r.worker.public ? "public" : "PRIVATE";
-  console.log(`  ${verdict}  ${expected.padEnd(7)} ${r.host}  (status ${r.status})`);
+  console.log(`  ${verdict}  ${expected.padEnd(7)} ${(r.surface ?? "").padEnd(10)} ${r.host}  (status ${r.status})`);
 }
 
 if (exposed.length > 0) {

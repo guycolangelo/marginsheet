@@ -72,20 +72,6 @@
     "raised": "2026-08-17"
   },
   {
-    "id": "rule-2-refusal-timing",
-    "item": "RULED ACCEPTABLE, 17 Aug 2026 (Guy), and recorded so it is not revisited as an oversight. Rule 2's cross-household collision is caught at CONFIRM rather than START, because members carries household_isolation and a pre-check cannot see another household's row. The constraint enforces; the code translates the violation. Cost: one wasted SMS and a clear refusal. Weighed against a second SECURITY DEFINER function, which is a permanent widening of the RLS hole, for a case that is genuinely rare: two households legitimately claiming one verified number is either a typo or a person moving between households, and both want support anyway.",
-    "owner": "closed by ruling",
-    "owed_to": "nothing; recorded so the trade is not re-opened as a defect",
-    "raised": "2026-08-17"
-  },
-  {
-    "id": "sensitive-actions-unbuilt",
-    "item": "Three of the four sensitive actions \u00a71 names do not exist yet: cancellation (M7), member removal (3.5), export (M8). They are enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts each has NO route, so building one without flipping the flag fails and sends the author to where the recent-auth requirement is written. Recent-auth is live on the one that exists.",
-    "owner": "M7, 3.5 and M8 respectively",
-    "owed_to": "each action's own module",
-    "raised": "2026-08-17"
-  },
-  {
     "id": "planted-failure-inertness",
     "item": "The planted-failure harness proves a mutation changed the FILE, not that it changed BEHAVIOUR, and proving the second is undecidable in general. So a 'test did not go red' result has two causes it cannot distinguish: an insensitive control, or an inert mutation. One was already found this way: a mutation whose injected condition was always undefined. The failure message names both causes, and register mutations need reviewing as code rather than as data.",
     "owner": "build",
@@ -137,10 +123,11 @@
   },
   {
     "id": "auth-is-production-only",
-    "item": "BETTER_AUTH_SECRET, BETTER_AUTH_URL and AUTH_FROM_EMAIL exist on api/production and on NEITHER dev nor staging, and they are not vars in wrangler.jsonc either. Found while writing config/worker-secrets.json (4.2.3). Guy's read, 17 Aug 2026: dev and staging genuinely do not serve auth, because nothing has ever signed in there and the magic link path was only ever proven against production. NOT BLESSED INTO THE DECLARATION, because a declaration written from current state agrees with whatever was done. Two ways to close it: either those environments get their own auth config, or we state plainly that auth is production-only and accept that its tests never run outside production. The second is a real cost worth naming rather than discovering: it means every auth control is exercised in exactly one environment, and that environment is the one with households in it.",
-    "owner": "Guy",
+    "item": "RULED 19 Aug 2026 (Guy): AUTH IS PRODUCTION-ONLY AND THAT IS STATED AS A LIMITATION RATHER THAN FIXED WITH CONFIG. Dev and staging do not serve auth and nothing signs in there, so giving them auth configuration would mean maintaining a second set of BETTER_AUTH secrets for a path nobody uses. THE HONEST COST, RECORDED RATHER THAN DISCOVERED: every auth test runs against production only, so auth changes are never exercised in a lower environment before they reach households. Anyone reading a green dev or staging run should know it says nothing about auth. This item stays open as the STATEMENT of that limitation, not as work: it closes when either auth is served in a lower environment or a later ruling changes the trade. ORIGINAL: BETTER_AUTH_SECRET, BETTER_AUTH_URL and AUTH_FROM_EMAIL exist on api/production and on NEITHER dev nor staging, and they are not vars in wrangler.jsonc either. Found while writing config/worker-secrets.json (4.2.3). Guy's read, 17 Aug 2026: dev and staging genuinely do not serve auth, because nothing has ever signed in there and the magic link path was only ever proven against production. NOT BLESSED INTO THE DECLARATION, because a declaration written from current state agrees with whatever was done. Two ways to close it: either those environments get their own auth config, or we state plainly that auth is production-only and accept that its tests never run outside production. The second is a real cost worth naming rather than discovering: it means every auth control is exercised in exactly one environment, and that environment is the one with households in it.",
+    "owner": "build",
     "owed_to": "a ruling, then either config or a stated limitation",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger": "no action owed; it is closed by auth being served in a lower environment, or by a later ruling. Until then it exists so a reader knows what a green dev run does not cover."
   },
   {
     "id": "canon-revision-two-registers-one-voice",
@@ -199,8 +186,8 @@
   {
     "id": "capital-one-link-parameters",
     "item": "The ported Capital One parameter handling is a LINK-CONFIG note, per plaid-pipeline-spec section 2, and Link's configuration is M8's surface rather than M4's exchange. Carried to M8 rather than closed silently at 4.3.5. What it is: Capital One requires specific Link parameters that Base44 discovered by hitting the failure, and the fix was ported once. Nobody has re-derived WHY, so M8 should confirm the requirement against Plaid's current docs rather than copying a workaround whose reason is unrecorded.",
-    "owner": "M8",
-    "trigger": "M8's Link surface",
+    "owner": "build",
+    "trigger": "M8's Link surface, where the parameters are actually passed",
     "owed_to": "TRIGGER: M8's Link surface, with the requirement re-derived rather than copied.",
     "raised": "2026-08-18"
   },
@@ -235,6 +222,46 @@
     "trigger": "the first customer, partner or investor who requires it",
     "owed_to": "TRIGGER: the first customer, partner or investor who REQUIRES it. Not a module and not a date: per the trigger rule, this is gated on someone outside the project.",
     "raised": "2026-08-18"
+  },
+  {
+    "id": "cross-household-upsert-overwrites-another-household",
+    "item": "CONFIRMED 19 AUG 2026 AGAINST A REAL DATABASE: one household's upsert overwrites another household's plaid_items row. Acting as household A with marginsheet.household_id set to A, verified by reading current_setting back inside the transaction, the statement exchange.ts issues (`insert into plaid_items ... on conflict (item_id) do update set access_token_ciphertext = excluded...`) SUCCEEDED against a row owned by household B and replaced B's access_token_ciphertext. Ownership stayed with B only because household_id is not in the SET list. household_isolation did not refuse it. THE ROUTE IS ORDINARY USE, NOT AN ATTACK: item_id is Plaid's, and two households linking THE SAME joint account produce the same item_id, so this arrives through a shared bank login rather than through a guessed UUID. Consequences: B's Plaid token is destroyed so B's syncs break, and B's row then holds a token minted for A, which is a cross-household data path into B's ledger the next time sync runs. The same shape applies to financial_accounts.plaid_account_id, which carries the same global unique index; that half is NOT yet proven, because the test exercising it had a NOT NULL omission that made it pass vacuously. NOT FIXED IN THE CURRENT CHAIN, by Guy's ruling: it is a schema-level finding whose fix touches migrations, the exchange path and the account-overlap item, and it needs its own plan rather than being folded into a PR about something else. The proving test and its register entry are preserved on branch finding/cross-household-upsert; they were removed from the authorization PR because the finding is real and would otherwise hold a live security fix behind a red check.",
+    "owner": "build, gated on Guy's approval of the plan",
+    "trigger": "BEFORE A SECOND HOUSEHOLD CONNECTS ANYTHING, IN ANY ENVIRONMENT. Not a module number: 4.5b is when real Items first exist, but the condition that produces this is a second household linking an account, which can happen in dev or staging or twice on Guy's own logins, and a module completing says nothing about whether that has occurred. The trigger is the condition, not the milestone.",
+    "owed_to": "TRIGGER: the condition above. Confirmed 19 Aug 2026 by the harness with the GUC read back inside the transaction, which is what separated a genuine cross-household write from an unrestored planted mutation. THE PLAN IS THE BUILD'S TO DRAFT AND GUY'S TO APPROVE, same as every other task; it was first recorded as owned by Guy, which would have left him owning a plan he was never going to write. Evidence lives on branch finding/cross-household-upsert and PR #113.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "sync-writes-keyed-on-internal-ids",
+    "item": "SUPERSEDED IN PART, 19 Aug 2026. outbox.markEnqueued now names the household, added in step 4c-i because 4c's policy refuses any write that declares none, not because it was ever a finding: signal_id is a uuidv7 we mint and cannot collide across households. reconnect keys on plaid_items.id and sets the GUC in the same transaction, so it is already declared. WHAT REMAINS OF THIS ITEM IS THE FIFTH PATH, AND IT IS A HOLE RATHER THAN A STATEMENT: runTransactionsSync takes persistInFlight as an injected callback, so the cursor write into plaid_items lives in a caller THAT HAS NOT BEEN WRITTEN. A source scan cannot find a statement that is not there, and 4c's policy would find it by refusing it in production. The requirement is asserted in every-write-declares-a-household.test.ts so whoever wires it is running the suite that states it: the cursor write targets plaid_items, which carries household_id, and its transaction must declare the household.",
+    "owner": "build",
+    "trigger": "when persistInFlight is wired to a real statement, which is the sync scheduling work after 4.5",
+    "owed_to": "TRIGGER: 4c. Audited during 4e on 19 Aug 2026 and deliberately left, with the reasoning recorded so the omission is a decision rather than an oversight.",
+    "raised": "2026-08-19"
+  },
+  {
+    "id": "sensitive-action-cancellation-unbuilt",
+    "item": "SPLIT FROM sensitive-actions-unbuilt on 19 Aug 2026, which carried owner \"M7, 3.5 and M8 respectively\": three obligations pretending to be one, so nobody owed it while the check passed on a non-empty string. THE MECHANISM IS ALREADY BUILT AND IS THE SAME FOR ALL THREE: the action is enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts it has NO route, so building one without flipping the flag FAILS rather than shipping an unguarded action. What is owed is the action itself, and flipping the flag when it exists. THIS ROW IS CANCELLATION. Cancelling a subscription ends a household's access and is irreversible from their side, so it is a sensitive action by identity-onboarding-spec section 1 and needs recent-auth.",
+    "owner": "build",
+    "trigger": "M7, when the action is built; the flag flips in the same change or the enumeration test fails",
+    "owed_to": "TRIGGER: M7. Split out on 19 Aug 2026 so one party owes one thing.",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "sensitive-action-member-removal-unbuilt",
+    "item": "SPLIT FROM sensitive-actions-unbuilt on 19 Aug 2026, which carried owner \"M7, 3.5 and M8 respectively\": three obligations pretending to be one, so nobody owed it while the check passed on a non-empty string. THE MECHANISM IS ALREADY BUILT AND IS THE SAME FOR ALL THREE: the action is enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts it has NO route, so building one without flipping the flag FAILS rather than shipping an unguarded action. What is owed is the action itself, and flipping the flag when it exists. THIS ROW IS MEMBER-REMOVAL. Removing a member cuts one person's access to a household's whole financial history, and the member being removed is the one person who cannot be asked to confirm it.",
+    "owner": "build",
+    "trigger": "3.5, when the action is built; the flag flips in the same change or the enumeration test fails",
+    "owed_to": "TRIGGER: 3.5. Split out on 19 Aug 2026 so one party owes one thing.",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "sensitive-action-export-unbuilt",
+    "item": "SPLIT FROM sensitive-actions-unbuilt on 19 Aug 2026, which carried owner \"M7, 3.5 and M8 respectively\": three obligations pretending to be one, so nobody owed it while the check passed on a non-empty string. THE MECHANISM IS ALREADY BUILT AND IS THE SAME FOR ALL THREE: the action is enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts it has NO route, so building one without flipping the flag FAILS rather than shipping an unguarded action. What is owed is the action itself, and flipping the flag when it exists. THIS ROW IS EXPORT. An export puts a household's entire ledger into a file that leaves the system, which is the one action whose blast radius does not stop at our boundary.",
+    "owner": "build",
+    "trigger": "M8, when the action is built; the flag flips in the same change or the enumeration test fails",
+    "owed_to": "TRIGGER: M8. Split out on 19 Aug 2026 so one party owes one thing.",
+    "raised": "2026-08-17"
   },
   {
     "id": "competitive-line-trips-ai-rule",

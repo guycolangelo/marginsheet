@@ -1,7 +1,7 @@
 {
   "_comment": [
-    "The public address of every deployed Worker, per environment. ONE source of",
-    "truth, read by .github/scripts/verify-deploy.sh and by",
+    "The address of every deployed Worker, per environment. ONE source of truth,",
+    "read by .github/scripts/verify-deploy.sh and by",
     "services/api/test/db-identity.test.ts.",
     "",
     "WHY THIS FILE EXISTS. Both of those hardcoded a workers.dev hostname pattern.",
@@ -10,22 +10,75 @@
     "whenever explicit routes are declared, and two blocking checks went red",
     "against an address nobody reaches while production itself was healthy.",
     "",
-    "The asymmetry below is deliberate and correct: production has a custom",
-    "domain because households reach it, and dev and staging do not because",
-    "nobody does. A check should verify the address households actually use, not",
-    "a pattern that happens to be true today. When an address changes, change it",
-    "here and the checks follow it instead of going red."
+    "EVERY ENTRY HAS THE SAME SHAPE, DELIBERATELY: an origin that answers, and a",
+    "path per purpose. A CONSUMER RESOLVES origin + paths[purpose] AND BRANCHES ON",
+    "NOTHING. The first version of the proxy change made a value sometimes a",
+    "string and sometimes an object, which put the rule in every reader instead of",
+    "in the shape, and the second reader got it wrong immediately: verify-deploy.sh",
+    "does `origin + '|' + target` and threw TypeError on dev and staging. Two",
+    "consumers is cheap to fix; five would not be.",
+    "",
+    "WHERE A WORKER IS PRIVATE, ITS origin IS api's AND ITS PATHS ARE api's PROXY",
+    "ROUTES. Nothing in this file says 'private' and nothing needs to: how a",
+    "service is reached is the only question, and the answer is the same shape",
+    "either way. What is private is declared in config/public-surface.json and",
+    "verified against the live surface.",
+    "",
+    "See retract-workers-dev-staging-production in docs/open-items.json.",
+    "",
+    "COMPLETED 19 Aug 2026. Production now matches dev and staging: conversation",
+    "is reached THROUGH api over a service binding, verified answering before the",
+    "switch was made. The transitional asymmetry is gone, and this had to land",
+    "BEFORE the workers.dev retraction rather than after: the direct address is",
+    "exactly what retraction removes, so leaving it here would have turned the",
+    "retraction into a red db-identity and verify-deploy on production."
   ],
   "dev": {
-    "api": "https://marginsheet-api-dev.guy-a84.workers.dev",
-    "conversation": "https://marginsheet-conversation-dev.guy-a84.workers.dev"
+    "api": {
+      "origin": "https://marginsheet-api-dev.guy-a84.workers.dev",
+      "paths": {
+        "health": "/health",
+        "identity": "/debug/db-identity"
+      }
+    },
+    "conversation": {
+      "origin": "https://marginsheet-api-dev.guy-a84.workers.dev",
+      "paths": {
+        "health": "/debug/conversation-health",
+        "identity": "/debug/conversation-identity"
+      }
+    }
   },
   "staging": {
-    "api": "https://marginsheet-api-staging.guy-a84.workers.dev",
-    "conversation": "https://marginsheet-conversation-staging.guy-a84.workers.dev"
+    "api": {
+      "origin": "https://marginsheet-api-staging.guy-a84.workers.dev",
+      "paths": {
+        "health": "/health",
+        "identity": "/debug/db-identity"
+      }
+    },
+    "conversation": {
+      "origin": "https://marginsheet-api-staging.guy-a84.workers.dev",
+      "paths": {
+        "health": "/debug/conversation-health",
+        "identity": "/debug/conversation-identity"
+      }
+    }
   },
   "production": {
-    "api": "https://api.marginsheet.com",
-    "conversation": "https://marginsheet-conversation.guy-a84.workers.dev"
+    "api": {
+      "origin": "https://api.marginsheet.com",
+      "paths": {
+        "health": "/health",
+        "identity": "/debug/db-identity"
+      }
+    },
+    "conversation": {
+      "origin": "https://api.marginsheet.com",
+      "paths": {
+        "health": "/debug/conversation-health",
+        "identity": "/debug/conversation-identity"
+      }
+    }
   }
 }

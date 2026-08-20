@@ -35,12 +35,32 @@ import { join } from "node:path";
 // healthy. The config is the one place an address is written down.
 const ENVIRONMENTS = JSON.parse(
   readFileSync(join(import.meta.dirname, "..", "..", "..", "config", "environments.json"), "utf8")
-) as Record<string, Record<string, string>>;
+) as Record<string, unknown>;
 
-const HOSTS = Object.fromEntries(
+// EVERY ENTRY IN environments.json HAS THE SAME SHAPE: an origin that answers
+// and a path per purpose. This resolves origin + paths.identity and branches on
+// nothing.
+//
+// THE SHAPE IS UNIFORM BECAUSE THE FIRST VERSION WAS NOT. Making a value
+// sometimes a string and sometimes an object put the rule in every reader
+// instead of in the shape, and the second reader got it wrong the same day:
+// verify-deploy.sh did `origin + '|' + target` and threw TypeError on dev and
+// staging, which would have failed deploy verification on the deploy that
+// shipped the change.
+//
+// THIS FILE USED TO REACH conversation OVER THE PUBLIC INTERNET, and that
+// worked only because the Worker was publicly reachable, which it should never
+// have been. Closing that hole turned this check red, which is the correct
+// order of events: the check was depending on the gap.
+type Service = { origin: string; paths: Record<string, string> };
+
+const PROBES = Object.fromEntries(
   Object.entries(ENVIRONMENTS)
     .filter(([name]) => !name.startsWith("_"))
-    .map(([name, services]) => [name, Object.values(services)])
+    .map(([env, services]) => [
+      env,
+      Object.values(services as Record<string, Service>).map((s) => `${s.origin}${s.paths.identity}`),
+    ])
 ) as Record<string, string[]>;
 
 // The application connects as this role, and only this role.
@@ -64,9 +84,8 @@ type Identity = { current_user?: unknown; bypassrls?: unknown };
 // is enough to tell them apart without adding a temporary debugging step
 // to CI. The parse failure itself is not the finding; what answered is.
 async function identity(
-  origin: string
+  url: string
 ): Promise<{ status: number; body: Identity; note: string }> {
-  const url = `${origin}/debug/db-identity`;
   const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
   const text = await res.text();
 
@@ -90,8 +109,8 @@ async function identity(
   }
 }
 
-describe.each(Object.entries(HOSTS))("db identity: %s", (env, origins) => {
-  for (const host of origins) {
+describe.each(Object.entries(PROBES))("db identity: %s", (env, urls) => {
+  for (const host of urls) {
     it(`${host} connects as ${EXPECTED_ROLE} and holds no BYPASSRLS`, async () => {
       const { status, body, note } = await identity(host);
 
