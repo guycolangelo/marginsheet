@@ -136,3 +136,32 @@ git grep -n "set +e\|^set -" -- .github scripts
 
 The fourth pattern has no reliable grep. It is found by reading a step and asking
 whether its success message could print when the operation before it failed.
+
+
+## `catch(() => ({}))` on a response body, 20 Aug 2026
+
+**Not a suppression that was examined and kept. A defect, found by using it.**
+
+`services/api/src/connect-page.ts` read every response with
+`await res.json().catch(() => ({}))`. When a body was not JSON, the page
+substituted an empty object and printed it.
+
+**The readout has no code path that returns an empty object.** It returns
+`{ours, plaid}` or `{error, detail}`, and a household with no data yields empty
+ARRAYS. So an empty object on screen could only mean "the body was not JSON",
+while looking exactly like "the call succeeded and there was nothing to say".
+The page that says EVERY FAILURE IS SHOWN in its own header could not show this
+one.
+
+**It sat on four call sites**, not one: the readout, the sync trigger, the link
+token and the exchange. Found on the readout and swept across all four, which
+is the rule about fixing the class rather than the incident.
+
+The replacement never substitutes. On a parse failure it reports the status,
+the content type and the first 2000 characters of the body, because that is
+what tells a person a 404 from a 500 from an HTML error page.
+
+**The general form, worth keeping when this page is deleted:** a fallback value
+that is indistinguishable from a legitimate result is not a fallback, it is a
+second meaning silently assigned to an existing value. Ask of any default:
+could the real answer have looked like this?

@@ -91,11 +91,17 @@ export async function invitationRoutes(
     if (!resolved?.household_id) {
       return Response.json({ status: "refused", reason: "no_member" }, { status: 403 });
     }
-    await env.sql`select set_config('marginsheet.household_id', ${resolved.household_id}, true)`;
-
-    const [actor] = await env.sql<{ id: string }[]>`
-      select id from members where auth_user_id = ${session.user.id} limit 1
-    `;
+    // ONE TRANSACTION with the read it scopes. set_config's third argument is
+    // is_local, so outside an explicit transaction the GUC is gone before the
+    // next statement runs and household_isolation on members matches nothing.
+    // The failure is silent and looks like a legitimate answer: no actor row,
+    // refused as no_member.
+    const [actor] = await env.sql.begin(async (tx) => {
+      await tx`select set_config('marginsheet.household_id', ${resolved.household_id}, true)`;
+      return tx<{ id: string }[]>`
+        select id from members where auth_user_id = ${session.user.id} limit 1
+      `;
+    });
     if (!actor) {
       return Response.json({ status: "refused", reason: "no_member" }, { status: 403 });
     }

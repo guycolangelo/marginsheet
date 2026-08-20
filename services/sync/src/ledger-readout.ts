@@ -128,11 +128,19 @@ export async function readoutForHousehold(
 ): Promise<Array<{ itemId: string } & Partial<PlaidItemTotal> & { error?: unknown }>> {
   const sql = postgres(databaseUrl, { max: 1 });
   try {
-    await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;
-    const items = await sql<{ id: string; item_id: string; ciphertext: string | null }[]>`
-      select id, item_id, access_token_ciphertext as ciphertext
-        from plaid_items where household_id = ${householdId} order by created_at
-    `;
+    // ONE TRANSACTION, for the same reason as everywhere else: set_config's
+    // third argument is is_local. It changes no behaviour on THIS path, because
+    // sync_worker_access is USING (true) and the household predicate is written
+    // into the statement, and it is fixed anyway: a pattern that is correct
+    // only because of a policy elsewhere is one somebody copies to a path where
+    // that policy does not apply.
+    const items = await sql.begin(async (tx) => {
+      await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+      return tx<{ id: string; item_id: string; ciphertext: string | null }[]>`
+        select id, item_id, access_token_ciphertext as ciphertext
+          from plaid_items where household_id = ${householdId} order by created_at
+      `;
+    });
 
     const results = [];
     for (const item of items) {

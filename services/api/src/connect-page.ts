@@ -42,6 +42,34 @@ function show(what, isError) {
   out.textContent = typeof what === "string" ? what : JSON.stringify(what, null, 2);
 }
 
+async function readBody(res) {
+  // NEVER substitute an empty object for an unparseable body. That is what
+  // shipped on 20 Aug: it reads as a successful call with nothing to report.
+  // The readout returns {ours, plaid} or an {error}
+  // object and has no path that returns an empty one, so an empty object on
+  // screen meant "the body
+  // was not JSON" while looking like "there was nothing to say".
+  //
+  // A DIAGNOSTIC THAT CANNOT REPORT ITS OWN FAILURE IS WORSE THAN NONE,
+  // because it reports something. The status, the content type and the raw
+  // first 2000 characters are shown instead, which is what a person needs to
+  // tell a 404 from a 500 from an HTML error page.
+  const text = await res.text();
+  try {
+    return { ok: res.ok, parsed: JSON.parse(text) };
+  } catch {
+    return {
+      ok: false,
+      parsed: {
+        unparseable: true,
+        status: res.status,
+        contentType: res.headers.get("content-type"),
+        body: text.slice(0, 2000),
+      },
+    };
+  }
+}
+
 async function listAccounts() {
   const res = await fetch("/plaid/accounts");
   if (!res.ok) return show("accounts: " + res.status + " " + (await res.text()), true);
@@ -62,8 +90,8 @@ document.getElementById("sync").onclick = async () => {
   // household does not hold.
   show("syncing... a first backfill can take a while");
   const res = await fetch("/plaid/sync", { method: "POST" });
-  const body = await res.json().catch(() => ({}));
-  show(body, !res.ok);
+  const { ok, parsed } = await readBody(res);
+  show(parsed, !ok);
   listAccounts();
 };
 
@@ -73,15 +101,16 @@ document.getElementById("readout").onclick = async () => {
   // kept, so the two numbers are printed side by side and the reader compares.
   show("reading...");
   const res = await fetch("/plaid/ledger-readout");
-  const body = await res.json().catch(() => ({}));
-  show(body, !res.ok);
+  const { ok, parsed } = await readBody(res);
+  show(parsed, !ok);
 };
 
 document.getElementById("go").onclick = async () => {
   show("requesting a link token...");
   const res = await fetch("/plaid/link-token", { method: "POST" });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) return show(body, true);
+  const { ok, parsed } = await readBody(res);
+  if (!ok) return show(parsed, true);
+  const body = parsed;
 
   const handler = Plaid.create({
     token: body.linkToken,
@@ -99,8 +128,8 @@ document.getElementById("go").onclick = async () => {
         // endpoint would ignore it anyway.
         body: JSON.stringify({ publicToken }),
       });
-      const result = await ex.json().catch(() => ({}));
-      show({ status: ex.status, institution: metadata.institution, result }, !ex.ok);
+      const { ok: exOk, parsed: result } = await readBody(ex);
+      show({ status: ex.status, institution: metadata.institution, result }, !exOk);
       listAccounts();
     },
     onExit: (err, metadata) => {

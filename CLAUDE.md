@@ -191,6 +191,72 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **The practical form is one sentence: say what each possible answer will cause, before looking.** If a result would change nothing whatever it said, the reading is not worth taking. If it would change something, the change is decided now, while nothing has been invested in either branch.
 
+- **AN UNSET GUC IS A VALID STATE, SO THE POLICY HANDLES IT BY RETURNING NOTHING AND NOTHING ERRORS. The join shape, in a runtime rather than in a sentence.** (Guy, 20 Aug 2026.)
+
+  `set_config`'s third argument is `is_local`: the setting reverts at the end of the current transaction, and **outside an explicit transaction every statement IS its own transaction**, so the GUC is gone before the next query runs. `household_isolation` reads `current_setting('marginsheet.household_id', true)`, whose second argument means *return NULL rather than raise*. The policy therefore evaluates `household_id = NULL`, which matches no row, **and raises nothing at all.**
+
+  **A statement that sets a value and a statement that reads it can each be correct while the value does not survive between them.** That is the same join failure as the two retractions above, moved from prose into a runtime: both halves inspect clean, and the defect lives only in the step between them.
+
+  **Three sites had it, and two were live in production.** `/plaid/accounts` answered an **empty account list for every household**, which is indistinguishable from a household that has connected nothing. The invitation actor lookup refused with `no_member`. Neither logged anything, neither appeared in Sentry, and both had shipped.
+
+  **The knowledge existed and did not travel.** `phone-change.ts` carries a comment explaining `is_local` correctly, written by someone who had understood it exactly, while three other call sites got it wrong. **A comment is the weakest form of a rule**, which this file already says, and here is what that costs: the right explanation, in the repository, next to code that obeys it, teaching nothing to the next file.
+
+  Two controls, named for what each is. A **receiver scan** requires every `set_config` to be on a transaction handle, which is a convention and says so. A **db test** demonstrates the same query returning one row inside a transaction and zero outside it, which makes the claim executable instead of argued.
+
+  **THE GENERAL FORM, AND IT IS BIGGER THAN THIS BUG** (Guy, 20 Aug 2026). **The failure mode of household isolation, when misconfigured, is an empty result.** Not an error, not a refusal: silence, which is indistinguishable from a household that genuinely has nothing. **Every RLS-scoped read in this system has that shape**, so a broken GUC anywhere presents as **a customer with no data rather than as a fault.**
+
+  That is why both defects shipped and neither was noticed. The connect page said *"none yet"* for hours while SoFi was connected, and it read as a page not yet wired rather than as a symptom. **Nothing in the system was in a position to disagree**, because an empty list is a legitimate answer to that question.
+
+  **The failure signature to recognise: a query that returns an empty set for every caller, forever, with no error anywhere.** If a list is always empty and nothing is broken, ask what the policy is reading and whether the thing that set it is still in scope.
+
+  **The consequence, noted rather than ruled** (`docs/open-items.json`): any read whose empty result would be a plausible business answer should **assert the GUC is set** rather than merely rely on it. The two controls above stop the specific mistake; they do not make an empty result self-describing, and that is the class.
+
+- **A RESTORE THAT DESTROYS MORE THAN IT RESTORED, WITH A PROOF THAT CANNOT SEE THE DIFFERENCE.** The harness's own species, found 20 Aug 2026, and it damaged a control three entries later with nothing connecting the two.
+
+  `sync-reach-not-beyond-grant` plants `GRANT SELECT ON households TO marginsheet_sync` and restores with the obvious inverse, `REVOKE SELECT ON households FROM marginsheet_sync`. **Revoking a table-level privilege in Postgres also strips the COLUMN-level grants of that privilege**, so the restore removed migration 0028's `GRANT SELECT (id, first_sync_completed_at)` and left the database **less granted than it found it.**
+
+  **The proof asked whether the table privilege was gone. It was.** So the harness reported `restored -> green`, correctly by its own lights, while the branch carried a silent regression. Three controls later `readout-statements-execute` failed with `permission denied for table households`, and nothing in the output tied it to a control that had already reported success.
+
+  **A mutation is not symmetric just because its inverse is spelled that way.** `GRANT X` then `REVOKE X` reads as a round trip and is not one whenever the grant space has structure the statement flattens: table over column here, and the same shape waits in role membership, default privileges and policy replacement.
+
+  **IT WAS FOUND BY OBSERVATION, AFTER THREE MECHANISMS DIED** (Guy, 20 Aug 2026), and that is the part to keep. A ledger ahead of its schema, a wrong database, a role that had not taken effect: all three were plausible, all three were checkable, and all three were false. **The cause was not reachable by reasoning about the statement at all**, because the statement is correct, its inverse is correct, and the loss happens in the space between them. Only running everything in order and reading the raw output showed it.
+
+  **THE PROOF'S QUESTION WAS TOO NARROW IN A SPECIFIC WAY: it verified that the mutation's own effect was gone, and nothing about what else moved.** So the general form is that **a restore proof asserts the STATE IT FOUND, never the ABSENCE OF THE THING IT DID.** Those are the same assertion only when the operation is genuinely reversible, which is exactly what this entry says it often is not.
+
+  This one now returns `2 * table_privilege + column_privilege`, so applied reads 3, restored reads 1, and **a restore that loses the column grant reads 0 and fails loudly** instead of poisoning whatever runs next.
+
+  **The sweep, run the same day, because the pattern matters more than the incident.** Eleven `sql` mutations, and the shape is available in four. Two were the same defect latent: `sync-role-boundary` and `sync-grant-enumeration` restore with `REVOKE ALL` while their proofs asked only about `SELECT`, so a restore removing a privilege the plant never granted could not have been noticed. Both proofs now sum SELECT, INSERT, UPDATE and DELETE and require **0**, which is the state 0023 left rather than the inverse of what they did. Two remain owed: the policy `DROP`/`CREATE` proofs match a substring of `qual` and say nothing about `WITH CHECK`, the command scope, or permissive versus restrictive; and `invitation-token-prefix` restores by **deleting rows**, which is destructive beyond anything its plant created and which its proof, a constraint count, cannot see.
+
+  **THE HARNESS RUNNING EVERY CONTROL RATHER THAN ONLY THE TOUCHED ONES IS A PROPERTY TO KEEP** (Guy). A harness scoped to what a pull request touched would have reported all four green and left the damaged grant for an unrelated pull request to inherit, where nothing would have connected it to a control that had already passed.
+
+  **Two harness properties are worth keeping in view together.** It ran every control rather than only the touched ones, which is why the damage reached a later control at all. And it printed *"WHY IT IS STILL RED (raw, trust this over any reading)"*, which is the line that made this findable: the harness refused to summarise, so the real error survived to be read.
+
+- **`has_column_privilege` HAS TWO FORMS AND THEY ANSWER DIFFERENT QUESTIONS. Naming the role asks what a GRANT SAYS. Omitting it asks what the CURRENT SESSION CAN DO.** (Guy, 20 Aug 2026.) A grant can be present and the session still refused, and **only the second form is the question a query obeys.**
+
+  Found because the diagnostic written to settle a privilege failure **had the defect it was built to find.** `harness-db-identity.mjs` asked `has_column_privilege('marginsheet_sync', 'households', 'first_sync_completed_at', 'SELECT')` from an owner connection and printed **true**. The test, on the same database in the same job, asked the three-argument form after `SET ROLE` and got **false**. Both were correct answers to the questions they asked, and only one of those questions mattered.
+
+  It was written while holding this exact rule in mind, which is the argument for the rule rather than for care, and it is the same note already recorded about planted fixtures.
+
+  **The standing requirement: anywhere a check verifies a privilege, it asks AS THE THING THAT WILL USE IT.** A probe run as an owner, naming a role, is reading the ACL out loud. A session that sets the role and attempts the read is the only thing that answers what happens in production.
+
+  **AND IT PUTS `column-privileges.test.ts` IN QUESTION, which is the part that matters, because that file exists to catch exactly this gap.** Written 15 Aug after a column REVOKE was found to be a no-op under a table grant, its own header says reviewing the GRANT statement is not enough. **Every assertion in it uses the four-argument form**, so it has been asserting what the grants say rather than what the roles can do. The two directions are not equally dangerous and the difference is not yet established: a denial reading `false` from the ACL and a session actually refused are probably the same, while `marginsheet_sync CAN read the Plaid token` asserts `true` in exactly the form that was observed disagreeing. Owed as a rewrite, recorded rather than assumed either way.
+
+- **A TEST THAT CHANGES SESSION STATE RESTORES IT ON EVERY EXIT, NOT ONLY THE EXPECTED ONES.** (Guy, 20 Aug 2026.)
+
+  A role probe was placed **above** the `try` whose `finally` reset the role. When it failed, the session stayed as `marginsheet_sync`, and the suite's cleanup then failed with **`permission denied for table transactions`** -- a second, louder error, about a table that was never involved, produced by the cleanup of the first.
+
+  **The damage is the misdirection, not the extra red.** A cycle went into `transactions`, which had nothing to do with anything. It is the same family as a diagnostic that cannot report its own failure: the loudest message in the log was the one furthest from the cause.
+
+  So: `set role`, `set_config` at session scope, search_path, anything that outlives a statement gets restored in a `finally` that covers **every** statement executed under it, including the assertions.
+
+- **POSTGRES NAMES THE TABLE WHEN THE BOUNDARY IS THE COLUMN, so the error points at the wrong artifact.** (Guy, 20 Aug 2026.) Small, and it cost a wrong first hypothesis, so it is written down.
+
+  `permission denied for table plaid_items` was raised because the role lacked **one column**. `marginsheet_app` holds `plaid_items` perfectly well: eleven columns enumerated in 0002 plus `last_completed_cursor` from 0025. What it lacked was `last_cursor_at`, which 0027 added and granted to nobody, exactly as 0002's comment promised it would behave.
+
+  **The message sends every reader to the table grants, which are fine.** The first response to it here was to check whether the role had the table, find that it did, and be briefly confused. **The right question is which columns the statement names and which of those the role holds**, and the error will not prompt it.
+
+  It pairs with the enumerated-grant rule: enumeration means a column added later is excluded **by design**, so this error becomes MORE likely as the schema grows, not less, and it will keep arriving with the wrong noun in it.
+
 - **A FINDING ABOUT THE WORLD, CAUSED BY A PARAMETER WE NEVER SET. When several independent sources agree, check whether they were asked the same question before concluding something about the sources.** (Guy, 20 Aug 2026.) A new species, and worse than the others here, because it would have been written down as a fact about a third party and inherited by everyone who read it afterwards.
 
   The near-miss. SoFi's first sync returned 201 transactions, which is thin, and two earlier institutions had already looked short. The conclusion being drafted was a `projection-spec` finding: **two institutions break the uniform-window assumption, so it is a pattern rather than a Capital One quirk.** Every step was reasonable. Three sources, agreeing, about the outside world.
