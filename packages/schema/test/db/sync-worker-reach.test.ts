@@ -93,6 +93,9 @@ function statements(): string[] {
  *  ORDERED, AND REVOKES COUNT. Paid for the same day: 0025 column-granted
  *  plaid_items to this role, 0030 revoked it as inert, and a scan that only
  *  looked for GRANTs would keep reporting an intent that had been withdrawn.
+ *  A SCANNER READING GRANTS ALONE REPORTS INTENT RATHER THAN STATE, which is
+ *  the catalog-versus-migration-text distinction one level up: the same reason
+ *  the privileges below are read from has_column_privilege and never from here.
  *  The migrations are the ordered history of what was intended; the last
  *  statement about a pair is the one that stands.
  *
