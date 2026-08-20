@@ -8,8 +8,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
 const declaration = JSON.parse(
   readFileSync(join(import.meta.dirname, "..", "..", "..", "config", "worker-secrets.json"), "utf8")
