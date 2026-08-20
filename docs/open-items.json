@@ -251,5 +251,13 @@
     "trigger": "BEFORE A SECOND HOUSEHOLD CONNECTS ANYTHING, IN ANY ENVIRONMENT. Not a module number: 4.5b is when real Items first exist, but the condition that produces this is a second household linking an account, which can happen in dev or staging or twice on Guy's own logins, and a module completing says nothing about whether that has occurred. The trigger is the condition, not the milestone.",
     "owed_to": "TRIGGER: the condition above. Confirmed 19 Aug 2026 by the harness with the GUC read back inside the transaction, which is what separated a genuine cross-household write from an unrestored planted mutation. THE PLAN IS THE BUILD'S TO DRAFT AND GUY'S TO APPROVE, same as every other task; it was first recorded as owned by Guy, which would have left him owning a plan he was never going to write. Evidence lives on branch finding/cross-household-upsert and PR #113.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "sync-writes-keyed-on-internal-ids",
+    "item": "SUPERSEDED IN PART, 19 Aug 2026. outbox.markEnqueued now names the household, added in step 4c-i because 4c's policy refuses any write that declares none, not because it was ever a finding: signal_id is a uuidv7 we mint and cannot collide across households. reconnect keys on plaid_items.id and sets the GUC in the same transaction, so it is already declared. WHAT REMAINS OF THIS ITEM IS THE FIFTH PATH, AND IT IS A HOLE RATHER THAN A STATEMENT: runTransactionsSync takes persistInFlight as an injected callback, so the cursor write into plaid_items lives in a caller THAT HAS NOT BEEN WRITTEN. A source scan cannot find a statement that is not there, and 4c's policy would find it by refusing it in production. The requirement is asserted in every-write-declares-a-household.test.ts so whoever wires it is running the suite that states it: the cursor write targets plaid_items, which carries household_id, and its transaction must declare the household.",
+    "owner": "build",
+    "trigger": "when persistInFlight is wired to a real statement, which is the sync scheduling work after 4.5",
+    "owed_to": "TRIGGER: 4c. Audited during 4e on 19 Aug 2026 and deliberately left, with the reasoning recorded so the omission is a decision rather than an oversight.",
+    "raised": "2026-08-19"
   }
 ]

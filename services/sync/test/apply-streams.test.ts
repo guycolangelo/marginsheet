@@ -3,6 +3,8 @@
 import { describe, it, expect } from "vitest";
 import { applyRemoved, markFirstSyncCompleted, didChange } from "../src/apply-streams.js";
 
+const HOUSEHOLD = "11111111-1111-4111-8111-111111111111";
+
 /** Records the SQL each call issues, so the SHAPE can be asserted. */
 function recorder(rowsFor: (sql: string) => unknown[] = () => []) {
   const issued: string[] = [];
@@ -17,7 +19,7 @@ function recorder(rowsFor: (sql: string) => unknown[] = () => []) {
 describe("removed transactions are FLAGGED, never deleted", () => {
   it("issues an update and no delete", async () => {
     const { tx, issued } = recorder();
-    await applyRemoved(tx, ["tx_1", "tx_2"]);
+    await applyRemoved(tx, HOUSEHOLD, ["tx_1", "tx_2"]);
     expect(issued.join(" ")).toMatch(/update transactions/i);
     // A DELETE loses a row nobody can reconstruct, and the household would see
     // a month's Kept figure change with no record of why.
@@ -26,13 +28,13 @@ describe("removed transactions are FLAGGED, never deleted", () => {
 
   it("sets removed = true rather than clearing anything", async () => {
     const { tx, issued } = recorder();
-    await applyRemoved(tx, ["tx_1"]);
+    await applyRemoved(tx, HOUSEHOLD, ["tx_1"]);
     expect(issued.join(" ")).toMatch(/set removed = true/i);
   });
 
   it("issues nothing at all for an empty stream", async () => {
     const { tx, issued } = recorder();
-    expect(await applyRemoved(tx, [])).toBe(0);
+    expect(await applyRemoved(tx, HOUSEHOLD, [])).toBe(0);
     expect(issued).toEqual([]);
   });
 });
@@ -77,5 +79,30 @@ describe("a sync that changed nothing reports no change", () => {
   it("is true when any stream moved", () => {
     expect(didChange({ added: 0, modified: 0, removed: 1 })).toBe(true);
     expect(didChange({ added: 1, modified: 0, removed: 0 })).toBe(true);
+  });
+});
+
+describe("the removed stream names the household", () => {
+  it("scopes the update by household_id, not by plaid_transaction_id alone", async () => {
+    // CONFIRMED CROSS-HOUSEHOLD ON 19 AUG 2026, not suspected: issued as
+    // household A with A's GUC set, this statement flagged household B's
+    // transaction removed and threw nothing. sync_worker_access is
+    // USING (true), so RLS never scoped it and the GUC was decorative.
+    //
+    // `removed` decides what a household is told they spent, so a false flag
+    // is wrong data in a close rather than a broken connection.
+    const { tx, issued } = recorder();
+    await applyRemoved(tx, HOUSEHOLD, ["tx_1"]);
+    const sql = issued.join(" ");
+    expect(sql, "the update does not name a household").toMatch(/where household_id =/i);
+    expect(sql).toMatch(/and plaid_transaction_id = any/i);
+  });
+
+  it("returns rows ACTUALLY flagged, not ids offered", async () => {
+    // The two differ exactly when an id belongs to somebody else. Returning the
+    // input length would report success for work that did not happen, which is
+    // the same shape as a control that cannot fail.
+    const { tx } = recorder(() => [{ id: "one" }]);
+    expect(await applyRemoved(tx, HOUSEHOLD, ["tx_1", "tx_2", "tx_3"])).toBe(1);
   });
 });
