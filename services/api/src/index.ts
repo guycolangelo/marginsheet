@@ -23,6 +23,7 @@ export interface Env {
   SYNC?: { fetch: (request: Request) => Promise<Response> };
   CONVERSATION?: { fetch: (request: Request) => Promise<Response> };
   ENVIRONMENT: "dev" | "staging" | "production";
+  DEBUG_PROBE_TOKEN?: string;
   BUILD_SHA?: string;
   SENTRY_DSN?: string;
   NEON_DATABASE_URL?: string;
@@ -162,6 +163,33 @@ const handler = {
     // Both sync debug routes go through the one binding. Listed explicitly
     // rather than prefix-forwarded: a prefix would forward anything somebody
     // later adds to sync, including something that should not be public.
+    // EVERY /debug ROUTE REQUIRES A PROBE TOKEN. Refused by default.
+    //
+    // WHAT THEY DISCLOSE, captured live on 19 Aug 2026: no values, and that is
+    // not the same as nothing. Environment, build, migration and table counts,
+    // the database role, and WHICH SECRETS EXIST BY NAME, which names our
+    // vendors. Reconnaissance rather than credentials.
+    //
+    // GATED BY CREDENTIAL, NOT BY ENVIRONMENT, and that distinction was paid
+    // for. An `ENVIRONMENT === "production"` refusal was written first and
+    // would have 404'd the production routes that db-identity.test.ts and
+    // verify-deploy.sh depend on, BLINDING FIVE LIVE CONTROLS in the one
+    // environment that matters. A gate that silences the checks watching the
+    // thing it guards is not a gate, it is an outage with a rationale.
+    //
+    // The token is REQUIRED, never optional-if-configured: a gate that
+    // activates only when a secret happens to be present fails open exactly
+    // when somebody forgets to paste it. An absent token refuses everything,
+    // which fails closed and is loud.
+    //
+    // 404 rather than 403, because a 403 confirms the route exists.
+    if (url.pathname.startsWith("/debug/")) {
+      const presented = request.headers.get("x-probe-token");
+      if (!env.DEBUG_PROBE_TOKEN || presented !== env.DEBUG_PROBE_TOKEN) {
+        return new Response("Not found", { status: 404 });
+      }
+    }
+
     if (url.pathname === "/debug/sync-health" || url.pathname === "/debug/sync-crypto") {
       if (!env.SYNC) {
         return Response.json(
@@ -171,7 +199,14 @@ const handler = {
       }
       const target =
         url.pathname === "/debug/sync-crypto" ? "/debug/crypto-selftest" : "/health";
-      const response = await env.SYNC.fetch(new Request(`https://sync.internal${target}`));
+      // The token travels with the proxied request: the private Worker gates
+      // its own /debug routes too, and defence does not rest on it being
+      // unreachable. A second door has been found once already this week.
+      const response = await env.SYNC.fetch(
+        new Request(`https://sync.internal${target}`, {
+          headers: { "x-probe-token": env.DEBUG_PROBE_TOKEN ?? "" },
+        })
+      );
       // Pass the status through. A 503 from sync must not become a 200 here,
       // which would be a proxy reporting health it did not receive.
       return new Response(await response.text(), {
@@ -198,7 +233,9 @@ const handler = {
       const target =
         url.pathname === "/debug/conversation-health" ? "/health" : "/debug/db-identity";
       const response = await env.CONVERSATION.fetch(
-        new Request(`https://conversation.internal${target}`)
+        new Request(`https://conversation.internal${target}`, {
+          headers: { "x-probe-token": env.DEBUG_PROBE_TOKEN ?? "" },
+        })
       );
       // Status passed through: a 503 from conversation must not become a 200
       // here, which would be a proxy reporting health it did not receive.
@@ -445,9 +482,10 @@ const handler = {
       return Response.json(await readDbIdentity(env.NEON_DATABASE_URL));
     }
 
-    if (url.pathname === "/debug/sentry") {
-      throw new Error(`sentry wiring proof: ${SERVICE} ${env.ENVIRONMENT}`);
-    }
+    // /debug/sentry REMOVED 19 Aug 2026, not gated. Its only purpose was to
+    // throw, and unauthenticated it is a way for a stranger to burn our Sentry
+    // quota. Gating something whose whole job is to raise an error is more
+    // machinery than deleting it.
 
     return new Response("Not found", { status: 404 });
   },
