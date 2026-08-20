@@ -265,6 +265,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So the harness asserts its own mutation took effect before running anything, and that assertion is not negotiable.
 
+- **A MERGE THAT TREATS ABSENCE AS ADDITION UNDOES REMOVALS, AND REMOVALS LEAVE NOTHING TO CONFLICT AGAINST.**
+
+  Reconciling two versions of a keyed list by id looks safe and is not. **Absent from main means EITHER new on this branch OR deleted on main, and a union by id cannot tell them apart**, so it silently reverses every deletion the other side made.
+
+  On 19 Aug 2026 a union of `docs/open-items.json` across a long-lived branch resurrected two rows deleted hours earlier: one whose owner was a status rather than a person, and one that had been split into three so that one party owed one thing. **Both decisions were reversed by a merge that reported no conflict**, because a deletion and an absence are the same shape in the data.
+
+  **This is why a deletion is the dangerous direction in any long-lived branch.** An edit conflicts. An addition conflicts. A removal leaves nothing behind for the merge to notice, so the older side simply wins by still having the row.
+
+  So: after any union of a keyed list, **run whatever check validates that list** rather than reading the merge. The open-items check caught both in a second; reading the diff would not have, because a resurrected row looks exactly like a row that was always there. Where the list has no check, diff the ID SETS in both directions and account for every id present on one side only.
+
 - **A FIX APPLIED WHERE A DEFECT WAS NOTICED IS NOT A FIX APPLIED WHERE THE DEFECT EXISTS. Sweep for the pattern, not the incident.**
 
   On 19 Aug 2026 `|| true` was removed from `neon-pr-cleanup`, where a leaked Neon branch had just been traced to it. **The identical defect sat in two other files and stayed there**, silently swallowing failed scratch-branch deletions, which is one of the things that filled the project in the first place. Both were found hours later by a sweep that grepped for `|| true` rather than by anyone thinking about branch cleanup again.
