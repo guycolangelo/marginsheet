@@ -183,6 +183,14 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The ladder is worth stating because the bottom rung is where the 126 came from: **a comment is the weakest form of a rule and the easiest one to write.**
 
+- **DECIDE WHAT THE DATA WOULD MEAN BEFORE THE DATA ARRIVES, SO THE READING ANSWERS A QUESTION RATHER THAN OPENING A NEGOTIATION.** (Guy, 20 Aug 2026.)
+
+  The instance. Before the ledger readout ran, the ruling was fixed: if the oldest transaction is roughly 90 days, the SoFi Item is removed and reconnected before M5 or the census touch it. **Made afterwards, that same decision would have been made against 201 rows that exist**, and that is exactly when sunk cost argues loudest: the rows are real, they took a day to obtain, and throwing them away feels like a loss in a way that declining to collect them never does.
+
+  It is the same instinct as the fixture rules, moved from tests to judgement. **A minimum asserted before anything is measured cannot be talked down by the measurement**; a threshold chosen after seeing the number is a threshold the number helped choose. A conditional ruling written in advance is that discipline applied to a decision instead of an assertion.
+
+  **The practical form is one sentence: say what each possible answer will cause, before looking.** If a result would change nothing whatever it said, the reading is not worth taking. If it would change something, the change is decided now, while nothing has been invested in either branch.
+
 - **A FINDING ABOUT THE WORLD, CAUSED BY A PARAMETER WE NEVER SET. When several independent sources agree, check whether they were asked the same question before concluding something about the sources.** (Guy, 20 Aug 2026.) A new species, and worse than the others here, because it would have been written down as a fact about a third party and inherited by everyone who read it afterwards.
 
   The near-miss. SoFi's first sync returned 201 transactions, which is thin, and two earlier institutions had already looked short. The conclusion being drafted was a `projection-spec` finding: **two institutions break the uniform-window assumption, so it is a pattern rather than a Capital One quirk.** Every step was reasonable. Three sources, agreeing, about the outside world.
