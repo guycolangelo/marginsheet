@@ -561,7 +561,7 @@
         "replace": "CREATE POLICY \"sync_worker_write\" ON \"transactions\" FOR ALL TO marginsheet_sync\n  USING (true) WITH CHECK (true);",
         "note": "Restores exactly the condition under which this statement was CONFIRMED to flag another household's transaction with threw=nothing. Not a hypothetical direction of break."
       },
-      "distinction": "FREE EVIDENCE, AND THE ONLY ONE OF THE THREE THAT IS NOT HYPOTHETICAL: this statement already did this once, against a real database, before the policy existed. IT OMITS 4e's HOUSEHOLD PREDICATE DELIBERATELY, so it tests the POLICY rather than the statement. Both must hold independently, which is the whole reason 4e landed first: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal."
+      "distinction": "THE OMISSION OF 4e's HOUSEHOLD PREDICATE IS DELIBERATE AND MUST NOT BE \"FIXED\". This test issues the removed-stream update WITHOUT the predicate applyRemoved now carries, because it tests the POLICY rather than the STATEMENT. Adding the predicate here would make the test pass for the wrong reason and the policy could be reverted with nothing going red. BOTH MUST HOLD INDEPENDENTLY, and that is the entire reason 4e landed before 4c: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal. FREE EVIDENCE, AND THE ONLY ONE OF THE THREE THAT IS NOT HYPOTHETICAL: this statement already did this once, against a real database, before the policy existed. IT OMITS 4e's HOUSEHOLD PREDICATE DELIBERATELY, so it tests the POLICY rather than the statement. Both must hold independently, which is the whole reason 4e landed first: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal."
     }
   ]
 }
