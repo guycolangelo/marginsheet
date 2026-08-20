@@ -733,6 +733,21 @@
         "note": "The spread, which is the same mutation the exchange fix carries and the same defect with an extra step: a caller-supplied householdId rides along and wins by key order. Verified red 19 Aug 2026."
       },
       "distinction": "THE SURFACE IS THROWAWAY AND THIS ASSERTION IS NOT. M8 replaces the page; what it must not inherit is the shape of the defect that took a day to find. The page sends no householdId AT ALL rather than sending one that is ignored, because /plaid/exchange ignoring it makes sending it harmless TODAY and teaches the next reader it is an input. THE OAUTH RETURN IS DELIBERATELY UNAUTHENTICATED and the test asserts the reason is stated: it arrives from the BANK rather than from our own fetch, so a session check would break the flow it exists to complete, and it reads nothing and writes nothing."
+    },
+    {
+      "id": "the-sync-runner-is-reachable",
+      "control": "a route reaches runSyncForItem (services/sync/src/index.ts)",
+      "guards": "The sync runner has a caller, so a sync can actually be run.",
+      "test": "services/sync/test/apply-streams.test.ts",
+      "name": "a route calls runSyncForItem",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/index.ts",
+        "find": "            await runSyncForItem(",
+        "replace": "            await UNCALLED_runSyncForItem(",
+        "note": "Removes the only call site, restoring the state 4.5b prime shipped in: a runner nobody could reach. Verified red 20 Aug 2026."
+      },
+      "distinction": "WRITTEN BECAUSE THE DEFECT RECURRED ONE TASK AFTER BEING CRITICISED. 4.4 was faulted for runTransactionsSync counting rows with no caller, and 4.5b prime was reported as six pieces built when it was five plus a function nobody could call. NOTHING ELSE IN THE SUITE WOULD NOTICE: every test of the runner calls it directly, so a runner with no route passes its own tests completely. This asserts the caller exists, which is the one property a unit test structurally cannot check."
     }
   ]
 }

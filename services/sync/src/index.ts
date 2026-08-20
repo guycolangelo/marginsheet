@@ -16,6 +16,8 @@ import { readSyncSchemaHealth } from "@marginsheet/shared/db";
 import { encryptToken, decryptToken } from "./token-crypto.js";
 import { exchangePublicToken } from "./exchange.js";
 import { createLinkToken } from "./reconnect.js";
+import { runSyncForItem } from "./run-sync.js";
+import postgres from "postgres";
 import { secretPresence } from "@marginsheet/shared/required-secrets";
 import { HouseholdSync } from "./household-sync-do.js";
 
@@ -170,6 +172,67 @@ export default {
     // it is asserted by test, because a token here would break nothing: the
     // exchange would still work, the household would still connect, and every
     // other test would still pass.
+    // POST /internal/sync-run: run a sync for every Item a household holds.
+    //
+    // THE HAND-RUN TRIGGER (4.5b prime, piece 6). Throwaway: scheduling is
+    // Cron and Queues, and the webhook path is 4.5's other half. This exists so
+    // a ledger can be produced before either.
+    //
+    // IT DOES NOT TAKE THE CHAIN LOCK, and that is a decision rather than an
+    // oversight. The lock exists so two WEBHOOKS for one household cannot sync
+    // concurrently, and there is no webhook receiver yet, so the only caller is
+    // a person clicking once. When the receiver lands, this route is replaced
+    // rather than extended, and the runner it calls is the part that survives.
+    if (url.pathname === "/internal/sync-run" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const { householdId } = (await request.json().catch(() => ({}))) as { householdId?: string };
+      if (!householdId) return Response.json({ error: "householdId is required" }, { status: 400 });
+
+      const sql = postgres(env.NEON_DATABASE_URL, { max: 1 });
+      let items: { id: string; item_id: string }[];
+      try {
+        // SCOPED, and keyed on our own id only after the household narrows it.
+        items = await sql<{ id: string; item_id: string }[]>`
+          select id, item_id from plaid_items
+           where household_id = ${householdId}
+             and status <> 'error'
+           order by created_at
+        `;
+      } finally {
+        await sql.end({ timeout: 5 });
+      }
+
+      const results: unknown[] = [];
+      for (const item of items) {
+        try {
+          results.push(
+            await runSyncForItem(
+              householdId,
+              item.id,
+              { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+              env.TOKEN_ENCRYPTION_KEY,
+              env.NEON_DATABASE_URL
+            )
+          );
+        } catch (error) {
+          // ONE ITEM FAILING DOES NOT HIDE THE OTHERS. A household with four
+          // banks should learn which one broke, not that "the sync failed".
+          const shaped = error as { toJSON?: () => unknown; message?: string };
+          results.push({
+            itemId: item.item_id,
+            failed: true,
+            detail: shaped.toJSON ? shaped.toJSON() : { message: shaped.message ?? "unknown" },
+          });
+        }
+      }
+      return Response.json({ items: items.length, results });
+    }
+
     // POST /internal/link-token: mint a link token for a NEW connection.
     //
     // It lives here rather than in api because the Plaid credentials do. api

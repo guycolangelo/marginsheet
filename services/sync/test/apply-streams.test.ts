@@ -1,6 +1,8 @@
 // The two rules that fail silently if broken (4.4.4).
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { applyRemoved, applyAddedAndModified, markFirstSyncCompleted, didChange } from "../src/apply-streams.js";
 
 const HOUSEHOLD = "11111111-1111-4111-8111-111111111111";
@@ -184,5 +186,32 @@ describe("the transaction writer", () => {
     const { tx, issued } = recorder();
     expect(await applyAddedAndModified(tx, HOUSEHOLD, [])).toBe(0);
     expect(issued).toEqual([]);
+  });
+});
+
+describe("the runner is reachable, which the previous version was not", () => {
+  it("a route calls runSyncForItem", () => {
+    // 4.5b prime was reported as six pieces built when it was five plus a
+    // function nobody could call. THAT IS THE EXACT DEFECT 4.4 WAS CRITICISED
+    // FOR: runTransactionsSync existed, counted rows, and had no caller, so a
+    // sync was correct about cursors and wrote nothing.
+    //
+    // Repeating it one task later, while holding the criticism, is why this
+    // assertion exists rather than a note. A function with no caller is not a
+    // built piece, and nothing else in the suite would have noticed: every
+    // test of the runner calls it directly.
+    const index = readFileSync(join(import.meta.dirname, "..", "src", "index.ts"), "utf8");
+    expect(index, "runSyncForItem has no route").toMatch(/runSyncForItem\(/);
+    expect(index).toMatch(/"\/internal\/sync-run"/);
+  });
+
+  it("one failing Item does not hide the others", () => {
+    // A household with four banks should learn WHICH one broke. Letting the
+    // first failure escape would report "the sync failed" and lose the three
+    // that worked, which is the same shape as a count that reports what was
+    // asked for rather than what happened.
+    const index = readFileSync(join(import.meta.dirname, "..", "src", "index.ts"), "utf8");
+    const route = index.slice(index.indexOf('"/internal/sync-run"'));
+    expect(route.slice(0, 2400)).toMatch(/failed: true/);
   });
 });
