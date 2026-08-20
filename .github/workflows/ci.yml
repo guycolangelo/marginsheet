@@ -333,7 +333,20 @@ jobs:
         if: github.event_name == 'pull_request'
         id: touched
         run: |
-          git fetch --depth=1 origin "${{ github.base_ref }}"
+          # NOT --depth=1. A three-dot diff needs a MERGE BASE, and a
+          # single-commit fetch has no history for one to be found in. On
+          # 20 Aug 2026 this failed with "fatal: FETCH_HEAD...HEAD: no merge
+          # base" on a branch rebuilt by cherry-pick, whose commits are new
+          # objects with no shared ancestry in a one-commit fetch.
+          #
+          # THE FAILURE MODE IS WHAT MAKES THIS URGENT RATHER THAN COSMETIC:
+          # this step decides whether a PR touches a registered control test,
+          # and when it cannot run, the planted-failure harness is SKIPPED. A
+          # PR adding six controls would merge with none of them exercised.
+          # It exits 128 rather than passing, which is the right direction and
+          # is still a check that cannot do its job.
+          git fetch --unshallow origin "${{ github.base_ref }}" 2>/dev/null \
+            || git fetch --depth=200 origin "${{ github.base_ref }}"
           CHANGED=$(git diff --name-only FETCH_HEAD...HEAD)
           REGISTERED=$(node -e "console.log(JSON.parse(require('fs').readFileSync('config/control-register.json','utf8')).controls.map(c=>c.test).join('\n'))")
           HITS=$(comm -12 <(echo "$CHANGED" | sort -u) <(echo "$REGISTERED" | sort -u) || true)
