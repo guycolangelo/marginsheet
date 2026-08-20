@@ -72,6 +72,19 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The question to add when reading a suite: **what values can this fixture take, and does the failure case exist among them?** A test that can only construct the passing shape is a tautology wearing an assertion's clothes.
 
+- **A RECORDER PROVES A STATEMENT WAS CONSTRUCTED. IT PROVES NOTHING ABOUT WHETHER IT CAN EXECUTE.** Twice in one morning, 20 Aug 2026, and both times the whole suite was green while the code could not run at all.
+
+  The sync Worker's unit tests pass a **recorder** as `tx`: it captures the SQL and returns canned rows. Every assertion about what the statement says is true, and every one of them is silent about Postgres. So the first real production sync failed twice on things no test could see:
+
+  - `last_cursor_at` was **a column in no migration**, written by 4.4's watchdog. The tests that read it built an `ItemSyncState` **by hand**.
+  - `households` was **a table in no grant**, written by `markFirstSyncCompleted`. Migration 0023 had narrowed the role to ten tables and nothing compared the two.
+
+  **The signature is the same one the ninth finding named, with the fixture moved one step further out.** There, the data could not express the failing case. Here, the *database* is not present at all, so the code and the fixtures agree with each other and both disagree with reality. A recorder is a fixture that can only ever construct the passing shape, and it looks like thorough coverage because the assertions are genuinely about the right statement.
+
+  **Neither was caught by review**, and neither would have been: the statements are correct SQL, correctly parameterised, correctly scoped to a household. Nothing is wrong with them except that they were never allowed to run.
+
+  So: **a recorder test is not evidence a statement works, and a statement's ability to execute is asserted somewhere a real schema and a real role are present.** `columns-the-code-writes-exist` closed the column half against migrations; `sync-worker-reach` closes the privilege half against the catalog, at column level, because `has_column_privilege` is the only thing that knows what a role actually holds.
+
 - **A flaky fixture is worse than an absent one, and a fixture must be asserted large enough to distinguish passing from failing before anything is measured.** This is the ninth finding's rule, written down because the ninth finding recurred within an hour of the M4 plan naming it, in the spike built to avoid it.
 
   **The case, because the abstraction alone would not have caught it.** Spike 1c exists to settle whether Plaid's cursor resumes with no gap and no replay. Its first run reported `noGap: true` and `noReplay: true`, and it was comparing **two empty sets**. The helper waited for `/transactions/sync` to stop returning an error rather than waiting for transactions to exist, so a fresh Sandbox Item that had generated nothing yet answered `200` with an empty page and every assertion passed vacuously. The spike was written by someone who had just finished writing the paragraph warning about exactly this, and it still happened, which is the argument for a rule rather than for care.

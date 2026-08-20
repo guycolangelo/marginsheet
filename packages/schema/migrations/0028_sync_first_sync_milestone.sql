@@ -1,0 +1,28 @@
+-- The eleventh table for marginsheet_sync, granted BY COLUMN.
+--
+-- WHY THE TABLE IS NEEDED. markFirstSyncCompleted writes
+-- households.first_sync_completed_at, which the M13 intro trigger and the
+-- day-3-to-5 census scheduling both read. It is a HOUSEHOLD-level milestone: a
+-- household with three banks completes its first sync once, so it cannot move
+-- to plaid_items without changing what it means, and routing it through the
+-- outbox is indirection with no second component to receive it.
+--
+-- WHY IT IS NOT A TABLE GRANT. households has fifteen columns, including
+-- avg_monthly_income, entitlement_state, trial_ends_at, stripe_customer_id,
+-- address and hardship_flag. The statement needs to read two and write two.
+-- Granting the table to solve that is fourteen columns of reach nobody asked
+-- for, ON THE ONE PATH WHERE THE GRANT IS THE WHOLE BOUNDARY: sync_worker_access
+-- is USING (true) for this role, so row-level security constrains it nowhere
+-- and the grant is the only thing that does.
+--
+-- Same discipline as the enumerated column grants in 0002, 0011, 0017 and 0019:
+-- name what may be reached, so a column added later is excluded by default.
+--
+-- SELECT is required because the WHERE clause reads both columns. A grant of
+-- UPDATE alone would refuse the statement.
+--
+-- Enforced by the sync-grant scan in services/sync/test, which compares tables
+-- and columns the Worker touches against what the role actually holds, and by
+-- EXPECTED_TABLES in scripts/sync-db-url.mts.
+GRANT SELECT (id, first_sync_completed_at) ON "households" TO marginsheet_sync;--> statement-breakpoint
+GRANT UPDATE (first_sync_completed_at, updated_at) ON "households" TO marginsheet_sync;
