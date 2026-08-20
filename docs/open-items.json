@@ -72,13 +72,6 @@
     "raised": "2026-08-17"
   },
   {
-    "id": "sensitive-actions-unbuilt",
-    "item": "Three of the four sensitive actions \u00a71 names do not exist yet: cancellation (M7), member removal (3.5), export (M8). They are enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts each has NO route, so building one without flipping the flag fails and sends the author to where the recent-auth requirement is written. Recent-auth is live on the one that exists.",
-    "owner": "M7, 3.5 and M8 respectively",
-    "owed_to": "each action's own module",
-    "raised": "2026-08-17"
-  },
-  {
     "id": "planted-failure-inertness",
     "item": "The planted-failure harness proves a mutation changed the FILE, not that it changed BEHAVIOUR, and proving the second is undecidable in general. So a 'test did not go red' result has two causes it cannot distinguish: an insensitive control, or an inert mutation. One was already found this way: a mutation whose injected condition was always undefined. The failure message names both causes, and register mutations need reviewing as code rather than as data.",
     "owner": "build",
@@ -193,8 +186,8 @@
   {
     "id": "capital-one-link-parameters",
     "item": "The ported Capital One parameter handling is a LINK-CONFIG note, per plaid-pipeline-spec section 2, and Link's configuration is M8's surface rather than M4's exchange. Carried to M8 rather than closed silently at 4.3.5. What it is: Capital One requires specific Link parameters that Base44 discovered by hitting the failure, and the fix was ported once. Nobody has re-derived WHY, so M8 should confirm the requirement against Plaid's current docs rather than copying a workaround whose reason is unrecorded.",
-    "owner": "M8",
-    "trigger": "M8's Link surface",
+    "owner": "build",
+    "trigger": "M8's Link surface, where the parameters are actually passed",
     "owed_to": "TRIGGER: M8's Link surface, with the requirement re-derived rather than copied.",
     "raised": "2026-08-18"
   },
@@ -245,5 +238,29 @@
     "trigger": "when persistInFlight is wired to a real statement, which is the sync scheduling work after 4.5",
     "owed_to": "TRIGGER: 4c. Audited during 4e on 19 Aug 2026 and deliberately left, with the reasoning recorded so the omission is a decision rather than an oversight.",
     "raised": "2026-08-19"
+  },
+  {
+    "id": "sensitive-action-cancellation-unbuilt",
+    "item": "SPLIT FROM sensitive-actions-unbuilt on 19 Aug 2026, which carried owner \"M7, 3.5 and M8 respectively\": three obligations pretending to be one, so nobody owed it while the check passed on a non-empty string. THE MECHANISM IS ALREADY BUILT AND IS THE SAME FOR ALL THREE: the action is enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts it has NO route, so building one without flipping the flag FAILS rather than shipping an unguarded action. What is owed is the action itself, and flipping the flag when it exists. THIS ROW IS CANCELLATION. Cancelling a subscription ends a household's access and is irreversible from their side, so it is a sensitive action by identity-onboarding-spec section 1 and needs recent-auth.",
+    "owner": "build",
+    "trigger": "M7, when the action is built; the flag flips in the same change or the enumeration test fails",
+    "owed_to": "TRIGGER: M7. Split out on 19 Aug 2026 so one party owes one thing.",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "sensitive-action-member-removal-unbuilt",
+    "item": "SPLIT FROM sensitive-actions-unbuilt on 19 Aug 2026, which carried owner \"M7, 3.5 and M8 respectively\": three obligations pretending to be one, so nobody owed it while the check passed on a non-empty string. THE MECHANISM IS ALREADY BUILT AND IS THE SAME FOR ALL THREE: the action is enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts it has NO route, so building one without flipping the flag FAILS rather than shipping an unguarded action. What is owed is the action itself, and flipping the flag when it exists. THIS ROW IS MEMBER-REMOVAL. Removing a member cuts one person's access to a household's whole financial history, and the member being removed is the one person who cannot be asked to confirm it.",
+    "owner": "build",
+    "trigger": "3.5, when the action is built; the flag flips in the same change or the enumeration test fails",
+    "owed_to": "TRIGGER: 3.5. Split out on 19 Aug 2026 so one party owes one thing.",
+    "raised": "2026-08-17"
+  },
+  {
+    "id": "sensitive-action-export-unbuilt",
+    "item": "SPLIT FROM sensitive-actions-unbuilt on 19 Aug 2026, which carried owner \"M7, 3.5 and M8 respectively\": three obligations pretending to be one, so nobody owed it while the check passed on a non-empty string. THE MECHANISM IS ALREADY BUILT AND IS THE SAME FOR ALL THREE: the action is enumerated in services/api/src/sensitive-actions.ts with built:false, and a test asserts it has NO route, so building one without flipping the flag FAILS rather than shipping an unguarded action. What is owed is the action itself, and flipping the flag when it exists. THIS ROW IS EXPORT. An export puts a household's entire ledger into a file that leaves the system, which is the one action whose blast radius does not stop at our boundary.",
+    "owner": "build",
+    "trigger": "M8, when the action is built; the flag flips in the same change or the enumeration test fails",
+    "owed_to": "TRIGGER: M8. Split out on 19 Aug 2026 so one party owes one thing.",
+    "raised": "2026-08-17"
   }
 ]
