@@ -51,6 +51,14 @@ beforeAll(async () => {
   // pending filter over zero pending rows returns 0 whether or not the filter
   // works: a fixture that cannot tell a pass from a failure is the ninth
   // finding, and it applies to this fixture as much as to any other.
+  // TWO SNAPSHOTS WITH DIFFERENT DATES AND DIFFERENT BALANCES, so min, max and
+  // the count can each be told from a broken query. One row would make the
+  // oldest and the newest the same value, which is the fixture that cannot
+  // distinguish a pass from a failure.
+  await sql`insert into account_balance_snapshots (household_id, account_id, date, current_balance, available_balance)
+            values (${HOUSEHOLD}, ${ACCOUNT}, date '2026-05-24', 1000.00, 900.00),
+                   (${HOUSEHOLD}, ${ACCOUNT}, date '2026-08-19', 1500.00, 1400.00)
+            on conflict do nothing`;
   await sql`insert into transactions (household_id, account_id, date, authorized_date, amount, direction, pending, original_description)
             values (${HOUSEHOLD}, ${ACCOUNT}, date '2026-05-01', date '2026-04-30', 12.34, 'expense', false, 'older'),
                    (${HOUSEHOLD}, ${ACCOUNT}, date '2026-08-19', date '2026-08-18', 56.78, 'expense', true,  'newer')
@@ -58,6 +66,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await sql`delete from account_balance_snapshots where household_id = ${HOUSEHOLD}`;
   await sql`delete from transactions where household_id = ${HOUSEHOLD}`;
   await sql`delete from financial_accounts where household_id = ${HOUSEHOLD}`;
   await sql`delete from plaid_items where household_id = ${HOUSEHOLD}`;
@@ -122,6 +131,14 @@ describe("the ledger readout's statements execute as marginsheet_sync", () => {
     expect(account.pending).toBe(1);
     expect(account.removed).toBe(0);
     expect(account.type).toBe("depository");
+
+    // THE BALANCE HALF. Distinct values throughout, so a query that dropped the
+    // correlated subqueries or read the wrong account would fail rather than
+    // coincide: two snapshots, two different dates, two different balances.
+    expect(account.snapshots).toBe(2);
+    expect(account.oldest_snapshot).toBe("2026-05-24");
+    expect(account.newest_snapshot).toBe("2026-08-19");
+    expect(account.account_updated_at, "the account row carries no updated_at").not.toBeNull();
 
     expect(readout.byType).toHaveLength(1);
     expect(readout.byType[0].held).toBe(2);
