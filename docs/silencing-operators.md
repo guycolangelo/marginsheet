@@ -23,6 +23,7 @@ control:** if the thing this guards failed, would anything go red?
 | `2>/dev/null` | The error text, leaving only the status |
 | `set +e`, or `set -e` absent | Every failure after that point |
 | A report chained after a fallible operation with `;` | The failure, behind a success message |
+| A parser reading a failed command's output | The failure, behind a value |
 
 **The fourth's tell is the hardest to grep for and the easiest to miss reading:
 the success message is a separate statement from the thing it describes.** A
@@ -51,6 +52,37 @@ ceiling arrived unannounced on 19 August with nothing red anywhere.
 **It is also a meta-finding.** When `neon-pr-cleanup`'s `|| true` was removed
 earlier the same day, the fix landed where the defect was NOTICED and left the
 identical defect in two other places. See the rule in CLAUDE.md.
+
+---
+
+## A fifth pattern, added 20 August 2026: a failed command's output parsed as data
+
+**This is past the report-after-a-fallible-operation shape.** Nothing claimed
+success. The reader simply never asked whether the command ran.
+
+The instance: a loop passed `--env production` to `scripts/wrangler` as a single
+quoted argument, so wrangler answered `Unknown argument: env production` and
+exited non-zero. The output was piped into a parser that could not read it, and
+the parser printed **`unparsed`** and carried on. Read literally, the result was
+"production holds no Plaid secrets and dev holds a pair" — which would have been
+reported as credentials written to the wrong environment, from a command that
+never executed.
+
+**The tell is in the parser rather than in the command.** A parser that handles
+unexpected output by DESCRIBING it, with a label like `unparsed` or `unknown` or
+an empty default, converts a failure into a value. Nothing is silenced and
+nothing lies; the failure simply arrives in the shape of an answer, and every
+check downstream treats it as one.
+
+**What to look for:** any place that parses the output of a command whose exit
+status it did not check. The question is not "does this handle bad input" but
+**"can this tell a failed command from an empty result?"** If the answer is no,
+the parser will eventually report an absence that is really an error, and an
+absence is exactly the shape that reads as a finding.
+
+**The remedy is not a better parser.** It is checking the exit status before
+parsing at all, and treating a non-zero exit as a refusal to answer rather than
+as an answer of "nothing".
 
 ---
 
