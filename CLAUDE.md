@@ -257,6 +257,14 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   It pairs with the enumerated-grant rule: enumeration means a column added later is excluded **by design**, so this error becomes MORE likely as the schema grows, not less, and it will keep arriving with the wrong noun in it.
 
+- **THE INSTINCT TO LOOK INWARD IS USUALLY RIGHT HERE AND IT IS NOT ALWAYS RIGHT.** (Guy, 20 Aug 2026.) Recorded because a whole file of findings about our own controls trains exactly one reflex, and the reflex has a blind spot.
+
+  The case. Plaid's `/transactions/get` reported **202** for an Item whose `/transactions/sync` had streamed us **201**. Two candidates were put up, and both assumed the error was ours: a row written after the readout's query, or a readout that counted wrong. **A second sync then added 0**, which is evidence for a third neither candidate could produce: **two endpoints of the same provider disagreeing about the same Item**, with both of our numbers correct. Had a row genuinely posted between the runs, the sync would have delivered it.
+
+  **Why the blind spot is structural rather than careless.** Almost every finding in this file is ours, so "assume it is us" has an excellent track record, and a rule with an excellent track record stops being examined. The cases it misses are exactly the ones where a provider is internally inconsistent, which is also where we have the least ability to notice, because we usually hold only one of the two numbers.
+
+  **The correction is not to distrust providers more.** It is to notice when the candidate list shares an assumption, and to ask what evidence would distinguish a fault of ours from a fault outside. Here it was one field: **which row**, not how many. A count difference cannot separate the three cases and an id can, which is why the readout now reports `plaidOnly` and `oursOnly` rather than a total.
+
 - **A DIAGNOSTIC THAT COSTS PER SUBJECT WILL EVENTUALLY REFUSE TO ANSWER ABOUT THE SUBJECTS, AND ITS SILENCE LOOKS LIKE A ZERO.** 20 Aug 2026, in the readout, twice over.
 
   The cross-check asked `/transactions/get` once per account plus once per Item, and the both-ends fix quietly doubled it: **eighteen calls for eight accounts.** Plaid answered `RATE_LIMIT_EXCEEDED` / `TRANSACTIONS_LIMIT` on **every per-account call** while the Item-level call succeeded, so the per-account column came back **silent rather than zero**, in the instrument built to resolve exactly that ambiguity.
