@@ -71,8 +71,17 @@ Per `categorization-spec` and `ledger-spec`, and this is where the care goes:
 - **added**: insert, with `pending` from Plaid's flag
 - **modified**: update in place, which is how a pending row becomes posted
 - **removed**: `applyRemoved` already exists and flags rather than deletes
-- **the household is named on every statement**, per the provider-key rule, because
-  `plaid_transaction_id` is Plaid's and shared across households
+**THE PROVIDER-KEY RULE IS APPLIED AT THE POINT OF WRITING, NOT AFTER** (Guy,
+19 Aug 2026). `applyAdded` and `applyModified` are NEW write paths on
+`transactions`, which is the table where the ledger lives and where the worst of
+the four cross-household findings landed. `plaid_transaction_id` is Plaid's
+namespace, shared across every household, so **both statements name the household
+in the statement itself** rather than relying on migration 0026's policy.
+
+Both must hold independently, which is the reason 4e landed before 4c: a
+predicate somebody forgets is a hole, a policy somebody forgets is a refusal.
+Writing these without the predicate and adding it later would reproduce exactly
+the defect that took a day to find, in the same table, weeks after the lesson.
 - **`(household_id, plaid_transaction_id)` is the conflict target** once migration
   0026's sibling constraint work lands, and the global unique index is the open
   finding until then
