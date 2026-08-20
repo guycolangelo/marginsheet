@@ -859,6 +859,21 @@
         "note": "POINTS THE POLICY AT A KEY NOTHING SETS, which is the same end state the bug produced by other means: the policy reads an unset setting and matches nothing. It reddens the POSITIVE case, which is the one that carries the meaning here, and deliberately not the negative case, which returns zero rows either way. A sql mutation is required because a policy lives in the database and a source edit on an applied migration changes no database anywhere."
       },
       "distinction": "IT PROVES A CLAIM RATHER THAN GUARDING A PATH, which is unusual here and is the point. The reasoning for why an is_local GUC breaks outside a transaction is easy to state and easy to get wrong, and it was stated correctly in a comment in phone-change.ts while three other call sites had it wrong. A comment is the weakest form of a rule. This makes the claim executable, and pairs with the receiver scan that enforces the consequence. The positive case runs FIRST and is not decoration: without it the negative case proves only that the query returns nothing, which a typo in the fixture would also produce."
+    },
+    {
+      "id": "link-token-asks-for-history",
+      "control": "the days_requested scan (services/sync/test/link-token-asks-for-history.test.ts)",
+      "guards": "Every link token asks Plaid for 730 days of transaction history, rather than accepting the silent 90 day default.",
+      "test": "services/sync/test/link-token-asks-for-history.test.ts",
+      "name": "asks for 730, the maximum, rather than any smaller number",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/reconnect.ts",
+        "find": "      transactions: { days_requested: 730 },",
+        "replace": "      transactions: { days_requested: 90 },",
+        "note": "SETS THE DEFAULT EXPLICITLY, which is the plausible wrong value rather than an obvious break: 90 is what Plaid uses when the field is absent, it is a number somebody could reasonably type while copying an example, and nothing about the resulting Item reports a problem. Removing the line entirely would also redden the test, and this is the better mutation because a wrong VALUE survives review more easily than a missing key."
+      },
+      "distinction": "THE COST OF THIS FIELD BEING WRONG IS NOT A SMALLER BACKFILL, IT IS A RE-CONSENT. Plaid's reference says the value cannot be updated once Transactions has been added to an Item, so repairing it means /item/remove and a new Item, which every affected household has to walk through Link again. The field was absent from this repository until 20 Aug 2026 and the resulting 90 day window was very nearly written up as an institution limit; SoFi's Item was confirmed from OUTSIDE our pipeline, with /transactions/get asked for 24 months returning 202. Direction 2 asserts reconnect.ts still contains a link token request at all, because a file that stopped creating one would satisfy a regex looking only for the field's absence."
     }
   ]
 }

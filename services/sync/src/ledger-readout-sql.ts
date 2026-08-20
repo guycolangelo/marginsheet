@@ -48,6 +48,13 @@ export interface AccountRow {
   type: string | null; subtype: string | null; institution: string | null;
   held: number; oldest: string | null; newest: string | null;
   oldest_authorized: string | null; pending: number; removed: number;
+  /** THE OTHER HALF OF WHAT A LEDGER READOUT SHOULD SAY (Guy, 20 Aug 2026).
+   *  A balance and the moment it was last written, because a balance without
+   *  its timestamp cannot be told from a stale one, and Cash Flow projects a
+   *  13 week path from this number. */
+  current_balance: string | null; available_balance: string | null;
+  account_updated_at: string | null;
+  snapshots: number; newest_snapshot: string | null; oldest_snapshot: string | null;
 }
 export interface TypeRow { type: string | null; accounts: number; held: number; oldest: string | null }
 export interface ItemRow {
@@ -88,6 +95,15 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
   const accounts = await tx<AccountRow[]>`
     select fa.plaid_account_id, fa.name, fa.mask, fa.type, fa.subtype,
            i.name as institution,
+           fa.current_balance::text as current_balance,
+           fa.available_balance::text as available_balance,
+           (fa.updated_at)::text as account_updated_at,
+           (select count(*)::int from account_balance_snapshots s
+             where s.account_id = fa.id and s.household_id = fa.household_id) as snapshots,
+           (select (max(s.date))::text from account_balance_snapshots s
+             where s.account_id = fa.id and s.household_id = fa.household_id) as newest_snapshot,
+           (select (min(s.date))::text from account_balance_snapshots s
+             where s.account_id = fa.id and s.household_id = fa.household_id) as oldest_snapshot,
            (count(t.id))::int as held,
            (min(t.date))::text as oldest,
            (max(t.date))::text as newest,
@@ -99,7 +115,8 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
       left join institutions i on i.id = pi.institution_id
       left join transactions t on t.account_id = fa.id and t.household_id = fa.household_id
      where fa.household_id = ${householdId}
-     group by fa.plaid_account_id, fa.name, fa.mask, fa.type, fa.subtype, i.name
+     group by fa.id, fa.household_id, fa.plaid_account_id, fa.name, fa.mask, fa.type,
+              fa.subtype, i.name, fa.current_balance, fa.available_balance, fa.updated_at
      order by i.name nulls last, fa.type, fa.name
   `;
 

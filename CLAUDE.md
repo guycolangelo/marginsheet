@@ -257,6 +257,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   It pairs with the enumerated-grant rule: enumeration means a column added later is excluded **by design**, so this error becomes MORE likely as the schema grows, not less, and it will keep arriving with the wrong noun in it.
 
+- **A CROSS-CHECK FIELD THAT ANSWERED A DIFFERENT QUESTION THAN ITS NAME, AND WAS WRONG IN THE DIRECTION THAT HIDES THE FINDING.** 20 Aug 2026, in the readout built specifically to answer that question from outside our own pipeline.
+
+  `plaidTotals` asked `/transactions/get` for `count: 1, offset: 0` and called the result **`oldestInWindow`**. That endpoint returns **most-recent-first**, so one row at offset 0 is the **newest** transaction. There was not even a page for it to be the oldest of: the field was the newest date wearing the oldest date's name, in the one field the readout existed to produce.
+
+  **It did not mislead only because our own data disagreed with it** (Guy). Two accounts held **exactly** the count Plaid reported, so no gap could explain a different oldest date, and that contradiction is what exposed it. **Trusted on its own it would have said the history begins in August**, which is wrong in the direction that makes a 90 day window look like a full one and **hides the finding the readout was built to surface.**
+
+  **The general shape: a number that looks like the answer to the question the instrument exists to ask.** A wrong number that looks wrong gets checked. A wrong number in exactly the right units, of exactly the right kind, sitting in the field whose name promises it, is accepted, and it is accepted hardest by whoever built the instrument.
+
+  **The repair is a pair rather than a better single value.** Both ends are now fetched, newest at offset 0 and oldest at offset `total - 1`, and reported together with a flag saying whether `oldest <= newest` held. **A single date cannot be checked against anything. A pair carries its own contradiction**, and the flag says plainly when the ordering assumption this all rests on has stopped being true.
+
 - **A FINDING ABOUT THE WORLD, CAUSED BY A PARAMETER WE NEVER SET. When several independent sources agree, check whether they were asked the same question before concluding something about the sources.** (Guy, 20 Aug 2026.) A new species, and worse than the others here, because it would have been written down as a fact about a third party and inherited by everyone who read it afterwards.
 
   The near-miss. SoFi's first sync returned 201 transactions, which is thin, and two earlier institutions had already looked short. The conclusion being drafted was a `projection-spec` finding: **two institutions break the uniform-window assumption, so it is a pattern rather than a Capital One quirk.** Every step was reasonable. Three sources, agreeing, about the outside world.
