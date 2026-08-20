@@ -211,6 +211,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **The consequence, noted rather than ruled** (`docs/open-items.json`): any read whose empty result would be a plausible business answer should **assert the GUC is set** rather than merely rely on it. The two controls above stop the specific mistake; they do not make an empty result self-describing, and that is the class.
 
+- **A RESTORE THAT DESTROYS MORE THAN IT RESTORED, WITH A PROOF THAT CANNOT SEE THE DIFFERENCE.** The harness's own species, found 20 Aug 2026, and it damaged a control three entries later with nothing connecting the two.
+
+  `sync-reach-not-beyond-grant` plants `GRANT SELECT ON households TO marginsheet_sync` and restores with the obvious inverse, `REVOKE SELECT ON households FROM marginsheet_sync`. **Revoking a table-level privilege in Postgres also strips the COLUMN-level grants of that privilege**, so the restore removed migration 0028's `GRANT SELECT (id, first_sync_completed_at)` and left the database **less granted than it found it.**
+
+  **The proof asked whether the table privilege was gone. It was.** So the harness reported `restored -> green`, correctly by its own lights, while the branch carried a silent regression. Three controls later `readout-statements-execute` failed with `permission denied for table households`, and nothing in the output tied it to a control that had already reported success.
+
+  **A mutation is not symmetric just because its inverse is spelled that way.** `GRANT X` then `REVOKE X` reads as a round trip and is not one whenever the grant space has structure the statement flattens: table over column here, and the same shape waits in role membership, default privileges and policy replacement.
+
+  So a `sql` mutation's proof must encode **every fact the restore could have changed**, not the one it aimed at. This one now returns `2 * table_privilege + column_privilege`, so applied reads 3, restored reads 1, and **a restore that loses the column grant reads 0 and fails loudly** instead of poisoning whatever runs next.
+
+  **Two harness properties are worth keeping in view together.** It ran every control rather than only the touched ones, which is why the damage reached a later control at all. And it printed *"WHY IT IS STILL RED (raw, trust this over any reading)"*, which is the line that made this findable: the harness refused to summarise, so the real error survived to be read.
+
 - **`has_column_privilege` HAS TWO FORMS AND THEY ANSWER DIFFERENT QUESTIONS. Naming the role asks what a GRANT SAYS. Omitting it asks what the CURRENT SESSION CAN DO.** (Guy, 20 Aug 2026.) A grant can be present and the session still refused, and **only the second form is the question a query obeys.**
 
   Found because the diagnostic written to settle a privilege failure **had the defect it was built to find.** `harness-db-identity.mjs` asked `has_column_privilege('marginsheet_sync', 'households', 'first_sync_completed_at', 'SELECT')` from an owner connection and printed **true**. The test, on the same database in the same job, asked the three-argument form after `SET ROLE` and got **false**. Both were correct answers to the questions they asked, and only one of those questions mattered.

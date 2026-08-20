@@ -486,5 +486,13 @@
     "trigger": "immediately after PR 129 merges, before any further privilege work relies on that file's assertions",
     "owed_to": "TRIGGER: PR 129 merging. Raised 20 Aug 2026 by Guy on reading that the harness probe and the test disagreed, and asking whether the 15 Aug test had the same shape. It does.",
     "raised": "2026-08-20"
+  },
+  {
+    "id": "app-subdomain-cutover-waits-for-m9",
+    "item": "THE app.marginsheet.com CUTOVER, AND ITS TRIGGER IS M9 RATHER THAN M8 (Guy, 20 Aug 2026). The sequence: M8 builds the surfaces and lives on a Pages URL. M9 migrates the books and reconciles them. THEN the subdomain repoints and Base44 is decommissioned. WHY THE TRIGGER IS M9 AND NOT M8, recorded because the M8 reading is the tempting one and it is wrong: repointing at M8 would put a WORKING UI in front of a system holding A FRACTION OF THE BOOKS, at the address where Guy's real books currently live. The UI being finished is not the condition; the LEDGER BEING COMPLETE AND RECONCILED is. A surface that works perfectly over partial data is more misleading than one that is obviously unfinished, because nothing about it signals that what it shows is incomplete. THE SAME SHAPE AS AN EMPTY RESULT READING AS A LEGITIMATE ANSWER, which this file records twice already: a household with no accounts and a household whose data never arrived render identically, and so do a complete ledger and a partial one. DECOMMISSIONING BASE44 IS PART OF THE CUTOVER RATHER THAN A FOLLOW-UP, because two live systems at two addresses, both holding some of the books, is the state that makes reconciliation unfalsifiable.",
+    "owner": "Guy",
+    "trigger": "M9 completing, meaning the books are migrated AND reconciled, not M8 completing. The UI being ready is not the condition",
+    "owed_to": "TRIGGER: M9 complete. Recorded 20 Aug 2026 at Guy's instruction, with the reasoning for the trigger rather than only the trigger.",
+    "raised": "2026-08-20"
   }
 ]
