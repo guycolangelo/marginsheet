@@ -644,6 +644,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   It is the same shape as **verify against the database, never against reports**, one level up: the mechanism is the report, and the log is the database. And it fails the standing question the same way, because **an explanation cannot go red.** No observation refutes "this could have happened", which is precisely why it is not a finding.
 
+- **A DEADLINE IS ONLY SAFE IF EVERY OPERATION UNDER IT IS GENUINELY ABORTABLE, AND THE HALF THAT IS NOT IS NAMED RATHER THAN ASSUMED.** (Guy, 21 Aug 2026.)
+
+  `Promise.race` against a timer **stops waiting, not working.** The hung call keeps running, can still write, and still holds whatever it held, so a raced deadline is the release-the-lock horn in better clothes and **it reads as correct in review.**
+
+  **The difference lives entirely on the other side of the socket**, which is why the control is a fixture rather than an assertion. A test that watches the caller sees an identical rejection either way: same error code, same timing, same lock release. `deadline-aborts-the-request.test.ts` starts a real server, holds the request open, and asserts the server **saw the client disconnect**. Planting the race was verified to leave the caller-side assertion **green** and redden only that one, which is the whole demonstration.
+
+  **AND THE BOUNDARY IS STATED, BECAUSE A GUARANTEE DESCRIBED AS COVERING THE OPERATION WOULD BE FALSE.** Bounded: every outbound Plaid call. **Not bounded: every database operation.** The sync opens a connection with no `statement_timeout` and passes no signal, so a hung query inside the transaction holds the household's chain lock for as long as it hangs, which is the same failure the deadline exists to prevent, on the other half of the same critical section. Also unbounded and smaller: the Durable Object fetch and the service-binding fetches.
+
+  **The general rule the boundary implies:** an abort is a client-side request that the far side may or may not honour, so **"abortable" is a property of the specific operation and not of the deadline mechanism.** Where the operation cannot be cancelled, the bound has to come from the other side, which is why the database half wants `statement_timeout` rather than a signal. Recorded in `docs/open-items.json` rather than left to be discovered when a query hangs.
+
 - **A REPORT ABOUT WORK THAT READS AS OBSERVATION AND IS ASSUMPTION ABOUT WHAT A COMMAND DID.** (Guy, 21 Aug 2026, on the second instance.) The reporting half of the join family, and the most dangerous version of it, because the artifact being described is one the reader cannot see.
 
   The instance: a branch was pushed and the reply named a pull request number as though it had been opened. **No `gh pr create` was ever run.** The push happened, the branch existed, every observable fact in the surrounding message was true, and the sentence in the middle described something that had not occurred.

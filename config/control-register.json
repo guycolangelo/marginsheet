@@ -950,6 +950,21 @@
         "note": "KEEPS THE FIRST FIGURE INSTEAD OF THE LAST, which is the plausible wrong version rather than an obvious break: DO NOTHING reads as idempotent and safe, it still writes exactly one row per day so the count assertion passes, and only the VALUE is wrong. A projection reading the series would then see the balance at whatever moment the day's first sync happened to run rather than the closing figure."
       },
       "distinction": "THE PER-DAY CADENCE IS A RULING, NOT AN IMPLEMENTATION DETAIL, which is why it has a control. account_balance_snapshots is keyed by date and the projection reads a SERIES, so a row per sync would make that series depend on how often we happened to sync: a property of us rather than of the household's money. The fixture writes twice within a single day with DISTINCT figures, so accumulating leaves two rows and keeping the first leaves 500.25, and neither can be confused with the correct outcome."
+    },
+    {
+      "id": "deadline-aborts-rather-than-abandons",
+      "control": "the outbound-side deadline fixture (services/sync/test/deadline-aborts-the-request.test.ts)",
+      "guards": "A call that exceeds its deadline is CANCELLED rather than abandoned, so nothing is still running on the far side when the sync gives up.",
+      "test": "services/sync/test/deadline-aborts-the-request.test.ts",
+      "name": "makes the server see the client go away, which a race would not",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/plaid-client.ts",
+        "find": "    response = await fetch(`${credentials.baseUrl ?? DEFAULT_BASE_URL}${endpoint}`, {\n      method: \"POST\",\n      headers: { \"content-type\": \"application/json\" },\n      body,\n      signal: controller.signal,\n    });",
+        "replace": "    response = await Promise.race([\n      fetch(`${credentials.baseUrl ?? DEFAULT_BASE_URL}${endpoint}`, {\n        method: \"POST\",\n        headers: { \"content-type\": \"application/json\" },\n        body,\n      }),\n      new Promise<Response>((_, reject) => {\n        controller.signal.addEventListener(\"abort\", () => reject(new Error(\"deadline\")));\n      }),\n    ]);",
+        "note": "REPLACES THE ABORT WITH A RACE, which Guy named as the trap when he rejected both lock-timeout options on 19 Aug 2026. It is the mutation this control exists for and it is not an invention: it keeps the controller, keeps the timer, still sets signal.aborted, and therefore STILL THROWS DEADLINE_EXCEEDED. Everything visible from inside the caller is identical. VERIFIED 21 AUG 2026 THAT THE FIRST ASSERTION PASSES UNDER IT and only the outbound one fails, which is the whole demonstration: a caller-side test cannot distinguish a cancelled request from an abandoned one."
+      },
+      "distinction": "THE FIXTURE IS THE CONTROL AND THE REJECTION IS NOT. Promise.race against a timer stops WAITING, not WORKING: the hung call keeps running, can still write, and still holds whatever it held, so a raced deadline is the release-the-lock horn in better clothes. The difference lives entirely on the other side of the socket, so the test starts a real server, holds the request open and asserts the server SAW the client disconnect. Its sibling assertion, that the error is DEADLINE_EXCEEDED rather than NETWORK_ERROR, is a separate property: a deadline and a transport failure are different findings and sharing a code would make the message unable to distinguish its causes. Direction 2 lives inside the fixture rather than beside it: sawAbort asserts the server RECEIVED the request before reporting whether it was aborted, because a request that never arrived cannot have been cancelled and would answer false for the wrong reason."
     }
   ]
 }
