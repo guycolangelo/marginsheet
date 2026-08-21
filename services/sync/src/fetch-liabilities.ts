@@ -112,7 +112,7 @@ export async function fetchLiabilities(
   // reported moves from 'reported' to 'not_reported' rather than keeping a
   // stale value. The order matters: marking absences first would clear the
   // rows this loop is about to set.
-  let reported = 0;
+  const reportedIds: string[] = [];
   for (const c of credit) {
     const rows = (await tx`
       update financial_accounts
@@ -122,7 +122,7 @@ export async function fetchLiabilities(
     `) as { id: string }[];
     if (rows.length === 0) continue; // an account of another household's Item, or one we do not hold
     const accountId = rows[0].id;
-    reported += 1;
+    reportedIds.push(accountId);
 
     const apr = (type: string) =>
       c.aprs?.find((a) => (a.apr_type ?? "").toLowerCase().includes(type))?.apr_percentage ?? null;
@@ -159,21 +159,28 @@ export async function fetchLiabilities(
   // THE CALL SUCCEEDED AND THESE CARDS WERE NOT IN IT. That is a different
   // sentence from 'unsupported' and a very different one from 'nothing owed',
   // and it is the state that would otherwise be an empty row.
+  //
+  // KEYED ON WHAT THIS CALL TOUCHED, NEVER ON THE EXISTING COVERAGE VALUE. The
+  // first version excluded rows already marked 'reported', which is a value the
+  // PREVIOUS run wrote, so a card that stopped being reported kept it forever.
+  // Cash Flow would then have read its last statement balance as current after
+  // the institution stopped saying so, and STALE COVERAGE IS WORSE THAN NONE
+  // because it is confident. Caught by the test written for exactly this.
   const missed = (await tx`
     update financial_accounts
        set liability_coverage = 'not_reported', updated_at = now()
      where household_id = ${householdId}
        and plaid_item_id = ${item.id}
        and type = 'credit'
-       and liability_coverage <> 'reported'
+       and id <> all(${reportedIds}::uuid[])
     returning id
   `) as { id: string }[];
 
   return {
     itemId: item.itemId, fetched: true, unsupported: false,
-    accountsReported: reported, accountsNotReported: missed.length,
-    reason: reported === 0
+    accountsReported: reportedIds.length, accountsNotReported: missed.length,
+    reason: reportedIds.length === 0
       ? "the institution serves Liabilities and reported no cards on this Item"
-      : `reported ${reported} card${reported === 1 ? "" : "s"}`,
+      : `reported ${reportedIds.length} card${reportedIds.length === 1 ? "" : "s"}`,
   };
 }
