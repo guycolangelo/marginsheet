@@ -726,5 +726,14 @@
     "owed_to": "M4 4.6. Raised 21 Aug 2026 when scoping to the Item exposed the same defect within one.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
+  },
+  {
+    "id": "balances-for-dormant-accounts-need-a-separate-call",
+    "item": "RECONCILIATION CANNOT SEE A BALANCE CHANGE WITHOUT A TRANSACTION, AND CLOSING THAT NEEDS /accounts/balance/get. An account is observed when Plaid returns it, Plaid returns it when it has transactions, so a fee or interest applied outside the transaction feed on a dormant card is invisible. NOT NOW, and the reasoning is recorded so it is not re-litigated. It is a different call, likely billed per call, and it would exist to catch a fault NOBODY HAS OBSERVED. Three of the five unreachable accounts hold zero dollars and one has never held a transaction, so most of the gap is empty. BUT IT IS NOT ENTIRELY EMPTY: Chase 7956 and Hilton Surpass are cards where an annual fee posts roughly once a year and could plausibly land outside a feed nobody is watching, and Chase 7956's entire two-year history is two annual fees and two payments. So the gap is REAL, SMALL, AND NOT URGENT. THE RIGHT MOMENT IS M6a, because that is when those balances are needed to close a month, and a wrong balance on a dormant card becomes a wrong number in a closed month rather than a theoretical miss. Cost to weigh then: per-call billing against the number of dormant accounts, which is a per-household figure rather than a per-Item one.",
+    "owner": "build",
+    "trigger": "M6a, when a month close needs a balance for an account that did not transact in it",
+    "owed_to": "M6a actuals. Raised 21 Aug 2026 from the drift criterion cadence analysis.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
   }
 ]
