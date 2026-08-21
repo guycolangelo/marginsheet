@@ -180,6 +180,30 @@ export async function applyRemoved(
 
 /** Sets first_sync_completed_at, ONCE, for this household.
  *
+ *  IT MEANS "WE HOLD THIS HOUSEHOLD'S HISTORY", NOT "A SYNC SUCCEEDED" (Guy, 21
+ *  Aug 2026). A sync succeeding is a fact about a CALL; holding the history is
+ *  what the intro and the census depend on.
+ *
+ *  TWO CONDITIONS PER ITEM, AND BOTH ARE NECESSARY:
+ *    1. Plaid confirmed the backfill is assembled (history_complete_at)
+ *    2. a successful sync ran AFTER that confirmation
+ *
+ *  Confirmation then collection, in that order. Plaid assembling a history and
+ *  us having pulled it are two events, and the old version conflated them by
+ *  reading only the second. Amex's first sync returned 161 of 5,241 rows and
+ *  would have set this.
+ *
+ *  DISCONNECTED ITEMS ARE EXCLUDED because a household who removed an
+ *  institution should not be blocked by it forever. Every other status blocks,
+ *  including needs_reauth, which is correct and is the honest reading: we do
+ *  not hold the history of an Item we cannot read.
+ *
+ *  NO TIMEOUT. A household whose Items never confirm will not reach this state.
+ *  That is a known gap with an owner in docs/open-items.json rather than an
+ *  oversight, and it is unbuilt on purpose: nobody has yet observed what a
+ *  webhook-registered Item actually sends, so a timeout branch today would be
+ *  one that may never run.
+ *
  * Returns whether this call was the one that set it. */
 export async function markFirstSyncCompleted(tx: Tx, householdId: string): Promise<boolean> {
   // THE GUARD IS IN THE WHERE CLAUSE. A read-then-write would race: two Items
@@ -191,6 +215,25 @@ export async function markFirstSyncCompleted(tx: Tx, householdId: string): Promi
        set first_sync_completed_at = now(), updated_at = now()
      where id = ${householdId}
        and first_sync_completed_at is null
+       -- EVERY non-disconnected Item confirmed AND collected. NOT EXISTS over
+       -- the unsatisfied ones rather than a count comparison, so a household
+       -- with zero Items does not vacuously qualify: the EXISTS below requires
+       -- at least one Item to exist at all.
+       and exists (
+         select 1 from plaid_items pi
+          where pi.household_id = ${householdId}
+            and pi.status <> 'disconnected'
+       )
+       and not exists (
+         select 1 from plaid_items pi
+          where pi.household_id = ${householdId}
+            and pi.status <> 'disconnected'
+            and (
+              pi.history_complete_at is null
+              or pi.last_successful_sync is null
+              or pi.last_successful_sync < pi.history_complete_at
+            )
+       )
     returning id
   `;
   return rows.length > 0;

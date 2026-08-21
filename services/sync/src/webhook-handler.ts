@@ -60,6 +60,8 @@ export async function handlePlaidWebhook(
   const body = JSON.parse(rawBody) as {
     webhook_type?: string;
     webhook_code?: string;
+    initial_update_complete?: boolean;
+    historical_update_complete?: boolean;
     item_id?: string;
   };
   const webhookType = body.webhook_type ?? null;
@@ -136,6 +138,26 @@ export async function handlePlaidWebhook(
       return { webhookType, webhookCode, itemId, firstTime: false, dispatched: null, note: "already recorded, so no sync was dispatched" };
     }
     if (!item) return finish("no Item of ours matches this item_id");
+
+    // PLAID CONFIRMING THE BACKFILL IS ASSEMBLED. Recorded before the sync is
+    // dispatched, and SET ONCE: the WHERE clause is the guard, for the same
+    // reason markFirstSyncCompleted uses one rather than a read-then-write.
+    //
+    // BOTH FLAGS, NOT EITHER. initial_update_complete alone means the recent
+    // window landed, which is exactly the state Amex was in when its first sync
+    // returned 161 of 5,241 rows and looked finished.
+    if (body.initial_update_complete === true && body.historical_update_complete === true) {
+      await sql.begin(async (tx) => {
+        await tx`select set_config('marginsheet.household_id', ${item.household_id}, true)`;
+        await tx`
+          update plaid_items
+             set history_complete_at = now(), updated_at = now()
+           where id = ${item.id}
+             and household_id = ${item.household_id}
+             and history_complete_at is null
+        `;
+      });
+    }
     if (!webhookCode || !SYNC_CODES.has(webhookCode)) {
       return finish("recorded and handled; this code does not ask for a sync");
     }

@@ -902,6 +902,25 @@ The canon's operational rules amend named specs and **landed 19 August 2026 as a
 
 **A comment asserting singularity is not checkable by reading either writer.** 0004 named `resolveDirection` the single source of truth for `direction`; M4 wrote it anyway; `resolveDirection` exists in a spec and three migration comments and no code. **The claim was false for four migrations and nothing could have caught it**, because the claim is about a relationship between files and no file holds it. **Counting alone would not have caught it either:** there was exactly one writer, so a cardinality check reads 1, agrees with "single source", and passes. **The failure was cardinality one with the wrong member**, so the check is on the identity of the writer set. `config/single-writer-columns.json` and its control are that check, and `claim_holds` is a forcing field: true obligates the declared writers to be the claimed one, false obligates a reason.
 
+## AN OMITTED PARAMETER IS INVISIBLE IN CODE REVIEW (locked 21 August 2026)
+
+**There is nothing on the page to read.** Every other class of defect in this file is something written wrongly, and a sufficiently careful reader finds it. **This one is something not written**, and no amount of reading the diff reaches it.
+
+**Two instances, in one function, five days apart, and both presented as a property of the institutions rather than of us.**
+
+| Omitted from `/link/token/create` | What it looked like | What it was |
+|---|---|---|
+| `transactions.days_requested` | three institutions capping history at 90 days | Plaid's default, because we never sent the field |
+| `webhook` | Amex and Chase not sending backfill-completion signals | no webhook registered, so those Items receive **nothing** |
+
+**The second is worse than the first and has no end state.** An Item without a webhook gets no `SYNC_UPDATES_AVAILABLE`, no reauth notice, nothing: it syncs when a person clicks and at no other time, while every check agrees with the stale ledger. Two of three production Items were in that state, and the one that did signal had its webhook set **by hand** through a manual repair route nobody was required to call.
+
+**The convergence rule found both**, which is the second time it has produced the answer and both times in the same function. Several institutions agreeing looks like the strongest evidence available, and **that is exactly when the shared cause is most likely to be ours**: our side is the only thing all of them have in common. The instinct on seeing independent confirmation is to stop looking.
+
+**So the remedy is an audit rather than care.** Read the whole request body against the provider's reference, field by field, and record what is sent, what is omitted, and **why each omission is a decision.** An absence nobody examined is indistinguishable from an absence somebody chose, and the difference only shows up in production. Owed in `docs/open-items.json`.
+
+**The type is the durable half.** `webhookUrl` is now a required parameter of `createLinkToken`, so a caller cannot forget it and the compiler says so at the moment the mistake is written. Optional is how this arrived.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
