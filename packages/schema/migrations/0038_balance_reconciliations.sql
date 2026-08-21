@@ -72,8 +72,27 @@ CREATE POLICY "sync_worker_write" ON "balance_reconciliations" FOR ALL TO margin
 GRANT SELECT, INSERT ON "balance_reconciliations" TO marginsheet_sync;--> statement-breakpoint
 GRANT SELECT ON "balance_reconciliations" TO marginsheet_app;--> statement-breakpoint
 
--- The investigation item goes in insight_ledger, which already exists and which
--- marginsheet_sync can already write. Its source enum did not admit this.
+-- THE SURFACING DOES NOT HAPPEN HERE, AND THE FIRST DRAFT OF THIS MIGRATION
+-- SAID IT DID. It read: "the investigation item goes in insight_ledger, which
+-- already exists and which marginsheet_sync can already write."
+--
+-- THE SECOND HALF IS FALSE, AND insight_ledger IS THE TABLE 0023 NAMES AS ITS
+-- OWN EXAMPLE. That migration narrowed marginsheet_sync from 39 tables to 9
+-- precisely because it held "messages, threads, known_context, decision_journal,
+-- insight_ledger and every LLM log", and its stated reason is that a component
+-- with one job and a role that can read every household's conversation history
+-- are different things wearing the same sentence.
+--
+-- So writing the finding from the sync Worker would have required granting an
+-- eleventh table, and it would have been the exact table whose removal 0023
+-- exists to demonstrate. THE DRIFT LIVES IN balance_reconciliations AND STAYS
+-- THERE. Whatever surfaces insights reads this table with a role entitled to
+-- both, which is a component that does not exist yet and is recorded in
+-- docs/open-items.json rather than reached for here.
+--
+-- The enum value is still added, because the surfacing will need it and adding
+-- a value nothing writes yet is inert. It is NOT evidence that anything writes
+-- it: single-writer-columns is where that claim would have to be made.
 ALTER TYPE "public"."insight_source" ADD VALUE IF NOT EXISTS 'reconciliation';--> statement-breakpoint
 
 COMMENT ON TABLE "balance_reconciliations" IS
