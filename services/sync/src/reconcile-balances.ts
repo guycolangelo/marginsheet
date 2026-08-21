@@ -26,8 +26,8 @@
 // diagnose it. Chasing it would be tuning for the case the window already
 // covers, which is why the design stands and this paragraph exists instead.
 //
-// AND THE BASELINE MOVES WITH EACH OBSERVATION, WHICH MAKES THE SETTLE CHEAPER
-// THAN THE PARAGRAPH ABOVE IMPLIES. Every observation records the reported
+// AND THE BASELINE MOVES WITH EACH OBSERVATION, WHICH IS WHY THE SETTLE NEVER
+// REACHES THE WINDOW AT ALL. Every observation records the reported
 // balance, so the next comparison starts from it: an unexplained jump disagrees
 // EXACTLY ONCE and the following interval is clean. A settle therefore clears
 // after one observation rather than needing all three.
@@ -57,12 +57,39 @@ import type { Tx } from "./apply-streams.js";
 
 /** Three consecutive comparable observations, spanning at least six hours.
  *
- *  NEITHER NUMBER HAS AN OBSERVATION BEHIND IT, unlike the 30 second Plaid
- *  deadline which had five production syncs. Three is chosen so read skew has
- *  two chances to clear. The six hour span exists because COUNTING SYNCS ALONE
- *  IS DEFECTIVE: three hand-run syncs in a minute would confirm a drift that a
- *  single settle would have cleared. Both should move the moment real data
- *  disagrees with them. */
+ *  THE NUMBERS WERE CHOSEN AGAINST THE WRONG CASE, AND THIS IS THE CORRECTED
+ *  ARGUMENT RATHER THAN A CLARIFICATION OF THE OLD ONE (Guy, 21 Aug 2026).
+ *
+ *  AS RULED: the window absorbs transients, three gives read skew two chances
+ *  to clear, and settles are the case it exists for. THAT REASONING IS WRONG.
+ *  The baseline moves with every observation, so a settle disagrees exactly
+ *  once and the next interval is clean: it never needed a window at all.
+ *
+ *  WHAT THE WINDOW IS ACTUALLY FOR: a SYSTEMATIC fault, where every interval
+ *  disagrees. Transactions we never receive, a fee or interest the institution
+ *  applies outside the feed, a removed row we mishandle, a sign that is wrong
+ *  for a type. Those do not clear, because each interval brings a fresh
+ *  disagreement rather than one event seen repeatedly.
+ *
+ *  SO THE QUESTION CHANGED. Not "how long does a transient take to clear" but
+ *  "how many intervals make a fault persistent rather than coincidental".
+ *
+ *  THREE SURVIVES THE NEW ARGUMENT AND FOR A DIFFERENT REASON, which is the
+ *  distinction worth keeping: since a settle clears in one, a second
+ *  consecutive non-zero means two INDEPENDENT transients, and on an account
+ *  with six pending rows that is unremarkable. A third makes coincidence a
+ *  poor explanation. Two arguments, one number, and only one of them true.
+ *
+ *  THE SPAN ALSO SURVIVES AND ALSO GUARDS SOMETHING ELSE. It no longer buys
+ *  time for a transient to clear. It stops an institution FLAPPING inside a
+ *  short period from confirming a fault: a balance alternating between two
+ *  values across rapid reads produces a non-zero difference every time,
+ *  because the baseline chases it, and three of those are one condition rather
+ *  than three intervals of activity.
+ *
+ *  NEITHER NUMBER IS MEASURED, and that was true under the old argument too.
+ *  The 30 second Plaid deadline had five production syncs behind it; these have
+ *  reasoning behind them and should move the moment real data disagrees. */
 export const DRIFT_OBSERVATIONS = 3;
 export const DRIFT_SPAN_MS = 6 * 60 * 60 * 1000;
 

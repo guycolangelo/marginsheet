@@ -957,6 +957,22 @@ On PR #155 `gitleaks` reported **`in_progress/success`**: conclusion set, status
 
 So when a check reports pending and its run reports `completed/success`, **read the job's conclusion rather than its status**, and say which you read. This file already requires that nothing merges with a red required check and that `--admin` is not available as a convenience; distinguishing a stale status from a genuine red is what keeps that rule enforceable rather than merely stated.
 
+## A CONTROL WHOSE NUMBERS WERE CHOSEN AGAINST THE WRONG CASE (recorded 21 August 2026)
+
+**The window was ruled to absorb transients, with settles named as the case it exists for. That reasoning is wrong**, and it is recorded as a correction rather than as a clarification because the argument was the thing that was mistaken, not its expression.
+
+**The baseline moves with every observation.** Each one records the reported balance, so an unexplained jump disagrees **exactly once** and the next interval is clean. **A settle never reaches the window at all.**
+
+**What the window is actually for is a systematic fault, where every interval disagrees**: transactions we never receive, a fee applied outside the feed, a removed row mishandled, a sign wrong for an account type. Those do not clear, because each interval brings a fresh disagreement rather than one event seen repeatedly.
+
+**So the question changed.** Not *"how long does a transient take to clear"* but *"how many intervals make a fault persistent rather than coincidental"*.
+
+**Both numbers survive and both now guard something else**, which is the part worth keeping. **Three**, because a settle clears in one, so a second consecutive non-zero means two *independent* transients, unremarkable on an account with six pending rows, and a third makes coincidence a poor explanation. **Six hours**, because an institution flapping between two values across rapid reads produces a non-zero difference every time as the baseline chases it, and three of those are one condition rather than three intervals of activity.
+
+**Two arguments, one number, and only one of them true.** That coincidence is the hazard: **a control whose number survives a corrected justification looks like it was right all along**, and nothing in the code would have shown otherwise. The number was never the evidence; the argument was, and the argument had to be re-derived from scratch rather than patched.
+
+**It was found by a test failing and the code being right**, which is the only reason it surfaced at all. A comment describing a mechanism the code does not have is invisible to every control in this file, because the code is correct and the sentence is about it.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
