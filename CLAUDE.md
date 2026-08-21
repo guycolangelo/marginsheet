@@ -72,6 +72,19 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The question to add when reading a suite: **what values can this fixture take, and does the failure case exist among them?** A test that can only construct the passing shape is a tautology wearing an assertion's clothes.
 
+- **A RECORDER PROVES A STATEMENT WAS CONSTRUCTED. IT PROVES NOTHING ABOUT WHETHER IT CAN EXECUTE.** Twice in one morning, 20 Aug 2026, and both times the whole suite was green while the code could not run at all.
+
+  The sync Worker's unit tests pass a **recorder** as `tx`: it captures the SQL and returns canned rows. Every assertion about what the statement says is true, and every one of them is silent about Postgres. So the first real production sync failed twice on things no test could see:
+
+  - `last_cursor_at` was **a column in no migration**, written by 4.4's watchdog. The tests that read it built an `ItemSyncState` **by hand**.
+  - `households` was **a table in no grant**, written by `markFirstSyncCompleted`. Migration 0023 had narrowed the role to ten tables and nothing compared the two.
+
+  **The signature is the same one the ninth finding named, with the fixture moved one step further out.** There, the data could not express the failing case. Here, the *database* is not present at all, so the code and the fixtures agree with each other and both disagree with reality. A recorder is a fixture that can only ever construct the passing shape, and it looks like thorough coverage because the assertions are genuinely about the right statement.
+
+  **Neither was caught by review**, and neither would have been: the statements are correct SQL, correctly parameterised, correctly scoped to a household. Nothing is wrong with them except that they were never allowed to run.
+
+  So: **a recorder test is not evidence a statement works, and a statement's ability to execute is asserted somewhere a real schema and a real role are present.** `columns-the-code-writes-exist` closed the column half against migrations; `sync-worker-reach` closes the privilege half against the catalog, at column level, because `has_column_privilege` is the only thing that knows what a role actually holds.
+
 - **A flaky fixture is worse than an absent one, and a fixture must be asserted large enough to distinguish passing from failing before anything is measured.** This is the ninth finding's rule, written down because the ninth finding recurred within an hour of the M4 plan naming it, in the spike built to avoid it.
 
   **The case, because the abstraction alone would not have caught it.** Spike 1c exists to settle whether Plaid's cursor resumes with no gap and no replay. Its first run reported `noGap: true` and `noReplay: true`, and it was comparing **two empty sets**. The helper waited for `/transactions/sync` to stop returning an error rather than waiting for transactions to exist, so a fresh Sandbox Item that had generated nothing yet answered `200` with an empty page and every assertion passed vacuously. The spike was written by someone who had just finished writing the paragraph warning about exactly this, and it still happened, which is the argument for a rule rather than for care.
@@ -169,6 +182,196 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
   `FraudReply.boundary_line` is typed as the literal `true`, so the flag can never be absent or false, and nothing has to enforce that. `_HeraldKeysAreCloseKeys` is the same idea applied to a claim that had been false since M2: the interfaces were unrelated and "BY CONSTRUCTION" described nothing, and a conditional type now makes adding an unmatched herald key fail to compile.
 
   The ladder is worth stating because the bottom rung is where the 126 came from: **a comment is the weakest form of a rule and the easiest one to write.**
+
+- **DECIDE WHAT THE DATA WOULD MEAN BEFORE THE DATA ARRIVES, SO THE READING ANSWERS A QUESTION RATHER THAN OPENING A NEGOTIATION.** (Guy, 20 Aug 2026.)
+
+  The instance. Before the ledger readout ran, the ruling was fixed: if the oldest transaction is roughly 90 days, the SoFi Item is removed and reconnected before M5 or the census touch it. **Made afterwards, that same decision would have been made against 201 rows that exist**, and that is exactly when sunk cost argues loudest: the rows are real, they took a day to obtain, and throwing them away feels like a loss in a way that declining to collect them never does.
+
+  It is the same instinct as the fixture rules, moved from tests to judgement. **A minimum asserted before anything is measured cannot be talked down by the measurement**; a threshold chosen after seeing the number is a threshold the number helped choose. A conditional ruling written in advance is that discipline applied to a decision instead of an assertion.
+
+  **The practical form is one sentence: say what each possible answer will cause, before looking.** If a result would change nothing whatever it said, the reading is not worth taking. If it would change something, the change is decided now, while nothing has been invested in either branch.
+
+- **AN UNSET GUC IS A VALID STATE, SO THE POLICY HANDLES IT BY RETURNING NOTHING AND NOTHING ERRORS. The join shape, in a runtime rather than in a sentence.** (Guy, 20 Aug 2026.)
+
+  `set_config`'s third argument is `is_local`: the setting reverts at the end of the current transaction, and **outside an explicit transaction every statement IS its own transaction**, so the GUC is gone before the next query runs. `household_isolation` reads `current_setting('marginsheet.household_id', true)`, whose second argument means *return NULL rather than raise*. The policy therefore evaluates `household_id = NULL`, which matches no row, **and raises nothing at all.**
+
+  **A statement that sets a value and a statement that reads it can each be correct while the value does not survive between them.** That is the same join failure as the two retractions above, moved from prose into a runtime: both halves inspect clean, and the defect lives only in the step between them.
+
+  **Three sites had it, and two were live in production.** `/plaid/accounts` answered an **empty account list for every household**, which is indistinguishable from a household that has connected nothing. The invitation actor lookup refused with `no_member`. Neither logged anything, neither appeared in Sentry, and both had shipped.
+
+  **The knowledge existed and did not travel.** `phone-change.ts` carries a comment explaining `is_local` correctly, written by someone who had understood it exactly, while three other call sites got it wrong. **A comment is the weakest form of a rule**, which this file already says, and here is what that costs: the right explanation, in the repository, next to code that obeys it, teaching nothing to the next file.
+
+  Two controls, named for what each is. A **receiver scan** requires every `set_config` to be on a transaction handle, which is a convention and says so. A **db test** demonstrates the same query returning one row inside a transaction and zero outside it, which makes the claim executable instead of argued.
+
+  **THE GENERAL FORM, AND IT IS BIGGER THAN THIS BUG** (Guy, 20 Aug 2026). **The failure mode of household isolation, when misconfigured, is an empty result.** Not an error, not a refusal: silence, which is indistinguishable from a household that genuinely has nothing. **Every RLS-scoped read in this system has that shape**, so a broken GUC anywhere presents as **a customer with no data rather than as a fault.**
+
+  That is why both defects shipped and neither was noticed. The connect page said *"none yet"* for hours while SoFi was connected, and it read as a page not yet wired rather than as a symptom. **Nothing in the system was in a position to disagree**, because an empty list is a legitimate answer to that question.
+
+  **The failure signature to recognise: a query that returns an empty set for every caller, forever, with no error anywhere.** If a list is always empty and nothing is broken, ask what the policy is reading and whether the thing that set it is still in scope.
+
+  **The consequence, noted rather than ruled** (`docs/open-items.json`): any read whose empty result would be a plausible business answer should **assert the GUC is set** rather than merely rely on it. The two controls above stop the specific mistake; they do not make an empty result self-describing, and that is the class.
+
+- **A RESTORE THAT DESTROYS MORE THAN IT RESTORED, WITH A PROOF THAT CANNOT SEE THE DIFFERENCE.** The harness's own species, found 20 Aug 2026, and it damaged a control three entries later with nothing connecting the two.
+
+  `sync-reach-not-beyond-grant` plants `GRANT SELECT ON households TO marginsheet_sync` and restores with the obvious inverse, `REVOKE SELECT ON households FROM marginsheet_sync`. **Revoking a table-level privilege in Postgres also strips the COLUMN-level grants of that privilege**, so the restore removed migration 0028's `GRANT SELECT (id, first_sync_completed_at)` and left the database **less granted than it found it.**
+
+  **The proof asked whether the table privilege was gone. It was.** So the harness reported `restored -> green`, correctly by its own lights, while the branch carried a silent regression. Three controls later `readout-statements-execute` failed with `permission denied for table households`, and nothing in the output tied it to a control that had already reported success.
+
+  **A mutation is not symmetric just because its inverse is spelled that way.** `GRANT X` then `REVOKE X` reads as a round trip and is not one whenever the grant space has structure the statement flattens: table over column here, and the same shape waits in role membership, default privileges and policy replacement.
+
+  **IT WAS FOUND BY OBSERVATION, AFTER THREE MECHANISMS DIED** (Guy, 20 Aug 2026), and that is the part to keep. A ledger ahead of its schema, a wrong database, a role that had not taken effect: all three were plausible, all three were checkable, and all three were false. **The cause was not reachable by reasoning about the statement at all**, because the statement is correct, its inverse is correct, and the loss happens in the space between them. Only running everything in order and reading the raw output showed it.
+
+  **THE PROOF'S QUESTION WAS TOO NARROW IN A SPECIFIC WAY: it verified that the mutation's own effect was gone, and nothing about what else moved.** So the general form is that **a restore proof asserts the STATE IT FOUND, never the ABSENCE OF THE THING IT DID.** Those are the same assertion only when the operation is genuinely reversible, which is exactly what this entry says it often is not.
+
+  This one now returns `2 * table_privilege + column_privilege`, so applied reads 3, restored reads 1, and **a restore that loses the column grant reads 0 and fails loudly** instead of poisoning whatever runs next.
+
+  **The sweep, run the same day, because the pattern matters more than the incident.** Eleven `sql` mutations, and the shape is available in four. Two were the same defect latent: `sync-role-boundary` and `sync-grant-enumeration` restore with `REVOKE ALL` while their proofs asked only about `SELECT`, so a restore removing a privilege the plant never granted could not have been noticed. Both proofs now sum SELECT, INSERT, UPDATE and DELETE and require **0**, which is the state 0023 left rather than the inverse of what they did. Two remain owed: the policy `DROP`/`CREATE` proofs match a substring of `qual` and say nothing about `WITH CHECK`, the command scope, or permissive versus restrictive; and `invitation-token-prefix` restores by **deleting rows**, which is destructive beyond anything its plant created and which its proof, a constraint count, cannot see.
+
+  **THE HARNESS RUNNING EVERY CONTROL RATHER THAN ONLY THE TOUCHED ONES IS A PROPERTY TO KEEP** (Guy). A harness scoped to what a pull request touched would have reported all four green and left the damaged grant for an unrelated pull request to inherit, where nothing would have connected it to a control that had already passed.
+
+  **Two harness properties are worth keeping in view together.** It ran every control rather than only the touched ones, which is why the damage reached a later control at all. And it printed *"WHY IT IS STILL RED (raw, trust this over any reading)"*, which is the line that made this findable: the harness refused to summarise, so the real error survived to be read.
+
+- **`has_column_privilege` HAS TWO FORMS AND THEY ANSWER DIFFERENT QUESTIONS. Naming the role asks what a GRANT SAYS. Omitting it asks what the CURRENT SESSION CAN DO.** (Guy, 20 Aug 2026.) A grant can be present and the session still refused, and **only the second form is the question a query obeys.**
+
+  Found because the diagnostic written to settle a privilege failure **had the defect it was built to find.** `harness-db-identity.mjs` asked `has_column_privilege('marginsheet_sync', 'households', 'first_sync_completed_at', 'SELECT')` from an owner connection and printed **true**. The test, on the same database in the same job, asked the three-argument form after `SET ROLE` and got **false**. Both were correct answers to the questions they asked, and only one of those questions mattered.
+
+  It was written while holding this exact rule in mind, which is the argument for the rule rather than for care, and it is the same note already recorded about planted fixtures.
+
+  **The standing requirement: anywhere a check verifies a privilege, it asks AS THE THING THAT WILL USE IT.** A probe run as an owner, naming a role, is reading the ACL out loud. A session that sets the role and attempts the read is the only thing that answers what happens in production.
+
+  **AND IT PUTS `column-privileges.test.ts` IN QUESTION, which is the part that matters, because that file exists to catch exactly this gap.** Written 15 Aug after a column REVOKE was found to be a no-op under a table grant, its own header says reviewing the GRANT statement is not enough. **Every assertion in it uses the four-argument form**, so it has been asserting what the grants say rather than what the roles can do. The two directions are not equally dangerous and the difference is not yet established: a denial reading `false` from the ACL and a session actually refused are probably the same, while `marginsheet_sync CAN read the Plaid token` asserts `true` in exactly the form that was observed disagreeing. Owed as a rewrite, recorded rather than assumed either way.
+
+- **A TEST THAT CHANGES SESSION STATE RESTORES IT ON EVERY EXIT, NOT ONLY THE EXPECTED ONES.** (Guy, 20 Aug 2026.)
+
+  A role probe was placed **above** the `try` whose `finally` reset the role. When it failed, the session stayed as `marginsheet_sync`, and the suite's cleanup then failed with **`permission denied for table transactions`** -- a second, louder error, about a table that was never involved, produced by the cleanup of the first.
+
+  **The damage is the misdirection, not the extra red.** A cycle went into `transactions`, which had nothing to do with anything. It is the same family as a diagnostic that cannot report its own failure: the loudest message in the log was the one furthest from the cause.
+
+  So: `set role`, `set_config` at session scope, search_path, anything that outlives a statement gets restored in a `finally` that covers **every** statement executed under it, including the assertions.
+
+- **A CAST IS NOT A CHECK, AND A GATE THAT CAN ONLY REFUSE LOOKS EXACTLY LIKE A CAREFUL ONE.** 20 Aug 2026, and the two halves belong together because the first produced the second.
+
+  `item-status.ts` classified a failed `/item/get` by reading `error_code` off `error.toJSON() as { error_code?: string }`. **`toJSON` emits `errorCode`.** The property was always `undefined`, so the classifier **could never return "gone"** in any circumstance.
+
+  **Nothing failed. That is the point.** Every refusal read as caution: the disconnect's repair branch never fired, the purge's gate never permitted a delete, and both reported exactly what a correctly conservative gate reports. **A control that can only refuse is indistinguishable from a working one until something needs it to permit**, and the tests all covered the refusals.
+
+  **A CAST IS NOT A FILTER, AND A CAST IS NOT A CHECK. One lesson at two severities** (Guy, 20 Aug 2026), and both were paid for the same day. Telling the type system a shape exists and having it agree cost, first, **balances arriving on every sync page and never being read**, because `callPlaid` returns a whole body cast to a narrower type and the omitted field simply went unnoticed. It cost, second, **a gate structurally unable to permit**, because a cast named a property that was never there. The first loses data you were handed. The second disables a decision while leaving it looking careful. **A cast changes what the compiler will let you write, never what is there.**
+
+  The repair in both directions is the same and it is the ladder this file already states: read the typed field, `error.errorCode`, where a wrong name fails to compile at the moment it is written rather than at midnight.
+
+  **AND A TEST ALREADY PINNED THE PRODUCER'S SHAPE.** `token-never-escapes.test.ts` asserts the exact key set of `toJSON()`, `errorCode` included, and has done since M4. It did not help, because **a control over a producer does not protect a consumer that casts**: the test proved what `toJSON` emits, and the cast let a reader disagree with it in silence. Where two modules must agree about a shape, pinning one end is half a control.
+
+  **The sweep, run the same day, for the pattern rather than the incident.** Every site consuming a `PlaidError` was read. Two make a DECISION on the code: this one, and `transactions-sync.ts`, which was already correct and reads `error.errorCode` directly **with no cast at all**. The rest pass `toJSON()` into a response for reporting and never read a field, so the mismatch is unavailable to them. **One site had the defect and the site that did not is the argument for the rule**, since the only difference between them is the cast.
+
+  **The missing assertion names the class.** The classifier had tests, and every one of them checked a refusal. **A test suite made only of negative cases passes against a function hard-wired to refuse.** Where a decision has two outcomes, the suite must prove it can produce BOTH, and the positive case is the one that is easy to leave out precisely because refusing is the safe direction.
+
+  **It was found because the interpretation travels with its evidence**, which is this afternoon's rule from the diagnostic that could not distinguish its causes, **now catching something in a route written after it.** The reply said `liveness: "unknown"` while the `detail` beside it said `ITEM_NOT_FOUND`, in the same object, and the contradiction was legible to someone who had never read the file. **An interpretation presented without its evidence asks to be trusted; presented with it, it can be checked.** Here the checker was the person reading the output rather than a test.
+
+  That is the second time today a rule caught something in code written after the rule was recorded, and both times the code was written by someone holding the rule in mind. **The rules are not preventing these; they are shortening the distance between shipping one and seeing it.** Which is worth knowing, because it argues for controls and probes over care, and this file has now said that four separate ways.
+
+- **A ROUTE WHOSE GUARD REFUSES A REPEAT CANNOT REPAIR ITS OWN PARTIAL FAILURE, AND PARTIAL FAILURE IS EXACTLY WHEN A REPEAT IS WHAT YOU NEED.** (Guy, 20 Aug 2026.)
+
+  The disconnect refuses unless Plaid reports the Item live. It removed the Item, failed to mark our row, and **re-running was then refused, correctly**, because Plaid now reported it gone. **The guard was right and the absence of a repair path was the defect.**
+
+  **So any destructive route with a precondition has to ask what the precondition failing MEANS: "already done" or "half done". Those want different answers**, and a single refusal collapses them into one.
+
+  **THE DECIDING PROPERTY IS WHETHER THE ACTION CAN BE ATOMIC.** The purge has the same guard shape and does not have this defect, because all four of its deletes sit in one transaction: there is no half-done state to repair, and a repeat after success reports "no such item" rather than refusing for the wrong reason. The disconnect **cannot** be atomic, because it spans an external system and a database, and no transaction covers both.
+
+  **Where an action crosses a boundary you do not control, atomicity is unavailable and a repair path is mandatory rather than optional.** The repair is narrower than the action: the disconnect's marks our record to agree with a state Plaid has already confirmed, makes no Plaid call, and deletes nothing. It is safe precisely BECAUSE the precondition failed in the "already done" direction.
+
+- **THE THIRD GUC INSTANCE, AND THE SECOND WRITTEN AFTER THE SWEEP. Knowing the rule twice over did not prevent it, which is the argument for the scan being required rather than for care.** (Guy, 20 Aug 2026.)
+
+  `disconnect.ts` was written hours after the sweep that found two live defects of exactly this kind, by someone who had just recorded the rule, and it shipped with an UPDATE and no `set_config`. **The Item was removed at Plaid and our row was never marked.**
+
+  **Why it was silent, and it is the class already recorded one level down.** `sync_worker_read` on `plaid_items` is `USING (true)`, so the SELECT that found the row succeeded. `sync_worker_write` requires the household, and an unset setting made the predicate NULL, so the UPDATE **matched nothing and raised nothing.** A missing grant would have raised `42501`. A bad enum would have raised `22P02`. **An RLS predicate that matches nothing is not an error**, which is why this is the third one.
+
+  **The statement named the household and was still refused.** Its `WHERE` clause carried `household_id`, which is what `every-write-declares-a-household` checks. The policy reads a **setting**, not the statement. **Two mechanisms, both required, and satisfying one says nothing about the other.**
+
+  **It was visible only because of yesterday's rule: return what happened, not what was asked for.** The route reported rows ACTUALLY updated. Had it returned the id it was handed, `rowsMarked: 1` would have been indistinguishable from success, and the row would have read healthy for a dead Item indefinitely. That rule has now caught something in a route nobody wrote it for, which is the argument for applying it by default rather than where a problem is anticipated.
+
+  **AND THE SCAN WAS GREEN THE WHOLE TIME, WHICH IS THE LARGER FINDING.** The receiver scan reads every `set_config` call and requires a transaction handle. **A file with no call contributes no rows and passes**, so it checked the form of what existed and could never see what was absent. `disconnect.ts` was inside its roots throughout. The presence half now exists, and it draws the distinction the rule actually needs: **a module that opens its own connection owes a GUC; a helper that receives a `tx` does not, because its caller declared one.**
+
+- **POSTGRES NAMES THE TABLE WHEN THE BOUNDARY IS THE COLUMN, so the error points at the wrong artifact.** (Guy, 20 Aug 2026.) Small, and it cost a wrong first hypothesis, so it is written down.
+
+  `permission denied for table plaid_items` was raised because the role lacked **one column**. `marginsheet_app` holds `plaid_items` perfectly well: eleven columns enumerated in 0002 plus `last_completed_cursor` from 0025. What it lacked was `last_cursor_at`, which 0027 added and granted to nobody, exactly as 0002's comment promised it would behave.
+
+  **The message sends every reader to the table grants, which are fine.** The first response to it here was to check whether the role had the table, find that it did, and be briefly confused. **The right question is which columns the statement names and which of those the role holds**, and the error will not prompt it.
+
+  It pairs with the enumerated-grant rule: enumeration means a column added later is excluded **by design**, so this error becomes MORE likely as the schema grows, not less, and it will keep arriving with the wrong noun in it.
+
+- **THE INSTINCT TO LOOK INWARD IS USUALLY RIGHT HERE AND IT IS NOT ALWAYS RIGHT.** (Guy, 20 Aug 2026.) Recorded because a whole file of findings about our own controls trains exactly one reflex, and the reflex has a blind spot.
+
+  The case. Plaid's `/transactions/get` reported **202** for an Item whose `/transactions/sync` had streamed us **201**. Two candidates were put up, and both assumed the error was ours: a row written after the readout's query, or a readout that counted wrong. **A second sync then added 0**, which is evidence for a third neither candidate could produce: **two endpoints of the same provider disagreeing about the same Item**, with both of our numbers correct. Had a row genuinely posted between the runs, the sync would have delivered it.
+
+  **Why the blind spot is structural rather than careless.** Almost every finding in this file is ours, so "assume it is us" has an excellent track record, and a rule with an excellent track record stops being examined. The cases it misses are exactly the ones where a provider is internally inconsistent, which is also where we have the least ability to notice, because we usually hold only one of the two numbers.
+
+  **The correction is not to distrust providers more.** It is to notice when the candidate list shares an assumption, and to ask what evidence would distinguish a fault of ours from a fault outside. Here it was one field: **which row**, not how many. A count difference cannot separate the three cases and an id can, which is why the readout now reports `plaidOnly` and `oursOnly` rather than a total.
+
+- **A DIAGNOSTIC THAT COSTS PER SUBJECT WILL EVENTUALLY REFUSE TO ANSWER ABOUT THE SUBJECTS, AND ITS SILENCE LOOKS LIKE A ZERO.** 20 Aug 2026, in the readout, twice over.
+
+  The cross-check asked `/transactions/get` once per account plus once per Item, and the both-ends fix quietly doubled it: **eighteen calls for eight accounts.** Plaid answered `RATE_LIMIT_EXCEEDED` / `TRANSACTIONS_LIMIT` on **every per-account call** while the Item-level call succeeded, so the per-account column came back **silent rather than zero**, in the instrument built to resolve exactly that ambiguity.
+
+  **Cost that scales with the number of things examined is a design flaw in a diagnostic**, because the cases where you most want per-subject detail are the cases with the most subjects. A household with one account would never have found this.
+
+  **The repair is to fetch the data once and group it locally**, which turned out to be strictly better than cheaper. One paged call at 500 replaced eighteen. **The ordering assumption disappeared entirely** rather than being flagged, because oldest and newest are now `min` and `max` over real rows instead of an offset trick. And holding every `transaction_id` made the difference **nameable**: not *"202 against 201"* but **which one**, which is the difference between a discrepancy and a diagnosis.
+
+  The general form, and it is the same instinct as **verify against the database, never against reports**: prefer the query that returns the rows over the query that returns a count, whenever you might need to ask a second question about the answer.
+
+- **A FIELD WHOSE NORMAL CASE LOOKS LIKE ITS FAILURE CASE IS NOT A SIGNAL.** 21 Aug 2026, caught in the pre-commitment rather than at 3am.
+
+  `provider_events.processed_at` was set only after a successful sync dispatch. **Most webhook codes do not ask for a sync**, so every one of them would have sat with `processed_at` null forever, indistinguishable from an event that was recorded and never handled.
+
+  **The acceptance criterion for the whole task was one of them.** `WEBHOOK_UPDATE_ACKNOWLEDGED` asks for no sync, so the single event chosen to prove the receiver worked would have appeared in the readout **wearing the exact shape of the failure the field exists to show**, and the stated response to that shape was *stop and diagnose*.
+
+  **IT IS THE JOIN SHAPE AGAIN, AND THE THING THAT FOUND IT WAS A PRACTICE RATHER THAN A CONTROL** (Guy, 21 Aug 2026). Neither half was wrong. The criterion was right about what a healthy receiver should show. The field was right about what it recorded. **The defect lived only in the pairing**, which is where every member of that family lives, and no examination of either half could have reached it.
+
+  **So this is an argument for the pre-commitment beyond decision hygiene.** Its usual justification is that a reading decided in advance cannot be argued down by sunk cost. This is a second and separate one: **saying what each outcome will mean forces the reading and the instrument into the same sentence.** A field whose normal case is indistinguishable from its failure case **cannot survive that sentence being written**, because writing it requires naming what you will see and what it will mean, and the two turn out to be the same string.
+
+  Which makes the practice a **detector** and not only a discipline. It is the only thing in this file that has found a join defect, and it found this one **before the data existed** rather than after it misled somebody.
+
+  `processed_at` now means **the receiver finished with this event**, marked on every path the handler reaches deliberately, and null only when it did not finish. **The rule generalises past this field: if the ordinary case and the broken case render identically, the field is decoration, and a reader who trusts it will act on noise.**
+
+- **A ZERO IS A CLAIM AND AN ABSENCE IS NOT.** (Guy, 21 Aug 2026.) The rendering half of the empty-result class, and it points the opposite way from the instinct.
+
+  Plaid reports `0.00` for two investment accounts that hold real money. Whatever the cause, **we do not hold a trustworthy investment balance**, and the question is what a surface should then show. **Showing the zero is worse than showing nothing**, because a household reading `$0.00` has been told something, and a household seeing the account without a figure has been told nothing and knows it.
+
+  **The instinct runs the other way**, which is why it needs writing down: a rendered number looks complete, a blank looks unfinished, and the pressure on a Balance Sheet is always to fill the cell. **Filling it with a value the data does not support converts a gap into a false statement**, and the false statement is the version nobody checks.
+
+  **The fifth instance today of a number that reads as an answer and is not one**, and the list is worth seeing together because the surfaces differ and the shape does not: `oldestInWindow` reporting the newest date; an empty account list reading as nothing connected; a milestone already set reading as not-yet-due; a gate that could only refuse reading as caution; and now a withheld balance reading as zero.
+
+  **The rule is the same each time. Show nothing, or show why, but never show a figure the data does not support.** And where a value can be absent for two reasons, the surface says which, because that is the difference between a household with no investments and a household whose investments we cannot see.
+
+- **A CROSS-CHECK FIELD THAT ANSWERED A DIFFERENT QUESTION THAN ITS NAME, AND WAS WRONG IN THE DIRECTION THAT HIDES THE FINDING.** 20 Aug 2026, in the readout built specifically to answer that question from outside our own pipeline.
+
+  `plaidTotals` asked `/transactions/get` for `count: 1, offset: 0` and called the result **`oldestInWindow`**. That endpoint returns **most-recent-first**, so one row at offset 0 is the **newest** transaction. There was not even a page for it to be the oldest of: the field was the newest date wearing the oldest date's name, in the one field the readout existed to produce.
+
+  **It did not mislead only because our own data disagreed with it** (Guy). Two accounts held **exactly** the count Plaid reported, so no gap could explain a different oldest date, and that contradiction is what exposed it. **Trusted on its own it would have said the history begins in August**, which is wrong in the direction that makes a 90 day window look like a full one and **hides the finding the readout was built to surface.**
+
+  **The general shape: a number that looks like the answer to the question the instrument exists to ask.** A wrong number that looks wrong gets checked. A wrong number in exactly the right units, of exactly the right kind, sitting in the field whose name promises it, is accepted, and it is accepted hardest by whoever built the instrument.
+
+  **The repair is a pair rather than a better single value.** Both ends are now fetched, newest at offset 0 and oldest at offset `total - 1`, and reported together with a flag saying whether `oldest <= newest` held. **A single date cannot be checked against anything. A pair carries its own contradiction**, and the flag says plainly when the ordering assumption this all rests on has stopped being true.
+
+- **A DOCUMENTED MECHANISM USED AS A PREMISE ABOUT A CASE NOBODY OBSERVED, AND THE CONTRADICTION LIVED IN TWO MESSAGES HOURS APART.** (Guy, 21 Aug 2026, about his own reading.) The convergence entry one step over, and the step is what makes it worth its own note.
+
+  The mechanism, that Plaid ids are Item-scoped, is documented and plausible. It was used as a premise in a conclusion about a case that had **never been observed**: that a global unique index on `plaid_account_id` refuses a second household linking a shared joint account. **Three confident consequences arrived attached to it**, and each followed correctly from the premise.
+
+  **The premise contradicted a claim made hours earlier in the same conversation**, and neither of us saw it. If ids are Item-scoped, two households get different ids and the index refuses nothing; if the index refuses them, ids are not Item-scoped and the purge performed that night was unnecessary. **Both statements were independently plausible, and they never appeared side by side.**
+
+  **THE TELL IS STRUCTURAL AND IT IS NOT ABOUT CARE.** A contradiction between two things one person said hours apart is close to invisible to that person, because each was reasonable when said and neither is re-read. It is visible to a second reader immediately, and it was: the correction came from being asked to confirm rather than from noticing.
+
+  So the practice is the cheap one. **When a conclusion rests on a premise, say which claim it depends on, and check whether anything already said requires the opposite.** And where the premise is about a third party's behaviour in a case nobody has run, **the answer is a spike rather than an argument**: `account-id-scoping.test.ts` builds two Sandbox Items and compares the id sets, and either answer is useful, which is the mark of a question worth testing.
+
+- **A FINDING ABOUT THE WORLD, CAUSED BY A PARAMETER WE NEVER SET. When several independent sources agree, check whether they were asked the same question before concluding something about the sources.** (Guy, 20 Aug 2026.) A new species, and worse than the others here, because it would have been written down as a fact about a third party and inherited by everyone who read it afterwards.
+
+  The near-miss. SoFi's first sync returned 201 transactions, which is thin, and two earlier institutions had already looked short. The conclusion being drafted was a `projection-spec` finding: **two institutions break the uniform-window assumption, so it is a pattern rather than a Capital One quirk.** Every step was reasonable. Three sources, agreeing, about the outside world.
+
+  **`transactions.days_requested` appears nowhere in this repository.** Plaid's default is 90 days and the maximum is 730. The window was not something the institutions decided; it was a field we never sent, identically, to all of them. **The agreement between the sources was manufactured by the question**, and a finding about banks would have been recorded, cited, and eventually designed around.
+
+  **THE TELL IS THE AGREEMENT ITSELF, AND IT INVERTS THE NORMAL READING OF A REPLICATION** (Guy, 20 Aug 2026). Independent confirmation is the strongest evidence available, so **the instinct on seeing it is to stop looking**, and that is precisely when the shared cause is most likely to be ours and least likely to be examined. Every other rule in this file is about a claim that looked underpowered and turned out to be. This one is about a claim that looks OVERWHELMING, and the strength of the impression is doing the harm: the convergence was the artifact. Before concluding anything about several sources that agree, establish that they were **asked different questions**. If one parameter, one default, one query shape or one code path reached all of them, they are not independent and their agreement carries no weight about them at all. It carries weight about **us**.
+
+  **It generalises past Plaid**, and the cases are easy to find once named: every institution short by the same margin, every model refusing the same way, every environment reporting the same latency, every household showing the same gap. The shared cause is ours far more often than the shared property is theirs, because **our side is the only thing all of them have in common.**
+
+  Distinct from the drift rules above, which are about two statements of one fact diverging. This is **one statement of ours replicated across many subjects and then read back as a property of the subjects.**
 
 - **PROBE, DO NOT READ. Reading a pattern tells you what its author meant. Probing tells you what it does.** The standing method for auditing any rule expressed as a pattern.
 
@@ -388,6 +591,53 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **And the direction of the break is part of the review.** A mutation must break the control in the direction the control exists to guard, not in whichever direction is easiest to write. The two-member policy check was first planted with `USING (false)`, which turned the test red and proved almost nothing: nothing was ever going to disable that policy quietly, because disabled breaks loudly for everyone on the first request. Replanted as `AND is_primary`, it narrows visibility to one member while leaving cross-household isolation intact, which is the failure that actually threatened this system and passed every isolation test for two weeks. Both mutations redden the test. Only one of them means anything, and the test for a planted failure is not "does this break something" but **"does this break the thing the register says this test notices"**.
 
+- **REASONING ABOUT THE COLUMN WHILE POSTGRES REASONS ABOUT THE TABLE. The masking rule's third instance, and the first one pointing the other way.**
+
+  A table-level grant covers the table **as a whole, including columns added later**. Every failure in this family follows from that one sentence, and all three were written by people who knew it and were thinking about a column at the time.
+
+  | Instance | Shape | What it hid |
+  |---|---|---|
+  | 15 Aug, 0002 | table grant over a column **revoke** | a hole: `access_token_ciphertext` was writable while a control said otherwise |
+  | 20 Aug, 0023 vs `marginsheet_app` | table grant found wider than its description | reach nobody had ruled on |
+  | 20 Aug, 0025 | table grant over a column **grant** | nothing. It documented a narrowing that was not there |
+
+  **THE MECHANISM IS SYMMETRIC AND THE CONSEQUENCE IS NOT** (Guy, 20 Aug 2026). A table grant masking a column revoke **hides a hole**, and is an exposure. A table grant making a column grant redundant **hides nothing**, and is a false sentence. Only the first can hurt a household. Both are the same misunderstanding, and **neither is visible in the migration text**, which is why the asymmetry cannot be used to decide which one you are looking at before you look.
+
+  **Only a catalog query distinguishes them.** `has_column_privilege` accounts for table-level masking and answers what the role holds; the GRANT statement answers only what somebody wrote. Reading 0025 tells you a narrowing was intended. Asking the catalog tells you the role already had it.
+
+  **THE REFORMULATION IS THE DURABLE PART** (Guy, 20 Aug 2026). **A grant is not a fact about a column. It is a fact about a role-and-table pairing.** Every instance above is what happens when a column is treated as the subject: the column looks unprotected, or looks protected, and the answer was never a property of the column at all. So the question is never *"is this column grant right"* but **"what does this role already hold on this table"**, asked per role, of the catalog.
+
+  **AND THE ERROR HAS A SHAPE WORTH NAMING SEPARATELY, BECAUSE IT IS NOT A FALSE BELIEF: A CORRECT THOUGHT ABOUT THE WRONG SUBJECT.** 0025's sentence, *"a column added later is not silently writable by a role that was granted the table long ago"*, appeared once and governed two grants in one statement. It is **true for `marginsheet_app`**, on that exact column: that role holds no table SELECT on `plaid_items`, only the eleven columns 0002 enumerated, so its grant extends a real enumeration and stands. It is **false for `marginsheet_sync`**, which holds the table by 0023.
+
+  **Nothing about the sentence was wrong to write. The mistake was entirely in its scope.** That makes it invisible to every check that examines a claim on its own merits, including review: read it beside the app role's grant and it is correct, and the second role is in the same statement rather than in a different file where a reader might think to re-derive it. A false belief can be argued with. **A true one silently extended to a second subject has nothing in it to argue with**, which is why the remedy is the reformulation rather than more care: name the subject the fact is actually about, and the extension stops being expressible.
+
+  It is the same family as the **near-certainty from a true mechanism** recorded above, and the two are worth reading together. There, a true statement about what a mechanism CAN do was extended to a claim about what DID happen. Here, a true statement about one role was extended to another. **Both are unverified extensions of verified things**, and in both the truth of the premise is exactly what stops anyone checking the join.
+
+  **SO THE CHECK HAS TO BE ON THE JOIN RATHER THAN ON EITHER SIDE** (Guy, 20 Aug 2026). Both halves survive inspection: the mechanism is real, the role's grant is real. **The defect lives only in the step between them, and no examination of either statement can reach it.** That is what makes this family different from everything else in this file, where the flaw is somewhere in an artifact and a sufficiently careful reading finds it. Here there is nothing in either artifact to find.
+
+  **The general question, and it is one sentence long: what was demonstrated, and what is this claim about?** When those differ even slightly, the difference is the join, and the join is where both of today's retractions lived. A test demonstrates something about the fixture it ran; a mechanism demonstrates something about what is possible; a grant demonstrates something about one role on one table. Each is worth exactly what it demonstrates, and **the sentence built on top of it is a separate claim that has not been checked by anything.**
+
+- **A CLAIM ABOUT ONE CASE, PHRASED AS A CLASSIFICATION, IS THE ONE FORM NOBODY THINKS TO QUESTION.** (Guy, 20 Aug 2026.) Recorded because it is subtler than the retractions above and lives in DESCRIPTIONS rather than in diagnoses, which is the worse place for it.
+
+  The sentence was *"a proof that cannot see a defect rather than a known defect"*, written while sweeping the register. It reads as a **sorting**: the finding examined, weighed, and placed in a category. What it actually contained was **a claim about a particular case**, that those recreate statements happen to specify everything the proof does not check, smuggled in under the grammar of a category.
+
+  **The grammar of a sorted category carries no burden of evidence.** Nobody challenges a classification; they challenge *"I read the recreates and they look complete"*, which is the same assertion said plainly. **So the form is not decoration. It is what removed the question**, including from the person writing it.
+
+  It is the same unverified-step family as the rest, moved from a diagnosis into a description, and the difference in venue matters: **a diagnosis invites "how do you know" and a classification does not.** The remedy is to say the case-specific thing in the case-specific voice, and let it be argued with.
+
+  **What it cost here was nothing, because Guy declined to close the item on it.** That is worth stating: the correction did not come from noticing the form, it came from someone refusing to accept a mechanism argument as a category. **The form defends itself against the author; it is other readers who break it.**
+
+- **A CHECK WHOSE ANSWER IS CARRIED FORWARD IS A CHECK THAT HAPPENED, NOT A CHECK THAT HOLDS.** (Guy, 20 Aug 2026.) The join family's fourth instance, and **the first caught before it shipped rather than after.**
+
+  Anywhere a decision is gated on a prior observation, the question is not whether the observation was correct. It is **whether it is still true at the moment of the act.** A dry run reporting an Item live is evidence about the instant it ran; an Item can be removed, expire, or lose its credential between that instant and the confirmation, and a gate reading the earlier answer is comparing against a memory.
+
+  **THE TELL IS THAT RE-ASKING LOOKS WASTEFUL**, which is exactly what makes the optimisation attractive. The caller just asked. The answer was live. Asking again is a second network call for a value already in hand, and every instinct about efficiency says pass it along. That instinct is why this shape keeps arriving: **the defect is introduced by someone trying to improve the code**, not by someone being careless with it.
+
+  So the gate and the freshness of what it gates are **two properties, and only one is visible in the gate's own line.** `liveness !== "live"` can be read a hundred times without revealing where `liveness` came from. `disconnect-rechecks-liveness` exists for the second half, planted by replacing the fresh read with an assumed value: it type-checks, reads as a reasonable simplification, and turns the gate into a tautology that always passes.
+
+  **The family, for whoever meets the fifth.** A true mechanism extended to a claim about a particular run. A true statement about one role extended to another. Two correct statements with a value that did not survive between them. And now a correct observation extended past the moment it described. **Every one is an unverified step between two verified things**, and in every one the verified halves are what stop anybody looking at the step.
+
+
 - **A role's documentation is a security claim, and the grant is what is true.** Two roles have now been found wider than the thing describing them, and **both were found by looking, not by anything failing.** That makes it a class rather than a coincidence, and the question belongs in every review that touches a role: **does the grant match the description?**
 
   `marginsheet_app` held table-level INSERT and UPDATE on `plaid_items`, which masked the column control withholding `access_token_ciphertext`: the control was correctly written and did nothing, because a table grant outranks a column revoke. `marginsheet_sync` is described in the custody doc as *"The Plaid sync worker. The only place TOKEN_ENCRYPTION_KEY is used to decrypt"*, and held INSERT, SELECT and UPDATE on **39 tables**, including `messages`, `threads`, `known_context`, `decision_journal` and every LLM log. A component with one job, and a role that can read every household's conversation history, are different things wearing the same sentence.
@@ -395,6 +645,67 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
   **The fix both times is the same: enumerate, never grant-and-subtract.** Naming the eight tables a pipeline needs fails closed on the thirty-first table somebody adds later; granting broadly and revoking what looks sensitive fails open on everything nobody thought of. Same shape as the enumerated column grants in 0002, 0011, 0017 and 0019, and as allowlisting the rotation target rather than blocklisting long-lived branches.
 
   A negative control for a narrowed role attempts **several** forbidden tables from different parts of the schema, not one. One refusal proves a boundary exists; three across different sections prove it is a boundary rather than a single lucky revoke.
+
+- **"THE MECHANISM EXPLAINS IT" IS NOT THE SAME CLAIM AS "THIS IS WHAT HAPPENED", AND THE FIRST IS WHAT MAKES THE SECOND SOUND CHECKED.** (Guy, 20 Aug 2026.) The companion to the rule below, and it is the failure that survives it: the diagnostic was built, it was correct, and it was pointed at the wrong question.
+
+  The instance. Two CI failures could not be read, because GitHub will not serve a job log while its run is in progress. `packages/schema/src/migrate.ts` records applied migrations **by filename**, so an edited migration that has already applied is skipped silently, and `migrations-append-only` compares git trees and cannot see it. All of that is **true**. From it came the conclusion that this is what had happened, offered as near-certain, and **a change to the migration runner was authorised on the strength of it.**
+
+  The log said otherwise on the first line anybody read: `applying 0028_... / up: applied 1`. It applied. It could not have been skipped, because `neon-pr-branch.sh` deletes and recreates the branch on every run, ruled 16 Aug 2026, so the window has no database that persists an edit. **The gap had been closed five days earlier by making the database ephemeral**, and the mechanism that made the story plausible was still sitting there, entirely real, explaining something that did not occur.
+
+  **The true premise is the whole problem.** A guess built on a false mechanism gets challenged, because the mechanism is checkable and wrong. A guess built on a TRUE mechanism inherits its credibility: every step is verifiable, the file says exactly what it was quoted as saying, and the only unverified link is the one joining "this could produce that symptom" to "this produced that symptom". That link is the entire claim, and it is the one part nobody looks at, because everything around it checks out.
+
+  **The tell is grammatical and it is cheap to apply.** An explanation is a statement about a mechanism's CAPABILITIES. A diagnosis is a statement about a PARTICULAR RUN. If the evidence names no particular run, what is in hand is an explanation, however good, and it is reported as one: *"the mechanism that would produce this is X, and I have not read the log."*
+
+  It is the same shape as **verify against the database, never against reports**, one level up: the mechanism is the report, and the log is the database. And it fails the standing question the same way, because **an explanation cannot go red.** No observation refutes "this could have happened", which is precisely why it is not a finding.
+
+- **A CONTROL THAT ASKS THE SESSION IS ASKING SOMETHING ABOUT ITSELF. TWICE IN ONE DAY, IN TWO DIFFERENT CATALOGS.** (Guy, 21 Aug 2026, naming the pair.)
+
+  | Asked | Answers | Should have asked |
+  |---|---|---|
+  | `has_column_privilege(role, ...)` from an owner connection | what the ACL says | the three-argument form, as the role |
+  | `current_setting('statement_timeout')` | what this session was given | `pg_roles.rolconfig` |
+
+  **The second is the sharper illustration.** `ALTER ROLE ... SET` applies **at login**, so a session arriving by `SET ROLE` keeps the settings of the role it CONNECTED as. A control reading `current_setting` would **pass while the declaration was absent**, whenever the connecting role happened to carry a value, and **fail while it was present**, whenever the test connected as somebody else. Both directions wrong, neither visible in the assertion.
+
+  **THE TELL IS THE SAME AND IT IS NOT SUBTLE ONCE NAMED: the session is the easier thing to ask.** It is right there, it needs no join, it returns a clean scalar, and it is answering a question about **itself** rather than about the durable declaration behind it. The catalog is one query further away and is the only thing that knows what was actually declared.
+
+  So the question to ask of any control reading configuration or privilege: **am I asking what was DECLARED, or what this connection happens to have INHERITED?** Where those can differ, only the first is the control.
+
+- **A DEADLINE IS ONLY SAFE IF EVERY OPERATION UNDER IT IS GENUINELY ABORTABLE, AND THE HALF THAT IS NOT IS NAMED RATHER THAN ASSUMED.** (Guy, 21 Aug 2026.)
+
+  `Promise.race` against a timer **stops waiting, not working.** The hung call keeps running, can still write, and still holds whatever it held, so a raced deadline is the release-the-lock horn in better clothes and **it reads as correct in review.**
+
+  **The difference lives entirely on the other side of the socket**, which is why the control is a fixture rather than an assertion. A test that watches the caller sees an identical rejection either way: same error code, same timing, same lock release. `deadline-aborts-the-request.test.ts` starts a real server, holds the request open, and asserts the server **saw the client disconnect**. Planting the race was verified to leave the caller-side assertion **green** and redden only that one, which is the whole demonstration.
+
+  **AND THE BOUNDARY IS STATED, BECAUSE A GUARANTEE DESCRIBED AS COVERING THE OPERATION WOULD BE FALSE.** Bounded: every outbound Plaid call. **Not bounded: every database operation.** The sync opens a connection with no `statement_timeout` and passes no signal, so a hung query inside the transaction holds the household's chain lock for as long as it hangs, which is the same failure the deadline exists to prevent, on the other half of the same critical section. Also unbounded and smaller: the Durable Object fetch and the service-binding fetches.
+
+  **The general rule the boundary implies** (Guy, 21 Aug 2026): an abort is a client-side request the far side may or may not honour, so **abortable is a property of the OPERATION rather than of the MECHANISM.** Which means **a deadline never establishes that work stopped. It establishes that we stopped waiting.** Only the operation's own cancellation semantics decide the rest, and even the correct abort version above is trustworthy solely because `fetch` honours the signal: **the guarantee is borrowed from the operation, not supplied by the deadline.**
+
+  Where the operation cannot be cancelled, the bound has to come from the other side. That is why the database half is `statement_timeout` on the role rather than a signal from the client, and why it was built immediately rather than deferred: **syncs already run against production, and the only thing preventing a held lock was a person clicking the button, which is a person watching rather than a control.**
+
+- **A REPORT ABOUT WORK THAT READS AS OBSERVATION AND IS ASSUMPTION ABOUT WHAT A COMMAND DID.** (Guy, 21 Aug 2026, on the second instance.) The reporting half of the join family, and the most dangerous version of it, because the artifact being described is one the reader cannot see.
+
+  The instance: a branch was pushed and the reply named a pull request number as though it had been opened. **No `gh pr create` was ever run.** The push happened, the branch existed, every observable fact in the surrounding message was true, and the sentence in the middle described something that had not occurred.
+
+  **THIS ONE HAD NO TELL, AND THAT IS THE ENTRY.** A fabricated identifier is normally self-correcting: the next command that uses it fails. Here the number **happened to match** what the pull request received when it was created minutes later, so nothing about the report was checkable from outside, and it would have read as accurate forever. **The absence of a discrepancy is not evidence; it is sometimes just luck.**
+
+  **It is distinguishable from a wrong claim in exactly one way: nobody can distinguish it.** A wrong number is checkable. A wrong number that coincidentally becomes right is indistinguishable from a correct report, and the only defence is the discipline of not writing the sentence.
+
+  So: **a report of an action names the command that performed it, and if no command performed it, the sentence does not get written.** Pushing a branch and opening a pull request are two operations. Applying a migration and it taking effect are two operations. Fixing a defect and verifying the fix are two operations. **Each has its own evidence, and a report that merges them is describing an artifact nobody produced.**
+
+  Recorded as the second of its kind by Guy's count. The details of the first are not restated here, because restating an incident from memory rather than from the record is the same defect one level up.
+
+- **THE ARGUMENT WAS EXPENSIVE BECAUSE IT WAS CHEAP TO HAVE, AND THE TEST WAS DECISIVE BECAUSE IT WAS CHEAP TO RUN.** (Guy, 21 Aug 2026.) The corollary to the rule below, about cost rather than about method.
+
+  Whether Plaid issues one `account_id` to two Items ran in **two directions across an evening**, with **three rulings resting on it**: whether the purge was necessary, whether Option A described a possible state, and whether a global unique index refuses a legitimate second connection. Both of us reasoned from the same documentation, reached opposite conclusions hours apart, and **neither noticed the contradiction.**
+
+  One Sandbox call ended it. **Five seconds, one test file, and the answer was disjoint.**
+
+  **The asymmetry is the point.** Reasoning is free at the moment you do it, which is exactly why it accumulates: nobody budgets for an argument, so arguments run long and spawn conclusions that get built on. A spike has a visible cost and therefore gets weighed, which makes it feel like the expensive option when it is almost always the opposite.
+
+  **So the question is not whether the reasoning is sound. It is whether the claim has ever been observed.** Soundness is a property of an argument and says nothing about the world; observation is the only thing that does. Where a claim has rulings resting on it, **that is the moment the answer stops being worth reasoning about and starts being worth measuring.**
+
+  It is the same instinct as **verify against the database, never against reports**, moved from data to belief: the argument is the report, and the spike is the database.
 
 - **When a failure message cannot distinguish its causes, build the diagnostic. Do not guess better.** A message that reads the same for several different problems is not evidence, and reasoning harder about which one it means produces confident wrong answers at speed. The fix is a probe that separates the cases and reports which one it is.
 
@@ -428,6 +739,20 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
   What makes it worth its own entry: a phrase has no owner, no diff, and no review. **The only thing that reconciled them was the check**, which was going to fail on the two dev hosts and report exactly which. A count repeated in prose is a claim nothing verifies, and it is most dangerous when it is repeated often enough to sound settled.
 
   So: **when a number describes a set the repo defines, read it from the repo before acting on it**, and treat an agreed figure that nobody has re-derived as a quotation rather than a fact.
+
+- **PLAID IDS ARE ITEM-SCOPED, SO EVERY UNIQUENESS CONSTRAINT THAT PROTECTS US WITHIN AN ITEM IS SILENT ACROSS ONE.** (Guy, 20 Aug 2026.) Its own entry, because it is a property of the provider's namespace rather than a fact about any one task, and three separate pieces of work meet it.
+
+  A relink issues **new `plaid_account_id`s and new `plaid_transaction_id`s for the same real accounts and the same real transactions.** Our uniqueness is keyed on exactly those values: `financial_accounts_plaid_account_id_unique`, `transactions_plaid_transaction_id_unique`, `plaid_items.item_id`. **None of them collides**, so the same purchases import a second time under different ids and **Kept and Margin are wrong by the value of the overlap.** Nothing errors, nothing is refused, and the books look larger.
+
+  **Where it lands, and this is why it is an entry rather than a note:**
+
+  - **Every reconnect that creates a new Item**, which includes the `days_requested` repair, since extending history requires `/item/remove` and a fresh Item.
+  - **M9's migration**, which reconciles books that will already contain provider ids from another system.
+  - **The duplicate-account ruling of 19 Aug** was this same property seen from a different angle. Two Items showing the same real account was treated as an overlap question to be recorded, and the reason two Items CAN show the same account is that the ids differ. Neither of us named the underlying property at the time.
+
+  **It is the twin of the write-keyed-on-a-provider-value rule above, and the two are easy to conflate.** That rule says a provider id is shared ACROSS households, so a write keyed on one must name the household. This says a provider id is not stable ACROSS Items for one household, so a constraint keyed on one cannot detect a re-import. **Same namespace, two different failures: one lets another household's row be reached, the other lets our own row be duplicated.**
+
+  **The check is the same question asked twice:** whose namespace does this key belong to, and **is it stable across the boundary I am relying on it for?**
 
 - **A WRITE KEYED ON A PROVIDER-SUPPLIED VALUE MUST NAME THE HOUSEHOLD. A write keyed on our own primary key is scoped by the key itself.**
 

@@ -4,14 +4,16 @@
     "item": "The /auth/confirm pages carry minimal placeholder styling. Design holds the sign-in surfaces; what ships now is legibility only and is not a design decision.",
     "owner": "Guy (Design)",
     "owed_to": "M8",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "postmark-test-mode",
     "item": "Postmark is in test mode pending approval, so production sends are limited to @marginsheet.com recipients. The live send to guy@astonishent.com is still owed once it clears.",
     "owner": "Guy",
     "owed_to": "Postmark account approval",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "twilio-trial-caller-id",
@@ -19,42 +21,49 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: A2P 10DLC clearance, late Aug 2026 at the earliest, then a live send by Guy.",
     "raised": "2026-08-16",
-    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest"
+    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest",
+    "trigger_kind": "prose"
   },
   {
     "id": "provider-events-handler-half",
-    "item": "Invariant 5's handler half is unbuilt. It now covers four providers rather than three, since Postmark bounce and complaint webhooks joined Plaid, Stripe and Twilio in provider_events (amendment 7).",
+    "item": "Invariant 5's handler half is unbuilt. It now covers four providers rather than three, since Postmark bounce and complaint webhooks joined Plaid, Stripe and Twilio in provider_events (amendment 7). SCOPED AND BUILT FOR PLAID ONLY, 21 Aug 2026, as 4.5's remaining half (Guy). THE OTHER THREE ARE NOT BUILT AND THAT IS THE DECISION RATHER THAN AN OMISSION: Stripe belongs to M7 and billing does not exist, Twilio is blocked on A2P 10DLC which is Guy's desk rather than a module boundary, and Postmark cannot fire a real bounce while amendment 8's test mode limits production sends to @marginsheet.com. Building all four would be three receivers nothing calls, which is the UNCALLED_runSyncForItem shape with a longer fuse. WHAT PLAID'S RECEIVER LANDED: verification in the sync Worker where the credentials live, api forwarding the RAW body because the signature covers its bytes, check-and-insert on provider_events keyed on a hash of the body, and dispatch through the household's Durable Object. Both entry points now take the lock: the earlier comment said the hand-run route would be REPLACED, which was written when only one caller could exist, and that assumption ended with the receiver. WHAT REMAINS FOR THE OTHER THREE is a receiver each, and the shape is now established rather than speculative, so each is a task rather than a design.",
     "owner": "build",
     "owed_to": "M4 and M7",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose",
+    "trigger": "Stripe when M7 has billing that fires one, Twilio when A2P 10DLC clears, Postmark when a send to a non-marginsheet.com address is possible. Each is a task now that Plaid's receiver established the shape"
   },
   {
     "id": "canon-fixtures",
     "item": "Five canon fixtures are owed before the golden suite can judge composed output against them. FraudReply first.",
     "owner": "Guy",
     "owed_to": "M10",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "rotation-guard-declaration",
     "item": "The role-rotation guard trusts the caller's declaration of the target branch. NEON_TEST_BRANCH=pr-1 aimed at dev would still rotate dev. Verifying the declaration against Neon's branch endpoint would close it.",
     "owner": "build",
     "owed_to": "unscheduled",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "journey-copy-review",
     "item": "Trademark placement is a copy-review item rather than lint (ruled 16 Aug 2026), because the unit of first use is a journey and a linter cannot see one. That makes it depend on a journey copy review, which is not scheduled anywhere yet. The sign-in journey is the first that needs one.",
     "owner": "Guy (Design)",
     "owed_to": "M8, with the sign-in surfaces",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "edge-rate-limit-rule",
     "item": "The per-source magic-link edge rule is deployed at the free plan's fixed shape: 10 requests per 10 seconds, ip.src only, no cf.colo.id, mitigation timeout not exposed. That is a burst brake rather than a sustained-rate control, so the per-email limit and the global ceiling in our own code are load-bearing rather than secondary. Revisit on any plan upgrade: 60 second period, cf.colo.id as a second characteristic, 600 second mitigation.",
     "owner": "Guy",
     "owed_to": "a Cloudflare plan upgrade",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "recovery-twilio-credentials",
@@ -62,56 +71,64 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: A2P 10DLC clearance, late Aug 2026 at the earliest. NOT 3.3, which only built the path.",
     "raised": "2026-08-17",
-    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest"
+    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest",
+    "trigger_kind": "prose"
   },
   {
     "id": "second-credential-write-path",
     "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and \u00a71 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
     "owner": "build",
     "owed_to": "standing constraint, reviewed whenever @better-auth/passkey is upgraded",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "planted-failure-inertness",
     "item": "The planted-failure harness proves a mutation changed the FILE, not that it changed BEHAVIOUR, and proving the second is undecidable in general. So a 'test did not go red' result has two causes it cannot distinguish: an insensitive control, or an inert mutation. One was already found this way: a mutation whose injected condition was always undefined. The failure message names both causes, and register mutations need reviewing as code rather than as data.",
     "owner": "build",
     "owed_to": "standing constraint, reviewed whenever a register entry is added",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sandbox-cannot-build-four-of-five-fixtures",
     "item": "Invariant 8 lists five Sandbox error fixtures and FOUR CANNOT BE CONSTRUCTED (spike 1d, 17 Aug 2026). Constructible: ITEM_LOGIN_REQUIRED via /sandbox/item/reset_login. Not constructible: item error (webhook_type has no code ERROR), removed transactions (TRANSACTIONS_REMOVED is not fireable and the removed stream was empty in every run), pending to posted (0 pending across 48 default-user transactions and across user_custom shapes), reversal as an event. The invariant is rewritten to claim what Sandbox can actually prove; the rest are gaps rather than tests written against fixtures that cannot fail.",
     "owner": "build",
     "owed_to": "M4, and invariant 9 at M9 for the states only real Items produce",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "pending-to-posted-unexercised",
     "item": "THE ONE TRACKED LOUDEST (Guy, 17 Aug 2026). Pending to posted is NOT an error path. It is the normal daily behaviour of every card transaction in the product, and categorization-spec section 10 turns on it. Plaid Sandbox cannot construct it: zero pending transactions across 48 default-user rows and across every user_custom shape tried, so no CI fixture can express the transition. M4 tests the transition against a hand-built fixture of our own rows, which proves our filing and reconciliation logic and DOES NOT prove Plaid's shape is what we assumed. Those are two different claims and only the first is made. THE SECOND CAN ONLY BE PROVEN IN ONE PLACE: invariant 9, against the founder household's real institutions. A silent double-count on this transition reaches a household's Kept figure before anyone sees it. RESEQUENCED 17 Aug 2026: the founder household's real institutions connect at 4.5b, EARLY in M4, rather than at the end. Finding that our filing logic mishandles a settling transaction in week one of M4 is a fix; finding it at invariant 9 with the module otherwise done is a rewrite. Connecting early exercises section 10 during the build and does NOT discharge invariant 9, which still needs a full backfill across every founder institution as M9's precondition.",
     "owner": "Guy",
     "owed_to": "4.5b for the real settling transaction, invariant 9 at M9 for the full backfill",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "historical-update-not-fireable",
     "item": "plaid-pipeline-spec section 4 gives HISTORICAL_UPDATE real work: it marks backfill-complete for the M13 intro trigger. Sandbox will not fire it (INVALID_FIELD), so the webhook half of that trigger cannot be exercised in CI. The trigger's 30 minute fallback and the 'I have connected all my accounts' button remain testable; the webhook path does not.",
     "owner": "build",
     "owed_to": "M13, flagged from M4",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sandbox-transactions-create-is-inert",
     "item": "/sandbox/transactions/create returns 200 and changes nothing on a default-user Item, and returns 400 on a user_custom Item. Proven by looking for a marker description rather than by counting, because Sandbox generates transactions on its own and a count cannot tell a mutation from natural generation. An endpoint that reports success and does nothing is the same shape as a control that cannot fail. Nothing in M4 may build a fixture on it.",
     "owner": "build",
     "owed_to": "standing constraint on M4 fixtures",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sync-mutation-branch-not-deterministic",
     "item": "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION is real and cannot be produced on demand. Plaid refuses a mid-pagination cursor when the underlying data changes, which is what a webhook landing mid-sync does, so the pipeline persists TWO cursors: the in-flight one for a crash, and the last-completed-sync one as the fallback on that error. Reproduced 3 times out of 5 against freshly created Sandbox Items still generating transactions, which is flaky and therefore not a fixture. M4 tests the HANDLER against a synthesised 400 and does not claim to have proven Plaid's behaviour; the live observation is the evidence for the branch existing.",
     "owner": "build",
     "owed_to": "M4 for the handler test, invariant 9 at M9 for the live behaviour",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "production-plaid-credentials",
@@ -119,7 +136,8 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: Claude FLAGS on reaching 4.5b, then Guy runs the paste session. PRODUCTION ENVIRONMENT ONLY.",
     "raised": "2026-08-17",
-    "trigger": "Claude flags on reaching 4.5b; Guy runs the paste session"
+    "trigger": "Claude flags on reaching 4.5b; Guy runs the paste session",
+    "trigger_kind": "prose"
   },
   {
     "id": "auth-is-production-only",
@@ -127,7 +145,8 @@
     "owner": "build",
     "owed_to": "a ruling, then either config or a stated limitation",
     "raised": "2026-08-17",
-    "trigger": "no action owed; it is closed by auth being served in a lower environment, or by a later ruling. Until then it exists so a reader knows what a green dev run does not cover."
+    "trigger": "no action owed; it is closed by auth being served in a lower environment, or by a later ruling. Until then it exists so a reader knows what a green dev run does not cover.",
+    "trigger_kind": "prose"
   },
   {
     "id": "canon-revision-two-registers-one-voice",
@@ -135,21 +154,24 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: the design track completing. HARD DEADLINE: M12.",
     "raised": "2026-08-15",
-    "trigger": "the design track completing"
+    "trigger": "the design track completing",
+    "trigger_kind": "prose"
   },
   {
     "id": "article-as-answer-m2-amendment",
     "item": "The article-as-answer pattern is owed as an M2 amendment with its own plan (Guy, 15 Aug 2026), carrying two requirements. 1. The article's identity is a STABLE SLUG, never its URL or title, both of which change when an article is edited or renamed; the reference block carries the slug and resolves title and URL at assembly time, so a renamed article never strands a citation inside an artifact already sent. 2. The gate rule ships as a FIXTURE PAIR, not only as a rule: one passing example (cards ranked by rate, reference attached, no action named) and one failing example (the same list framed as 'here is where to start'). Recorded in CLAUDE.md prose since 15 Aug and tracked by nothing until now.",
     "owner": "Guy",
     "owed_to": "an M2 amendment plan",
-    "raised": "2026-08-15"
+    "raised": "2026-08-15",
+    "trigger_kind": "prose"
   },
   {
     "id": "cross-brain-attribution-fact-package-review",
     "item": "Consequence 5 of the single assistant ruling: any fact-package class existing ONLY to carry cross-brain attribution is reviewed and REPORTED, never silently deleted. Nothing has performed that review. It matters because the classes are the seam between the two brains, and deleting one quietly would remove the evidence of what the two-staff model needed.",
     "owner": "build",
     "owed_to": "M2, reported to Guy",
-    "raised": "2026-08-15"
+    "raised": "2026-08-15",
+    "trigger_kind": "prose"
   },
   {
     "id": "conversation-spec-describes-dead-platforms",
@@ -157,7 +179,8 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: M9 completing, so it lands BEFORE M10 opens rather than during it.",
     "raised": "2026-08-18",
-    "trigger": "M9 completing"
+    "trigger": "M9 completing",
+    "trigger_kind": "prose"
   },
   {
     "id": "plaid-rate-limit-shape-uncaptured",
@@ -165,7 +188,8 @@
     "owner": "build",
     "trigger": "the first real 429 observed from Plaid, in any environment",
     "owed_to": "TRIGGER: the first real 429 observed from Plaid. Capture the body then; do not synthesise one before.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "account-overlap-recorded-not-acted-on",
@@ -173,7 +197,8 @@
     "owner": "build",
     "trigger": "when insight_ledger is first written, at 4.6",
     "owed_to": "TRIGGER: 4.6, when insight_ledger is first written and there is somewhere to put an internal item.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "ask-at-connect-when-overlap-ambiguous",
@@ -181,7 +206,8 @@
     "owner": "Guy (Design) and M8",
     "trigger": "M8's Link surface",
     "owed_to": "TRIGGER: M8's Link surface. Asked ONLY on an ambiguous overlap, never by default.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "capital-one-link-parameters",
@@ -189,7 +215,8 @@
     "owner": "build",
     "trigger": "M8's Link surface, where the parameters are actually passed",
     "owed_to": "TRIGGER: M8's Link surface, with the requirement re-derived rather than copied.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "exchange-idempotency-has-no-planted-failure",
@@ -197,7 +224,8 @@
     "owner": "build",
     "trigger": "when a database-backed sync test suite exists, likely 4.4",
     "owed_to": "TRIGGER: a database-backed sync suite, likely at 4.4. Registered when the mutation can be real.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "time-based-watcher-half-unbuilt",
@@ -205,7 +233,8 @@
     "owner": "build",
     "trigger": "M13, with the watcher itself",
     "owed_to": "TRIGGER: M13, with the watcher. M4 ships the signal only, and that is half the input.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "sms-dependent-work-blocked-until-a2p",
@@ -213,7 +242,8 @@
     "owner": "Guy",
     "trigger": "A2P 10DLC clearance",
     "owed_to": "TRIGGER: A2P 10DLC clearance. Read any SMS assumption against this rather than against a module number.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "soc2-posture",
@@ -221,7 +251,8 @@
     "owner": "Guy",
     "trigger": "the first customer, partner or investor who requires it",
     "owed_to": "TRIGGER: the first customer, partner or investor who REQUIRES it. Not a module and not a date: per the trigger rule, this is gated on someone outside the project.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "cross-household-upsert-overwrites-another-household",
@@ -229,7 +260,8 @@
     "owner": "build, gated on Guy's approval of the plan",
     "trigger": "BEFORE A SECOND HOUSEHOLD CONNECTS ANYTHING, IN ANY ENVIRONMENT. Not a module number: 4.5b is when real Items first exist, but the condition that produces this is a second household linking an account, which can happen in dev or staging or twice on Guy's own logins, and a module completing says nothing about whether that has occurred. The trigger is the condition, not the milestone.",
     "owed_to": "TRIGGER: the condition above. Confirmed 19 Aug 2026 by the harness with the GUC read back inside the transaction, which is what separated a genuine cross-household write from an unrestored planted mutation. THE PLAN IS THE BUILD'S TO DRAFT AND GUY'S TO APPROVE, same as every other task; it was first recorded as owned by Guy, which would have left him owning a plan he was never going to write. Evidence lives on branch finding/cross-household-upsert and PR #113.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "sync-writes-keyed-on-internal-ids",
@@ -237,7 +269,8 @@
     "owner": "build",
     "trigger": "when persistInFlight is wired to a real statement, which is the sync scheduling work after 4.5",
     "owed_to": "TRIGGER: 4c. Audited during 4e on 19 Aug 2026 and deliberately left, with the reasoning recorded so the omission is a decision rather than an oversight.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "sensitive-action-cancellation-unbuilt",
@@ -245,7 +278,8 @@
     "owner": "build",
     "trigger": "M7, when the action is built; the flag flips in the same change or the enumeration test fails",
     "owed_to": "TRIGGER: M7. Split out on 19 Aug 2026 so one party owes one thing.",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sensitive-action-member-removal-unbuilt",
@@ -253,7 +287,8 @@
     "owner": "build",
     "trigger": "3.5, when the action is built; the flag flips in the same change or the enumeration test fails",
     "owed_to": "TRIGGER: 3.5. Split out on 19 Aug 2026 so one party owes one thing.",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sensitive-action-export-unbuilt",
@@ -261,7 +296,8 @@
     "owner": "build",
     "trigger": "M8, when the action is built; the flag flips in the same change or the enumeration test fails",
     "owed_to": "TRIGGER: M8. Split out on 19 Aug 2026 so one party owes one thing.",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "competitive-line-trips-ai-rule",
@@ -269,7 +305,8 @@
     "owner": "Guy",
     "trigger": "the first marketing surface that carries the competitive line",
     "owed_to": "TRIGGER: the first marketing surface carrying the line. Not before: an exemption written now cannot be scoped.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "margin-integrity-conditions-unbuilt",
@@ -277,7 +314,8 @@
     "owner": "build",
     "trigger": "M6a for detection, M6b for the Margin surface's behaviour",
     "owed_to": "TRIGGER: M6a and M6b. Engine work, not language work.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "bnpl-shape-lookup",
@@ -285,7 +323,8 @@
     "owner": "build",
     "trigger": "4.5b, when real institutions connect and real BNPL rows are visible",
     "owed_to": "TRIGGER: M4 task 4.5b. An empirical lookup, not a ruling.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "amendments-11-13-and-exchange-7-await-approval",
@@ -293,7 +332,8 @@
     "owner": "Guy",
     "trigger": "approval of the amendments 11 to 13 draft",
     "owed_to": "TRIGGER: Guy's approval of the drafted amendments. Until then the canon's behaviour half lives in a draft rather than in a spec.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "exchange-7-owed-to-the-spec",
@@ -301,7 +341,8 @@
     "owner": "Guy",
     "trigger": "exchange #7 landing in the conversational spec",
     "owed_to": "TRIGGER: exchange #7 in the spec. Then the fixture moves from owed to full and the golden tests become writable.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "scenario-answer-owed-tender-and-term-fields",
@@ -309,7 +350,8 @@
     "owner": "Guy and M2",
     "trigger": "an M2 ruling on the ScenarioAnswer contract",
     "owed_to": "TRIGGER: an M2 ruling. Blocks the financing verdict and the tender beat entirely.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "m11-adversarial-set-recorded",
@@ -317,7 +359,8 @@
     "owner": "build",
     "trigger": "M11, when the advice-gate judge exists",
     "owed_to": "TRIGGER: M11's judge. The strings are recorded now so the set is inherited rather than re-derived.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "two-ledger-contract-invariant-unbuilt",
@@ -325,7 +368,8 @@
     "owner": "build",
     "trigger": "on request, or with exchange #7 landing",
     "owed_to": "TRIGGER: on request. Independent of exchange #7, since it asserts the contract rather than composed text.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "car-decision-fixture-assumes-a-tender",
@@ -333,7 +377,8 @@
     "owner": "build",
     "trigger": "the tender field landing on ScenarioAnswer",
     "owed_to": "TRIGGER: the tender field. Then the fixture declares a tender and divergence is derived rather than assumed.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "completeness-layer-for-omission-failures",
@@ -341,7 +386,8 @@
     "owner": "build",
     "trigger": "M11, and the forcing-field checks are buildable before it",
     "owed_to": "TRIGGER: M11 for the gate's shape. The forcing-field assertions need no judge and can land any time.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "banned-word-inflection-audit-done-keep-the-rule",
@@ -349,7 +395,8 @@
     "owner": "build",
     "trigger": "standing constraint, applied whenever a banned-word rule is added",
     "owed_to": "TRIGGER: standing. Every new banned-word rule gets the inflection audit and doctrine's own sentence as its fixture.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "mechanism-claim-random-sample",
@@ -357,7 +404,8 @@
     "owner": "build",
     "trigger": "next session, before any further cleanup",
     "owed_to": "TRIGGER: next session. Until it is drawn, no statement about the rate is supported.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "mistake-doctrine-acceptance-criteria",
@@ -365,7 +413,8 @@
     "owner": "build",
     "trigger": "M13 for the correction pair, M10 for the alert register selection",
     "owed_to": "TRIGGER: M13 and M10. Acceptance criteria, not a backlog item: they cannot be built before a composer exists.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "security-page-mechanism-claims",
@@ -373,7 +422,8 @@
     "owner": "Guy",
     "trigger": "the marketing site session, using these repo-side facts",
     "owed_to": "TRIGGER: the marketing-site session. Small, and it crosses a session boundary, which is why it is written down.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "bound-the-work-not-the-lock",
@@ -381,7 +431,8 @@
     "owner": "build",
     "trigger": "BEFORE 4.5b, not before the re-dispatch wiring. Sandbox does not hang; production does, and production credentials are the moment the risk becomes real.",
     "owed_to": "TRIGGER: 4.5b, immediately before production Plaid credentials land. Guy corrected the original trigger, which was the sweep wiring and was too late.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "sweep-must-not-enqueue-behind-itself",
@@ -389,7 +440,8 @@
     "owner": "build",
     "trigger": "the change that wires sweepReason to a dispatcher",
     "owed_to": "TRIGGER: wiring the watchdog sweep to a re-dispatch. Independent of the deadline work by Guy's ruling.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "retract-workers-dev-staging-production",
@@ -397,7 +449,8 @@
     "owner": "Guy",
     "trigger": "immediately, and BEFORE 4.5b: production Plaid credentials must not land on a Worker that answers the public internet",
     "owed_to": "TRIGGER: now. Raised 19 Aug 2026 while probing for a Plaid webhook payload. The repo-side fix and both controls are on the branch; what remains is deploy and subdomain retraction.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "wrangler-inherited-settings-sweep",
@@ -405,7 +458,8 @@
     "owner": "build",
     "trigger": "after the workers.dev chain closes, before the next Worker or environment is added, because a fourth environment inherits everything the third one did",
     "owed_to": "TRIGGER: the next Worker or environment addition. Raised by Guy 19 Aug 2026 after the third inheritance surprise in one day.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "capital-one-annual-consent-refresh",
@@ -413,7 +467,8 @@
     "owner": "build",
     "trigger": "M8's reconnect surface, and no later than eleven months after the first Capital One Item is connected",
     "owed_to": "TRIGGER: M8's reconnect copy. Found 19 Aug 2026 while confirming Plaid's OAuth prerequisites before building 4.5b prime.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "pending-institution-coverage-is-not-discoverable",
@@ -421,7 +476,8 @@
     "owner": "build",
     "trigger": "4.5b prime, as an acceptance criterion rather than a follow-on: at least one connected institution must report pending, and a settle must be observed",
     "owed_to": "TRIGGER: 4.5b prime. Found while confirming Plaid prerequisites before building, on Guy's instruction to look it up rather than recall it.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "backfill-depth-is-per-institution",
@@ -429,7 +485,8 @@
     "owner": "build",
     "trigger": "4.5b prime, when real institutions connect and actual depths are observable rather than assumed; a ruling on the engine follows the numbers",
     "owed_to": "TRIGGER: 4.5b prime. Found while confirming Plaid prerequisites, from the Capital One 90-day limit, which Guy identified as bigger than Capital One.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "our-silence-is-indistinguishable-from-theirs",
@@ -437,22 +494,121 @@
     "owner": "build",
     "trigger": "4.5b prime's first real sync, when all four become observable against real data rather than hypothetical",
     "owed_to": "TRIGGER: the first real sync. Named by Guy 19 Aug 2026; the settle case is controlled, the other three are not.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "investment-accounts-are-visible-and-excluded-from-the-ledger",
-    "item": "RULED 20 AUG 2026 (Guy), AMENDED THE SAME DAY, AND ONE HALF OF THE ORIGINAL FRAMING WAS WRONG. CORRECTION FIRST, because a later reader would otherwise assume a live problem was fixed: THE ORIGINAL ITEM SAID INVESTMENT TRANSACTIONS WOULD LAND IN THE SPENDING LEDGER. THEY WOULD NOT. Plaid's docs are explicit that /investments/transactions/get 'can only be used for investment-type accounts; for obtaining transaction history for other account types, use Transactions', so the Transactions product cannot retrieve investment account history at all. With Investments not in our products array there is almost certainly NOTHING ARRIVING TO EXCLUDE. THE EXCLUSION RULE STANDS AND IS BUILT AS A GUARD AGAINST A FUTURE STATE rather than a fix for a live one. THE RULING, UNCHANGED: investment transactions never enter the spending ledger. A transfer to a brokerage is a DEPLOYMENT, not spending, which the two-ledger rule already covers; a stock purchase inside a brokerage is an account rebalancing itself and is not a household transaction. Counting either as spending makes Kept wrong IN THE DIRECTION THAT PUNISHES EXACTLY THE BEHAVIOUR THE METHOD EXISTS TO ENCOURAGE. THE STORAGE QUESTION IS RULED RATHER THAN LEANED: STORE THEM, FLAGGED, EXCLUDED FROM THE P&L, the same shape as removed transactions which are flagged rather than deleted. The data is kept DELIBERATELY, because a consolidated portfolio view is a post-launch product decision Guy has now made: not advice and not recommendations, just facts. You have $X invested, you contributed $Y, it grew $Z. Contributions are deployment, growth is arithmetic on balances, and neither recommends anything. WHAT WE ACTUALLY HAVE TODAY, established against the docs rather than assumed: ACCOUNTS AND BALANCES ONLY. No holdings, no cost basis, no positions, no securities, no buy or sell history. The balance is more useful than expected: for an investment account Plaid's `current` is 'the total value of assets as presented by the institution', so it is market value, and `available` is 'the total cash available to withdraw', so cash versus invested is visible. `limit` is null. So $X invested comes from `current`, $Z grew is arithmetic across account_balance_snapshots, and $Y contributed is inferable ONLY FROM THE FUNDING SIDE. THAT LIMIT IS THE SHAPE RATHER THAN A GAP: growth-versus-contribution decomposition is only as complete as the accounts connected, so a contribution from an account we do not hold is invisible. That is a property of connecting accounts and not something to fix. THE BALANCE RENDERS UNDER THE NET WORTH DOCTRINE: never a hero metric, never celebrated, reported as position rather than scored.",
+    "item": "RULED 20 AUG 2026 (Guy): INVESTMENT ACCOUNTS ARE VISIBLE AS ACCOUNTS AND EXCLUDED FROM THE SPENDING LEDGER. Arrived by default rather than by ruling: SoFi's first connection brought two investment accounts into financial_accounts, and the sync writes transactions against any account it holds. THE REASONING IS ALREADY DOCTRINE RATHER THAN NEW. A transfer to a brokerage is a DEPLOYMENT, not spending: money moving from cash to net worth, which the two-ledger rule already covers. A stock purchase INSIDE a brokerage is not a household transaction at all, it is an account rebalancing itself. Counting either as spending makes Kept wrong IN THE DIRECTION THAT PUNISHES EXACTLY THE BEHAVIOUR THE METHOD EXISTS TO ENCOURAGE. WHAT THIS MEANS: investment accounts appear in the accounts list and on the Balance Sheet at M8, and their transactions never enter the P&L. The transfer that funds them is already handled, because a transfer is not spending and deployment attribution is what it becomes. WHAT THE ADVICE GATE DOES NOT COVER: it refuses investment QUESTIONS and does not stop investment TRANSACTIONS being counted as spending. The harm is in the ledger, not in the replies. TWO THINGS TO SETTLE RATHER THAN ASSUME. (1) WHETHER INVESTMENT TRANSACTIONS ARE STORED AT ALL, or fetched and discarded. Guy's lean is STORE THEM, FLAGGED, EXCLUDED FROM THE LEDGER, the same shape as removed transactions which are flagged rather than deleted: storing costs nothing and gives a future Balance Sheet history, while discarding means M8 backfills. (2) WHAT HAPPENS TO THE ACCOUNT BALANCE. It is the number a household would actually want on a Balance Sheet, and it is NET-WORTH-SHAPED, so the net worth doctrine governs HOW IT RENDERS rather than whether it is held: never a hero metric, never celebrated, reported as position rather than scored. ESTABLISHED 21 AUG 2026, AND IT IS A FINDING RATHER THAN AN OBSERVATION. Guy confirmed both accounts hold real money in SoFi. We report 0.00 for both. WHAT IS ESTABLISHED: WE DO NOT HOLD A TRUSTWORTHY INVESTMENT BALANCE, and that does not depend on why. The leading explanation is that Plaid withholds investment balances without the Investments product, which fits everything seen, and it is a MECHANISM rather than a verified cause; the consequence is identical under any explanation, so the action does not wait on confirming it. Note the value is 0.00 and not null: exchange.ts writes balances.current ?? null, so Plaid sent a zero rather than omitting the field, which is why nothing looked wrong. CONSEQUENCE ONE: INVESTMENT ACCOUNTS MUST NOT RENDER A BALANCE UNTIL WE HOLD A REAL ONE. A 0.00 we cannot substantiate is worse than omitting the account, because A ZERO IS A CLAIM AND AN ABSENCE IS NOT. It is the fifth instance today of a number that reads as an answer and is not one, after oldestInWindow reporting the newest date, an empty account list reading as nothing connected, a milestone already set reading as not-yet-due, and a gate that could only refuse reading as caution. The rendering rule is the same each time: show nothing, or show why, but never show a figure the data does not support. CONSEQUENCE TWO: THE INVESTMENTS DECISION IS SHARPER THAN IT WAS WRITTEN. This item previously read as add Investments for holdings and cost basis, a richer view on top of a working balance. That is wrong. INVESTMENTS IS REQUIRED FOR ANY INVESTMENT FIGURE AT ALL. The post-launch portfolio view, you have $X, contributed $Y, grew $Z, needs the product for even the FIRST figure, and balance snapshots do not give it to us because the snapshots are the thing reading zero. So M8's Balance Sheet either omits investment balances entirely or waits on the product; there is no version that shows a number today. AND THE RESEARCH THAT PRECEDED THIS OBSERVATION REACHED THE OPPOSITE CONCLUSION, WHICH IS WHY BOTH ARE KEPT. A branch opened before the SoFi connection concluded, correctly from the documentation, that Plaid's `current` for an investment account is 'the total value of assets as presented by the institution' and `available` is 'the total cash available to withdraw', and therefore that $X invested was already obtainable from the balance without the Investments product. PRODUCTION SAYS OTHERWISE: both accounts report 0.00 while holding real money. The documentation describes what those fields MEAN, not whether they are populated for an Item that never consented to Investments, and the two are different questions. This is the same shape as every other finding of 20 and 21 Aug: a true statement about a mechanism extended to a claim about a case nobody had observed. The research is preserved below because its OTHER conclusions still stand and were confirmed rather than contradicted. --- RESEARCH, AS WRITTEN BEFORE THE OBSERVATION: RULED 20 AUG 2026 (Guy), AMENDED THE SAME DAY, AND ONE HALF OF THE ORIGINAL FRAMING WAS WRONG. CORRECTION FIRST, because a later reader would otherwise assume a live problem was fixed: THE ORIGINAL ITEM SAID INVESTMENT TRANSACTIONS WOULD LAND IN THE SPENDING LEDGER. THEY WOULD NOT. Plaid's docs are explicit that /investments/transactions/get 'can only be used for investment-type accounts; for obtaining transaction history for other account types, use Transactions', so the Transactions product cannot retrieve investment account history at all. With Investments not in our products array there is almost certainly NOTHING ARRIVING TO EXCLUDE. THE EXCLUSION RULE STANDS AND IS BUILT AS A GUARD AGAINST A FUTURE STATE rather than a fix for a live one. THE RULING, UNCHANGED: investment transactions never enter the spending ledger. A transfer to a brokerage is a DEPLOYMENT, not spending, which the two-ledger rule already covers; a stock purchase inside a brokerage is an account rebalancing itself and is not a household transaction. Counting either as spending makes Kept wrong IN THE DIRECTION THAT PUNISHES EXACTLY THE BEHAVIOUR THE METHOD EXISTS TO ENCOURAGE. THE STORAGE QUESTION IS RULED RATHER THAN LEANED: STORE THEM, FLAGGED, EXCLUDED FROM THE P&L, the same shape as removed transactions which are flagged rather than deleted. The data is kept DELIBERATELY, because a consolidated portfolio view is a post-launch product decision Guy has now made: not advice and not recommendations, just facts. You have $X invested, you contributed $Y, it grew $Z. Contributions are deployment, growth is arithmetic on balances, and neither recommends anything. WHAT WE ACTUALLY HAVE TODAY, established against the docs rather than assumed: ACCOUNTS AND BALANCES ONLY. No holdings, no cost basis, no positions, no securities, no buy or sell history. The balance is more useful than expected: for an investment account Plaid's `current` is 'the total value of assets as presented by the institution', so it is market value, and `available` is 'the total cash available to withdraw', so cash versus invested is visible. `limit` is null. So $X invested comes from `current`, $Z grew is arithmetic across account_balance_snapshots, and $Y contributed is inferable ONLY FROM THE FUNDING SIDE. THAT LIMIT IS THE SHAPE RATHER THAN A GAP: growth-versus-contribution decomposition is only as complete as the accounts connected, so a contribution from an account we do not hold is invisible. That is a property of connecting accounts and not something to fix. THE BALANCE RENDERS UNDER THE NET WORTH DOCTRINE: never a hero metric, never celebrated, reported as position rather than scored.",
     "owner": "build, gated on Guy's approval where it amends ledger-spec",
-    "trigger": "before M5 files a single transaction, because the first investment row filed as spending is a Kept figure wrong in the punishing direction; and M8 for Balance Sheet rendering",
+    "trigger": "M8's Balance Sheet, which must not render an investment balance until we hold a real one, and the Investments product decision, which is now a prerequisite for any investment figure rather than an enrichment of one",
     "owed_to": "TRIGGER: M5, and M8 for rendering. Ruled by Guy 20 Aug 2026 after SoFi's connection brought two investment accounts through by default.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
   },
   {
-    "id": "investments-product-post-launch-via-consent-only-update-mode",
-    "item": "THE INVESTMENTS PRODUCT IS ADDED TO SoFi WHEN THE PORTFOLIO VIEW IS BUILT, POST-LAUNCH (Guy, 20 Aug 2026). Without it we have accounts and balances and no holdings, cost basis, positions or securities, which is enough for the stated view and is thinner than a full portfolio picture. HOW IT IS ADDED, established against the docs: additional_consented_products is an UPDATE MODE field, so a product cannot be added to an existing Item at initial link time. Adding Investments means a NEW LINK SESSION IN UPDATE MODE. IT IS CHEAPER THAN A RECONNECT: Plaid documents that if a user connected less than two years ago they 'can bypass the Link credentials pane and complete just the consent panes'. SoFi connected 20 Aug 2026, so this is consent screens only with no re-authentication for roughly two years. WHY IT DOES NOT CHANGE THE CHASE AND AMEX SEQUENCING: those are the Liabilities cases, liabilities consent is already on the link token, and Investments can be added to SoFi independently whenever the portfolio view is built.",
+    "id": "sync-role-holds-twenty-two-transaction-columns-it-never-touches",
+    "item": "FOUND BY THE REACH SCAN ON 20 AUG 2026, AS A BYPRODUCT RATHER THAN AS THE TASK. The new control derives every column the sync Worker touches and compares it against what marginsheet_sync holds. Building it produced the per-table count, and transactions is 17 out of 39. START WITH THE TWO THAT NEED NO ARGUMENT: notes AND chat_transcript ARE HOUSEHOLD WRITING, NOT PIPELINE DATA. notes is what a household typed about a transaction. chat_transcript is what they said to MyKeeper about it. The sync Worker's entire business with a transaction is what Plaid sent, and it can currently read and overwrite both. Nobody has to weigh a tradeoff to see that is wrong. THE REST ARE NOT INCIDENTAL EITHER: category_id, pl_line, review_state, queue_reason, confidence, is_transfer, transfer_pair_id, is_reimbursable, reimbursement_status, refund_pair_id, split_parent_id, is_provisional and possible_deployment are M5 filing state and M6 ledger state, written by components that are not this one. THAT IS THE SAME SENTENCE AS THE 0023 FINDING, ONE LEVEL DOWN. 0023 narrowed the role from 39 TABLES to ten because a component with one job held a role that could read every household's conversation history. It narrowed by table and stopped there, so within the ten the grant is still whole-table: the role that must not reach the messages table can still write a transaction's chat_transcript. The 20 Aug column grant on households is the first narrowing inside a table and it is what made this visible. WHAT IS NOT CLAIMED: this is not a live exposure of the kind the four cross-household paths were, and nothing is known to write these columns. It is reach nobody ruled on. THE COST OF CLOSING IT is a migration enumerating what the pipeline writes per table, which fails closed on the fortieth column somebody adds, the same shape as 0002, 0011, 0017 and 0019. THE COST OF NOT is that the grant, which the 4c finding established is the ONLY boundary on this path because sync_worker_access is USING (true), is 22 columns wider than the Worker's statements. The reach scan already derives the needed set, so the enumeration would be read off a control rather than written by hand. account_balance_snapshots (6/8), financial_accounts (15/20) and institutions (4/6) carry the same shape and are far smaller.",
     "owner": "Guy",
-    "trigger": "when the post-launch portfolio view is built; no earlier, and the consent-only path holds for about two years from 20 Aug 2026",
-    "owed_to": "TRIGGER: the portfolio view. Ruled by Guy 20 Aug 2026 with the update-mode mechanics established against Plaid's docs.",
-    "raised": "2026-08-20"
+    "trigger": "before any component other than the sync Worker writes to transactions. That is the condition rather than the milestone: the day a second writer exists, the sync role's reach over that writer's columns stops being theoretical, and it is the M5 filer today only because the M5 filer happens to be next. A module number would read as satisfied when the module ships whether or not the condition was met.",
+    "owed_to": "TRIGGER: the first component other than the sync Worker writing to transactions. Raised 20 Aug 2026 out of the households column-grant ruling; needs Guy's ruling on whether the ten tables are narrowed by column the way households and household_state_signals now are.",
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "pre-merge-migration-edit-was-investigated-and-is-not-open",
+    "item": "A NEGATIVE RESULT, RECORDED SO THE NEXT SWEEP DOES NOT START FROM SCRATCH. On 20 Aug 2026 two CI failures on PR 127 were diagnosed as a migration edited on a branch after already applying to that branch's database, which migrations-append-only cannot see because it compares git trees and skips any file not yet on main. THE DIAGNOSIS WAS WRONG AND THE LOG SAYS SO: run 2 printed 'applying 0028_sync_first_sync_milestone.sql / up: applied 1', so the edited file did apply. IT COULD NOT HAVE BEEN OTHERWISE. scripts/neon-pr-branch.sh deletes and recreates the branch on every run, FRESH ON EVERY RUN, ruled 16 Aug 2026 for exactly this reason: the header says it used to reuse a branch and that 'a reused branch makes every CI result depend on what a previous run left'. So the window has no database that persists an edit, and the gap was closed on 16 Aug by making the database ephemeral rather than by hashing anything. WHAT REMAINS, AND IT IS SMALL: packages/schema/src/migrate.ts records applied migrations BY FILENAME with no content hash, so a developer editing a migration against a PERSISTENT LOCAL database would see the edit skipped silently. That is a local-only exposure with no shared state behind it. A ledger hash would close it and is not worth a runner change on its own; it is recorded here rather than built. WHY THIS IS WORTH KEEPING AS AN ITEM AT ALL: the question 'can a migration be edited somewhere the append-only check cannot see' now has a written answer, and the answer is a pipeline property that a future change to neon-pr-branch.sh would silently reverse. Anything that reintroduces branch reuse reopens this.",
+    "owner": "build",
+    "trigger": "if scripts/neon-pr-branch.sh ever stops recreating the branch on every run, because branch reuse is the single property that makes the pre-merge window real",
+    "owed_to": "TRIGGER: any change to neon-pr-branch.sh that reintroduces reuse. Raised and closed the same day, 20 Aug 2026.",
+    "raised": "2026-08-20",
+    "trigger_kind": "condition",
+    "condition": {
+      "kind": "file_contains",
+      "path": "scripts/neon-pr-branch.sh",
+      "text": "FRESH ON EVERY RUN",
+      "expect": true
+    },
+    "condition_why": "REGRESSION GUARD ON A CLOSED FINDING. The item is closed BECAUSE the branch is recreated every run. This fires if that sentence leaves scripts/neon-pr-branch.sh, which would mean branch reuse is back and the pre-merge migration window has reopened: the single property holding this shut."
+  },
+  {
+    "id": "days-requested-was-never-sent-so-every-item-holds-ninety-days",
+    "item": "CONFIRMED AGAINST PLAID'S DOCS 20 AUG 2026, NOT RECALLED. transactions.days_requested appears nowhere in this repository. Plaid's default is 90 days, the maximum is 730, and the field is sent at /link/token/create. So every Item we have ever created holds 90 days of history, on every institution, because of a field we never sent. TWO CONSEQUENCES, AND THEY NEED DIFFERENT ACTIONS. (1) FOR FUTURE CONNECTIONS the fix is one field on the link token: transactions: { days_requested: 730 }. Authorised by Guy 20 Aug 2026 as a live defect independent of what caused the 201, and sequenced after PR 128 lands and the readout runs. (2) FOR THE ITEMS THAT ALREADY EXIST THERE IS NO CHEAP FIX. Plaid's API reference: 'Once Transactions has been added to an Item, this value cannot be updated.' The field applies only where the Transactions product has NOT already been initialised, so LINK UPDATE MODE DOES NOT HELP: extending history on an initialised Item requires /item/remove followed by sending the household through Link to create a NEW Item. That is a new item_id, a re-consent, and the duplicate-account path Guy already ruled on in the Option A overlap decision. It is a household-visible action, so it is a ruling rather than a maintenance step. WHAT IS NOT YET ESTABLISHED: whether the 90-day default is what produced 201 on SoFi. That is a mechanism rather than a diagnosis until the ledger readout reports the oldest transaction date; roughly 90 days ago is the signature, and 24 months falsifies it. THE FINDING THIS REPLACED is the one worth remembering: a projection-spec finding blaming two institutions for a uniform window was about to be written, when the window was uniform because we asked all of them the same question. Recorded in CLAUDE.md as its own species. TWO RULINGS, GUY, 20 AUG 2026, BOTH TAKEN BEFORE THE READOUT BECAUSE BOTH ARE CHEAPER NOW. (A) NO FURTHER INSTITUTIONS ARE CONNECTED UNTIL days_requested IS ON THE LINK TOKEN. Chase and Amex were next and would each connect at 90 days and each need the same destroy-and-recreate. One Item to redo is a nuisance; three is a pattern we chose. (B) IF THE READOUT CONFIRMS 90 DAYS ON SOFI, THE ITEM IS REMOVED AND RECONNECTED BEFORE ANYTHING BUILDS ON IT. The 201 rows are worth nothing as a ledger: M5 would categorise 90 days of history as though it were the household's record, and the census reads seasonal shape from a window that does not have any. Better to lose a day-old Item than to build three modules on a foundation we know is wrong.",
+    "owner": "Guy",
+    "trigger": "the ledger readout reporting the oldest transaction date. If it is roughly 90 days, SoFi is removed and reconnected BEFORE M5 or the census touch this Item. The link-token field is authorised already and blocks any further connection: no Chase, no Amex, until it ships.",
+    "owed_to": "TRIGGER: the readout running. Raised 20 Aug 2026 after Guy said SoFi can give more than 90 days, which inverted the conclusion from an institution property to our own parameter.",
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "rls-misconfiguration-presents-as-a-household-with-no-data",
+    "item": "THE CLASS RATHER THAN THE INSTANCE (Guy, 20 Aug 2026). THE FAILURE MODE OF HOUSEHOLD ISOLATION, WHEN MISCONFIGURED, IS AN EMPTY RESULT. Not an error, not a refusal: silence, which is indistinguishable from a household that genuinely has nothing. household_isolation reads current_setting('marginsheet.household_id', true), whose missing_ok argument returns NULL rather than raising, so an unset GUC evaluates household_id = NULL, matches no row, and raises nothing at all. EVERY RLS-SCOPED READ IN THIS SYSTEM HAS THAT SHAPE, so a broken GUC anywhere presents as a customer with no data rather than as a fault. PAID FOR ON 20 AUG 2026, TWICE, IN PRODUCTION, SILENTLY. /plaid/accounts answered an empty account list for every household, and the connect page showed 'none yet' for hours while SoFi was connected; Guy read that as a page not yet wired rather than as a symptom, which is exactly the ambiguity. The invitation actor lookup refused every actor with no_member. Neither raised anything and neither reached Sentry. Both shipped. THE PROPOSAL, NOT YET RULED ON: any read whose empty result would be a plausible business answer should ASSERT THE GUC IS SET rather than merely rely on it. A household with no accounts and a household whose GUC never survived are the same JSON, and only the reader can tell them apart today. Candidate shapes: a helper that reads current_setting and throws when it is null before the query runs, or a per-statement assertion, or an invariant test per RLS-scoped route. WHAT IS ALREADY DONE AND IS NOT THIS: a receiver scan requires every set_config to sit on a transaction handle, and a db test demonstrates the GUC dying outside one. Those stop the specific mistake. They do not make an empty result self-describing, which is what this item is about. AND THE SMALL SHARP THING WORTH KEEPING: phone-change.ts explained is_local correctly, in a comment, while three other call sites got it wrong. A comment is the weakest form of a rule, paid for again.",
+    "owner": "Guy",
+    "trigger": "before M8 renders any household-facing list from an RLS-scoped read, because that is the point at which an empty result stops being a developer reading JSON and becomes a household being told they have nothing",
+    "owed_to": "TRIGGER: M8's first household-facing list. Raised 20 Aug 2026 out of the set_config sweep; Guy explicitly declined to rule on it in flight and asked for it to be noted as the class.",
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "column-privileges-test-asks-the-grant-not-the-session",
+    "item": "THE FILE THAT EXISTS TO CATCH THIS GAP HAS IT. packages/schema/test/db/column-privileges.test.ts was written 15 Aug 2026 after discovering that a column-level REVOKE is a no-op while the role holds the table-level privilege, and its header says plainly that reviewing the GRANT statement is not enough because the GRANT statement is what fooled the original experiment. EVERY ASSERTION IN IT USES has_column_privilege IN THE FOUR-ARGUMENT FORM, naming the role, executed from an owner connection. That form asks what the ACL says. The three-argument form asks what the CURRENT SESSION can do, and on 20 Aug 2026 the two returned OPPOSITE answers on the same database in the same CI job: named=true, effective=false, for marginsheet_sync on households.first_sync_completed_at. WHAT IS AND IS NOT CLAIMED. The two directions are not equally dangerous and the difference is not yet established. A denial asserting false from the ACL is probably also refused in session, so the DENIALS may well be sound. The positive assertion, 'marginsheet_sync CAN read the Plaid token', asserts TRUE in precisely the form observed disagreeing, and that is the one to re-examine first; note that the sync Worker does decrypt tokens in production, so the capability is real and it is the ASSERTION's form that is weak rather than the claim being false. THE FIX is to run each assertion as the role it names: set role, ask the three-argument form, reset in a finally. THE GENERAL RULE is recorded in CLAUDE.md: anywhere a check verifies a privilege, it asks as the thing that will use it. NOT DONE IN PR 129 deliberately: that PR is already large, and rewriting a security control's assertions is its own change with its own review. CLOSED 21 AUG 2026. Every assertion now sets the role, asks the three-argument form, and resets in a finally covering every statement executed under it. The positive assertion, that marginsheet_sync CAN read the Plaid token, was the one the rewrite was for: it was the only positive claim in the file and it was made in exactly the form observed disagreeing. ONE ASSERTION DELIBERATELY KEEPS THE NAMED FORM, and it is the case where the named form is right: the masking negative control creates a table inside a rolled-back transaction and grants to a role other than the connected one, so its subject is the ACL rather than a capability, and the ACL is what the named form answers. The distinction is written into the file so the next reader does not 'fix' it.",
+    "owner": "build",
+    "trigger": "closed 21 Aug 2026; kept as a record of what was changed and why one assertion deliberately did not change",
+    "owed_to": "TRIGGER: PR 129 merging. Raised 20 Aug 2026 by Guy on reading that the harness probe and the test disagreed, and asking whether the 15 Aug test had the same shape. It does.",
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "app-subdomain-cutover-waits-for-m9",
+    "item": "THE app.marginsheet.com CUTOVER, AND ITS TRIGGER IS M9 RATHER THAN M8 (Guy, 20 Aug 2026). The sequence: M8 builds the surfaces and lives on a Pages URL. M9 migrates the books and reconciles them. THEN the subdomain repoints and Base44 is decommissioned. WHY THE TRIGGER IS M9 AND NOT M8, recorded because the M8 reading is the tempting one and it is wrong: repointing at M8 would put a WORKING UI in front of a system holding A FRACTION OF THE BOOKS, at the address where Guy's real books currently live. The UI being finished is not the condition; the LEDGER BEING COMPLETE AND RECONCILED is. A surface that works perfectly over partial data is more misleading than one that is obviously unfinished, because nothing about it signals that what it shows is incomplete. THE SAME SHAPE AS AN EMPTY RESULT READING AS A LEGITIMATE ANSWER, which this file records twice already: a household with no accounts and a household whose data never arrived render identically, and so do a complete ledger and a partial one. DECOMMISSIONING BASE44 IS PART OF THE CUTOVER RATHER THAN A FOLLOW-UP, because two live systems at two addresses, both holding some of the books, is the state that makes reconciliation unfalsifiable.",
+    "owner": "Guy",
+    "trigger": "M9 completing, meaning the books are migrated AND reconciled, not M8 completing. The UI being ready is not the condition",
+    "owed_to": "TRIGGER: M9 complete. Recorded 20 Aug 2026 at Guy's instruction, with the reasoning for the trigger rather than only the trigger.",
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "balances-are-frozen-at-connection-time",
+    "item": "CONFIRMED BY READING THE CODE, 20 AUG 2026, BEFORE ANY RECONNECT COULD HIDE IT (Guy). NOTHING REFRESHES A BALANCE AFTER CONNECTION. Three facts, each checked: (1) account_balance_snapshots is written in exactly ONE place, services/sync/src/exchange.ts, at token exchange. (2) financial_accounts.current_balance and available_balance are written in that same one place. (3) transactions-sync.ts DOES NOT EVEN DECLARE an accounts field on SyncPage, so the balances Plaid returns with EVERY /transactions/sync page are discarded at the type boundary and no code ever reads them. THE CONSEQUENCE IS THE ONE GUY NAMED: Cash Flow would project a 13 week path from a number that never moves, and a household's balance would read as current while being weeks or months old. It is the same shape as the paginator counting rows and throwing them away, recorded in 4.5b prime: the data arrives, is counted or typed past, and is never written. WHY IT WAS INVISIBLE: a balance renders identically whether it is live or frozen. There is no error, no empty result and no missing field, which is the same silence the RLS class already documents, arriving in a value rather than in a row count. THE READOUT NOW REPORTS IT: current and available balance, the account row's updated_at, and the count plus oldest and newest date of that account's snapshots, so live and stale are distinguishable by looking rather than by reasoning. WHAT IS OWED AND NOT YET RULED: where the refresh belongs. The cheap option is that the sync runner reads page.accounts from /transactions/sync, which arrives free with every page and needs no extra Plaid call. The alternative is /accounts/balance/get, which is a billed call and returns a FRESH balance rather than a cached one, and the difference matters for an available balance that a household is about to spend against. There is also a question of whether a snapshot is written per sync or per day, since account_balance_snapshots is keyed by date and the projection reads a series rather than a point. THE DATA IS ALREADY IN MEMORY, WHICH CHANGES WHAT THE FIX COSTS. callPlaid returns the WHOLE parsed body cast to its type parameter (plaid-client.ts): a cast is not a filter, so page.accounts and its balances are present at runtime on every /transactions/sync page. Nothing fetches them because nothing READS them, and the SyncPage interface omitting the field is the only reason nobody noticed. The fix is reading what we hold, not making a call. BILLING, FROM GUY 20 AUG 2026: the balances in sync pages are FREE, included in the Transactions subscription already paid per Item per month. /accounts/balance/get is BILLED PER CALL and forces a live institution refresh. /accounts/get is free but cached. So discarding the sync-page balances means choosing between stale balances and paying per call for something we were already handed. WHICH PRODUCT CASH FLOW ACTUALLY NEEDS, and Guy's reasoning is the ruling rather than a lean: a 13 week projection wants a balance that MOVES WITH THE SYNC, not a live one, because the projection is a path computed from a ledger and a balance fetched at a different instant than the transactions would disagree with them. So the free path is the right one for Cash Flow, and /accounts/balance/get is reserved for the household asking WILL THIS CLEAR RIGHT NOW, which is a different question with a different freshness requirement and a per-call cost that is justified by being asked. BUILT 21 AUG 2026, to the ruling. applyBalances reads page.accounts from every /transactions/sync page, writes current, available and limit onto financial_accounts scoped by household AND plaid_account_id, and upserts today's snapshot on (account_id, date) with the last write winning. SyncPage now DECLARES the accounts field, which is the whole of why the data was invisible: callPlaid returns the parsed body cast to that type and a cast is not a filter. No Plaid call was added and nothing new is billed. WHAT REMAINS OPEN AND IS NARROWER THAN THIS ITEM STARTED: whether /accounts/balance/get is wired for a household asking whether something will clear right now, which is a different question with a different freshness requirement and a per-call cost justified by being asked. Cash Flow does not need it.",
+    "owner": "build",
+    "trigger": "closed for the projection path 21 Aug 2026. What remains is the live-balance question, owed only if a household-facing 'will this clear now' surface is built",
+    "owed_to": "TRIGGER: M6b Cash Flow. Raised 20 Aug 2026 by Guy asking whether the sync writes balances at all, and checked before the SoFi reconnect precisely because a reconnect would refresh them and hide whether anything else ever does.",
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "sql-mutation-proof-sweep-is-closed",
+    "item": "CLOSED 21 AUG 2026, and recorded rather than deleted so the next sweep starts from fifteen examined mutations rather than eleven unknowns. Every sql mutation in config/control-register.json was read against the rule that a restore proof asserts the STATE IT FOUND rather than the absence of the thing it DID. FOUR WERE CHANGED. sync-reach-not-beyond-grant, whose REVOKE SELECT ON households stripped migration 0028's column grant and poisoned a control three entries later; its proof now carries the table privilege and the column privilege in one number. sync-role-boundary and sync-grant-enumeration, whose REVOKE ALL restores are broader than their plants while their proofs asked only about SELECT; both now sum SELECT, INSERT, UPDATE and DELETE and require 0, which is the state 0023 left. The three sync-policy entries, whose proofs matched one LIKE against qual and could not see a restore that changed WITH CHECK, the command scope or permissiveness; the shape is now six facts in one number. And invitation-token-prefix, whose restore ran DELETE FROM invitations WHERE token NOT LIKE 'ms_invite_%', destructive beyond anything its plant creates; it now names the single literal token the plant makes possible, and the proof counts both the constraint and any stray row. THE REST ARE SOUND BECAUSE THE STATE THEY FOUND IS GENUINELY ABSENCE, so the inverse and the found state coincide: resolver-privilege, household-is-the-unit, guc-dies-outside-a-transaction, sync-reach-inside-grant. THAT LIST IS THE ARTIFACT, the same discipline as docs/silencing-operators.md where sixteen suppressions were examined and one was a defect. A clean sweep that leaves no record makes the next sweep start from scratch.",
+    "owner": "build",
+    "trigger": "the next sql mutation added to the register, which should be written against this rule rather than discovering it again",
+    "owed_to": "TRIGGER: next sql mutation. Closed 21 Aug 2026; kept as a record of what was examined rather than deleted.",
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "only-the-plaid-calls-are-bounded",
+    "item": "THE ABORTABILITY BOUNDARY, STATED RATHER THAN ASSERTED (Guy, 21 Aug 2026). A DEADLINE IS ONLY SAFE IF EVERY OPERATION UNDER IT IS GENUINELY ABORTABLE, so here is which operations in the sync path are and which are not. ABORTABLE AND NOW BOUNDED: every outbound Plaid call, because callPlaid passes an AbortController signal to fetch and a 30 second per-call timer aborts it. NOT ABORTABLE AND NOT BOUNDED: every database operation. runSyncForItem opens postgres(databaseUrl, { max: 1 }) with no connect_timeout, no idle_timeout and no statement_timeout, and nothing carries a signal, so A HUNG QUERY INSIDE THE TRANSACTION IS UNBOUNDED AND HOLDS THE HOUSEHOLD'S CHAIN LOCK FOR AS LONG AS IT HANGS. That is the same failure the Plaid deadline was built to prevent, on the other half of the same critical section. ALSO NOT BOUNDED, and smaller: the Durable Object fetch that takes the lock, and the service-binding fetches from api to sync, none of which pass a signal. decryptToken is CPU-bound WebCrypto and cannot meaningfully hang. CLOSED FOR THE DATABASE HALF 21 AUG 2026 by migration 0031, ALTER ROLE marginsheet_sync SET statement_timeout = 30s, with the value derived from a real production run and the figures in the migration. The Durable Object fetch and the service-binding fetches remain unbounded and are smaller. WHAT IS NOT CLAIMED: no hung query has been observed. Neon is a managed service and the sync's statements are small and indexed. This is a gap in the guarantee rather than a live incident, and it is recorded because the guarantee was about to be described as if it covered the whole operation. THE LIKELY SHAPE OF THE FIX is a statement_timeout on the sync role's connection rather than a signal, since Postgres bounds statements natively and the client-side abort of a query in flight is not reliably a cancellation. That is a different mechanism from the Plaid deadline and wants its own ruling on the value.",
+    "owner": "Guy",
+    "trigger": "the Durable Object and service-binding fetches remain unbounded; owed only if a lock is ever observed held by one, since neither sits inside the transaction",
+    "owed_to": "TRIGGER: the webhook path. Raised 21 Aug 2026 while building the Plaid deadline, from Guy's instruction to state which operations are abortable rather than assert the property holds.",
+    "raised": "2026-08-21",
+    "trigger_kind": "condition",
+    "condition": {
+      "kind": "file_contains",
+      "path": "packages/schema/migrations/0031_sync_statement_timeout.sql",
+      "text": "statement_timeout = '30s'",
+      "expect": true
+    },
+    "condition_why": "REGRESSION GUARD ON THE HALF ALREADY CLOSED, not a trigger for the half still open. The database half is closed by migration 0031. This fires if that migration stops declaring the bound, which would put the unbounded-query gap live again. THE ITEM REMAINS OPEN for a different reason: the Durable Object fetch and the service-binding fetches are still unbounded, and no condition watches those, because closing them is a ruling rather than a file."
+  },
+  {
+    "id": "a-trigger-only-a-reader-can-notice",
+    "item": "THE OPERATION DEADLINE'S TRIGGER FIRED AT 4.5b AND NOTHING ACTED ON IT (Guy, 21 Aug 2026). The item read: BEFORE 4.5b, not before the re-dispatch wiring, because Sandbox does not hang, production does, and production credentials are the moment the risk becomes real. That is a correct trigger, precisely worded, naming a condition rather than a module number. 4.5b shipped, production credentials went live, and five real syncs ran against them before anyone re-read the item. THE ITEM WAS RIGHT AND STILL DID NOT REACH ANYONE, which is a different failure from the eighth finding: there the mechanism did not exist, here it existed, was correct, was printed in CI on every run, and was passed anyway. A TRIGGER THAT ONLY A READER CAN NOTICE IS A TRIGGER THAT DEPENDS ON SOMEBODY RE-READING THE LIST AT THE RIGHT MOMENT, which is a property of attention rather than of the mechanism. WHAT WOULD ACTUALLY CLOSE IT, and it is not more discipline: a trigger expressed as a CONDITION THE REPOSITORY CAN EVALUATE rather than as prose a person must match against the world. Candidates worth weighing: an item may name a file or a config value whose existence or content fires it, so open-items could fail when a fired trigger has no closing commit; or triggers naming a module could be checked against the module's own completion marker. Both are mechanisms; the current form is a reminder. WHAT IS NOT CLAIMED: that every trigger can be made evaluable. Several in this file are gated on Guy, on a third party, or on a ruling, and those are genuinely prose. The proposal is that the ones naming OUR OWN milestones should not be.",
+    "owner": "Guy",
+    "trigger": "before the next module boundary, because that is when the largest number of triggers become due at once and the current form is least likely to be re-read",
+    "owed_to": "TRIGGER: next module boundary. Raised 21 Aug 2026 after the operation deadline's own trigger passed unremarked at 4.5b.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
+
   }
 ]

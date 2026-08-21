@@ -25,6 +25,7 @@ import { decryptToken } from "./token-crypto.js";
 import { runTransactionsSync, type SyncOutcome, type SyncPage } from "./transactions-sync.js";
 import type { PlaidCredentials } from "./plaid-client.js";
 import { applyAddedAndModified, applyRemoved, markFirstSyncCompleted, didChange, type Tx } from "./apply-streams.js";
+import { applyBalances } from "./apply-balances.js";
 import { onSyncComplete, type SyncStatus } from "./sync-state.js";
 
 export interface RunResult {
@@ -37,6 +38,12 @@ export interface RunResult {
   pages: number;
   restarts: number;
   firstSync: boolean;
+  /** Balance rows ACTUALLY touched, not accounts handed in. They differ exactly
+   *  when an account belongs to another household, which is the case the
+   *  household predicate exists to prevent, so reporting the input would hide
+   *  the only failure worth seeing. */
+  accountsTouched: number;
+  snapshotsWritten: number;
   signalId: string | null;
 }
 
@@ -69,6 +76,9 @@ export async function runSyncForItem(
       if (!item) throw new Error(`no plaid_item ${itemRowId} for this household`);
       if (!item.access_token_ciphertext) throw new Error(`plaid_item ${itemRowId} holds no token`);
 
+      let accountsTouched = 0;
+      let snapshotsWritten = 0;
+
       const accessToken = await decryptToken(item.access_token_ciphertext, encryptionKey);
 
       // BOTH CURSORS, because the mutation branch resumes from the LAST
@@ -89,6 +99,15 @@ export async function runSyncForItem(
         async (page: SyncPage) => {
           const written = await applyAddedAndModified(tx as unknown as Tx, householdId, [...page.added, ...page.modified]);
           const flagged = await applyRemoved(tx as unknown as Tx, householdId, page.removed.map((r) => r.transaction_id));
+          // PER PAGE, WHICH IS IDEMPOTENT AND DELIBERATE. Plaid sends the same
+          // current balances with every page, so the last page wins and lands
+          // on the same figure. Writing per page also means a pagination that
+          // fails midway still leaves balances fresher than it found them,
+          // which is the right direction for a value that describes NOW rather
+          // than a ledger entry that describes an event.
+          const balances = await applyBalances(tx as unknown as Tx, householdId, page.accounts ?? []);
+          accountsTouched += balances.accounts;
+          snapshotsWritten += balances.snapshots;
           return { written, flagged };
         }
       );
@@ -138,6 +157,8 @@ export async function runSyncForItem(
         pages: outcome.pages,
         restarts: outcome.restarts,
         firstSync,
+        accountsTouched,
+        snapshotsWritten,
         signalId,
       };
     });

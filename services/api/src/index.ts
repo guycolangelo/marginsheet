@@ -97,7 +97,12 @@ const handler = {
       url.pathname === "/plaid/sync" ||
       url.pathname === "/plaid/item-products" ||
       url.pathname === "/plaid/accounts" ||
+      url.pathname === "/plaid/ledger-readout" ||
+      url.pathname === "/plaid/purge-item" ||
+      url.pathname === "/plaid/disconnect-item" ||
+      url.pathname === "/plaid/set-webhook" ||
       url.pathname === "/plaid/oauth-return" ||
+      url.pathname === "/plaid/webhook" ||
       url.pathname === "/connect"
     ) {
       // The OAuth return is the URL registered with Plaid. It carries no
@@ -106,6 +111,35 @@ const handler = {
       // unauthenticated route here: an OAuth redirect arrives from the bank,
       // not from our own fetch, and refusing it would break the flow it exists
       // to complete. It reads nothing and writes nothing.
+      // POST /plaid/webhook: PUBLIC, AND IT HAS TO BE. Plaid calls it from
+      // Plaid, so there is no session and never will be. What stands in for
+      // one is the signature, verified in the sync Worker where the Plaid
+      // credentials live.
+      //
+      // api IS A DUMB PIPE HERE AND THAT IS LOAD-BEARING. The signature covers
+      // a SHA-256 of the body AS SENT, so anything between Plaid and the
+      // verifier that parses and re-serialises destroys the proof. The raw text
+      // is forwarded unread: this Worker does not know or care what is in it.
+      if (url.pathname === "/plaid/webhook") {
+        if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
+        if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+        const response = await env.SYNC.fetch(
+          new Request("https://sync.internal/internal/plaid-webhook", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              // The header travels with the body or the body cannot be proven.
+              "plaid-verification": request.headers.get("plaid-verification") ?? "",
+            },
+            body: await request.text(),
+          })
+        );
+        return new Response(await response.text(), {
+          status: response.status,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
       if (url.pathname === "/plaid/oauth-return") {
         return new Response(OAUTH_RETURN_PAGE, {
           headers: { "content-type": "text/html; charset=utf-8" },
@@ -197,19 +231,216 @@ const handler = {
           // Mask-plus-type-plus-institution matching stays owed to M8, because
           // a heuristic that acts silently is wrong invisibly and only the
           // household can say "no, that is a different card".
-          await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;
-          const accounts = await sql<
-            { name: string | null; mask: string | null; type: string | null; institution: string | null; item_id: string }[]
-          >`
-            select fa.name, fa.mask, fa.type, i.name as institution, pi.item_id
-              from financial_accounts fa
-              join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
-              left join institutions i on i.id = pi.institution_id
-             where fa.household_id = ${householdId}
-               and fa.is_active = true
-             order by i.name nulls last, fa.name
-          `;
+          // ONE TRANSACTION, because set_config's third argument is is_local.
+          // Outside an explicit transaction every statement is its own, so the
+          // GUC died with the statement that set it and household_isolation
+          // evaluated `household_id = NULL` on the very next query. THAT
+          // RETURNS NO ROWS AND RAISES NOTHING: an unset GUC is a valid state
+          // that the policy handles by matching nothing, so this route answered
+          // an empty list for every household, and an empty list is exactly
+          // what "no accounts connected yet" looks like.
+          const accounts = await sql.begin(async (tx) => {
+            await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+            return tx<
+              { name: string | null; mask: string | null; type: string | null; institution: string | null; item_id: string }[]
+            >`
+              select fa.name, fa.mask, fa.type, i.name as institution, pi.item_id
+                from financial_accounts fa
+                join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
+                left join institutions i on i.id = pi.institution_id
+               where fa.household_id = ${householdId}
+                 and fa.is_active = true
+               order by i.name nulls last, fa.name
+            `;
+          });
           return Response.json({ accounts });
+        }
+
+        if (url.pathname === "/plaid/ledger-readout") {
+          // A PROXY AND NOTHING ELSE. The statements live in the sync Worker
+          // because the tables do: api threw "permission denied for table
+          // plaid_items" reading a column 0027 granted to nobody, and the fix
+          // is where the readout runs rather than what api may reach.
+          //
+          // The status and the body travel through UNCHANGED. Replacing a
+          // failure with a summary of it is how the first version produced an
+          // empty object, and this is a diagnostic: the raw answer is the
+          // product.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/ledger-readout", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/set-webhook" && request.method === "POST") {
+          // Session-gated, household from the session, and the sync Worker does
+          // the work because the access token lives there.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const b = (await request.json().catch(() => ({}))) as { itemId?: string; webhookUrl?: string; confirm?: boolean };
+          if (!b.itemId || !b.webhookUrl) {
+            return Response.json({ error: "itemId and webhookUrl are required" }, { status: 400 });
+          }
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/set-webhook", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId, itemId: b.itemId, webhookUrl: b.webhookUrl, confirm: b.confirm === true }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/disconnect-item" && request.method === "POST") {
+          // DISCONNECT AN INSTITUTION. api proxies because the access token
+          // lives in the sync Worker; the household comes from the session and
+          // is never taken from the request.
+          //
+          // The status and body travel through unchanged: this is a
+          // destructive external action and the raw answer is the product.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const b = (await request.json().catch(() => ({}))) as { itemId?: string; confirm?: boolean };
+          if (!b.itemId) return Response.json({ error: "itemId is required" }, { status: 400 });
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/disconnect-item", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId, itemId: b.itemId, confirm: b.confirm === true }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/purge-item" && request.method === "POST") {
+          // REMOVES OUR ROWS FOR ONE ITEM, so a relink does not duplicate the
+          // ledger (4.5b prime, throwaway with the rest of this surface).
+          //
+          // WHY IT IS NEEDED AT ALL. Plaid ids are ITEM-SCOPED: a relink issues
+          // new plaid_account_ids and new plaid_transaction_ids for the same
+          // real accounts and the same real transactions. Every uniqueness
+          // constraint we hold is keyed on those ids, so none of them collides
+          // and the overlapping history imports a second time. Kept and Margin
+          // would then be wrong by the value of the overlap.
+          //
+          // IT RUNS AS marginsheet_app, which already holds DELETE on all four
+          // tables. marginsheet_sync holds DELETE on none of them, so nothing
+          // is granted for this and the sync role's boundary is untouched. The
+          // Plaid question is asked over the binding because the token lives
+          // there.
+          //
+          // DRY RUN UNLESS TOLD OTHERWISE. A delete route that acts on the
+          // first click is the wrong shape for a surface someone is using at
+          // midnight (Guy, 20 Aug 2026): it reports what it WOULD remove, and
+          // only a second call carrying confirm actually removes it.
+          const body = (await request.json().catch(() => ({}))) as { itemId?: string; confirm?: boolean };
+          if (!body.itemId) return Response.json({ error: "itemId is required" }, { status: 400 });
+
+          // The Plaid status travels with the counts even on a dry run, so the
+          // reader sees both halves before deciding.
+          let status: { liveness?: string; detail?: unknown } = { liveness: "unknown", detail: { error: "no SYNC service binding" } };
+          if (env.SYNC) {
+            const response = await env.SYNC.fetch(
+              new Request("https://sync.internal/internal/item-status", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ householdId, itemId: body.itemId }),
+              })
+            );
+            status = (await response.json().catch(() => ({ liveness: "unknown", detail: { error: `sync returned ${response.status}` } }))) as typeof status;
+          }
+
+          const counts = await sql.begin(async (tx) => {
+            await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+            const [row] = await tx<
+              { item: number; accounts: number; transactions: number; snapshots: number }[]
+            >`
+              with it as (
+                select id from plaid_items
+                 where item_id = ${body.itemId!} and household_id = ${householdId}
+              ), acc as (
+                select fa.id from financial_accounts fa join it on fa.plaid_item_id = it.id
+                 where fa.household_id = ${householdId}
+              )
+              select (select count(*)::int from it) as item,
+                     (select count(*)::int from acc) as accounts,
+                     (select count(*)::int from transactions t
+                       where t.household_id = ${householdId} and t.account_id in (select id from acc)) as transactions,
+                     (select count(*)::int from account_balance_snapshots s
+                       where s.household_id = ${householdId} and s.account_id in (select id from acc)) as snapshots
+            `;
+            return row;
+          });
+
+          if (!counts.item) return Response.json({ error: "no such item for this household" }, { status: 404 });
+
+          if (!body.confirm) {
+            return Response.json({
+              dryRun: true,
+              itemId: body.itemId,
+              plaid: status,
+              wouldDelete: counts,
+              note: "call again with confirm true to delete. Refused unless Plaid reports the Item gone.",
+            });
+          }
+
+          // FAILS CLOSED. Only positive evidence that the Item is gone permits
+          // the delete: deleting our rows for a LIVE Item would leave the
+          // household connected at Plaid, billed, and invisible to us, which is
+          // worse than the duplicate this prevents because it is silent.
+          if (status.liveness !== "gone") {
+            return Response.json(
+              {
+                error: "refused: Plaid does not report this Item as gone",
+                plaid: status,
+                wouldDelete: counts,
+                remedy: "run /item/remove at Plaid first, then call this again",
+              },
+              { status: 409 }
+            );
+          }
+
+          // ONE TRANSACTION, ordered transactions then snapshots then accounts
+          // then the item. financial_accounts references plaid_items ON DELETE
+          // RESTRICT, so a wrong order refuses rather than half-applying, and
+          // the transaction means a failure anywhere leaves everything.
+          //
+          // RETURNS WHAT HAPPENED, NOT WHAT WAS ASKED FOR: every count below is
+          // rows actually deleted, read back from the statement.
+          const deleted = await sql.begin(async (tx) => {
+            await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+            const accounts = await tx<{ id: string }[]>`
+              select fa.id from financial_accounts fa
+                join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
+               where pi.item_id = ${body.itemId!} and fa.household_id = ${householdId}
+            `;
+            const ids = accounts.map((a) => a.id);
+            const t = ids.length
+              ? await tx`delete from transactions where household_id = ${householdId} and account_id = any(${ids}::uuid[]) returning id`
+              : [];
+            const s = ids.length
+              ? await tx`delete from account_balance_snapshots where household_id = ${householdId} and account_id = any(${ids}::uuid[]) returning id`
+              : [];
+            const a = ids.length
+              ? await tx`delete from financial_accounts where household_id = ${householdId} and id = any(${ids}::uuid[]) returning id`
+              : [];
+            const i = await tx`delete from plaid_items where household_id = ${householdId} and item_id = ${body.itemId!} returning id`;
+            return { transactions: t.length, snapshots: s.length, accounts: a.length, item: i.length };
+          });
+
+          return Response.json({ deleted, itemId: body.itemId, plaid: status });
         }
 
         return new Response("not found", { status: 404 });

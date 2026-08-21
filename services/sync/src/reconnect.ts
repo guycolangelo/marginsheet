@@ -148,6 +148,28 @@ export async function createLinkToken(
       user: { client_user_id: householdId },
       client_name: "MarginSheet",
       products: ["transactions"],
+      // HOW MUCH HISTORY PLAID PULLS, AND IT IS A FIELD WE NEVER SENT.
+      //
+      // The default is 90 days and the maximum is 730. Every Item created
+      // before 20 Aug 2026 therefore holds 90 days, on every institution,
+      // because of an omission rather than an institution limit. SoFi's first
+      // sync returned 201 transactions with an oldest date 88 days back, and
+      // /transactions/get asked for 24 months returned 202: PLAID ITSELF HOLDS
+      // ONLY 90 DAYS FOR THAT ITEM.
+      //
+      // A projection-spec finding blaming two institutions for a uniform
+      // backfill window was about to be written when the window was uniform
+      // because we asked all of them the same question.
+      //
+      // IT CANNOT BE CHANGED LATER. Plaid's reference: "Once Transactions has
+      // been added to an Item, this value cannot be updated." Link update mode
+      // does not help; extending history on an initialised Item requires
+      // /item/remove and a NEW Item. Confirmed against the docs 20 Aug 2026
+      // rather than recalled.
+      //
+      // 730 rather than a smaller number because the year-end projection and
+      // the census read SEASONAL SHAPE, which needs two cycles to see one.
+      transactions: { days_requested: 730 },
       // CONSENT NOW, BILLED ON FIRST USE. A product cannot be added to an Item
       // after it is created: adding Liabilities later means taking the Item
       // through update mode again. additional_consented_products collects the

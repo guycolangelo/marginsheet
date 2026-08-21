@@ -25,8 +25,20 @@
 // The DO is the right HOME for the lock. It is not itself one, and anyone
 // reading "the DO owns sync execution" should not infer otherwise.
 
+import { runSyncForItem } from "./run-sync.js";
+
 export interface SyncEnv {
   ENVIRONMENT: string;
+  /** THE SYNC'S OWN NEEDS, ADDED AT 4.5's SECOND HALF. Until the webhook
+   *  receiver existed this object held the lock and did nothing inside it, so
+   *  it needed nothing but its environment name. Optional because the lock's
+   *  own tests construct it without any of them, and a caller naming no Item
+   *  never reads them. */
+  NEON_DATABASE_URL?: string;
+  TOKEN_ENCRYPTION_KEY?: string;
+  PLAID_CLIENT_ID?: string;
+  PLAID_SECRET?: string;
+  PLAID_BASE_URL?: string;
 }
 
 /** What a caller learns about a sync it asked for.
@@ -39,6 +51,9 @@ export interface SyncEnv {
  *  exclusion comes from /observe, which watches from outside. */
 export interface SyncOutcome {
   ran: boolean;
+  /** Present when the caller named an Item, absent when it did not. The lock's
+   *  own tests name none, because they are about the lock rather than the sync. */
+  result?: unknown;
 }
 
 export class HouseholdSync {
@@ -131,9 +146,11 @@ export class HouseholdSync {
     // test can hold the lock long enough for a second request to arrive; real
     // callers omit it and the work is the sync itself.
     if (url.pathname === "/sync" && request.method === "POST") {
-      const { holdMs = 0, fail = false } = (await request.json().catch(() => ({}))) as {
+      const { holdMs = 0, fail = false, householdId, itemRowId } = (await request.json().catch(() => ({}))) as {
         holdMs?: number;
         fail?: boolean;
+        householdId?: string;
+        itemRowId?: string;
       };
       this.arrived += 1;
       try {
@@ -142,6 +159,28 @@ export class HouseholdSync {
         // `fail` exists so a test can put a REJECTING task through the lock.
         // Real callers omit it and the work is the sync itself.
         if (fail) throw new Error("planted sync failure");
+
+        // THE REAL WORK, ADDED AT 4.5's SECOND HALF. Until the webhook
+        // receiver existed this route did nothing but hold the lock, because
+        // the lock's tests are about the lock rather than about syncing. Both
+        // shapes stay: a caller naming an Item gets a sync, and a caller
+        // naming none gets the harness the lock controls depend on.
+        if (householdId && itemRowId) {
+          if (!this.env.NEON_DATABASE_URL || !this.env.TOKEN_ENCRYPTION_KEY) {
+            throw new Error("sync is not configured in the Durable Object");
+          }
+          if (!this.env.PLAID_CLIENT_ID || !this.env.PLAID_SECRET) {
+            throw new Error("Plaid credentials are not configured in the Durable Object");
+          }
+          const result = await runSyncForItem(
+            householdId,
+            itemRowId,
+            { clientId: this.env.PLAID_CLIENT_ID, secret: this.env.PLAID_SECRET, baseUrl: this.env.PLAID_BASE_URL },
+            this.env.TOKEN_ENCRYPTION_KEY,
+            this.env.NEON_DATABASE_URL
+          );
+          return { ran: true, result } satisfies SyncOutcome;
+        }
         return { ran: true } satisfies SyncOutcome;
       });
       return Response.json(outcome);

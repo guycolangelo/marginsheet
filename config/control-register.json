@@ -92,11 +92,12 @@
       "planted": {
         "kind": "sql",
         "apply": "ALTER TABLE invitations DROP CONSTRAINT invitations_token_purpose_prefix",
-        "restore": "DELETE FROM invitations WHERE token NOT LIKE 'ms\\_invite\\_%'; ALTER TABLE invitations ADD CONSTRAINT invitations_token_purpose_prefix CHECK (token LIKE 'ms\\_invite\\_%')",
-        "proof": "select count(*)::int as n from pg_constraint where conname = 'invitations_token_purpose_prefix'",
+        "restore": "DELETE FROM invitations WHERE token = 'not-a-prefixed-token'; ALTER TABLE invitations ADD CONSTRAINT invitations_token_purpose_prefix CHECK (token LIKE 'ms\\_invite\\_%')",
+        "proof": "select ((select count(*) from pg_constraint where conname = 'invitations_token_purpose_prefix') * 1000 + (select count(*) from invitations where token = 'not-a-prefixed-token'))::int as state",
         "appliedValue": 0,
-        "restoredValue": 1,
-        "restoreNote": "The mutation lets the named test insert a row the constraint forbids, so the restore must remove it first. Found by running the harness: the restore failed with 'is violated by some row', which is a flaw in the planted failure rather than in the control."
+        "restoredValue": 1000,
+        "restoreNote": "The mutation lets the named test insert a row the constraint forbids, so the restore must remove it first. Found by running the harness: the restore failed with 'is violated by some row', which is a flaw in the planted failure rather than in the control.",
+        "note": " THE RESTORE NAMES ONE ROW RATHER THAN A CLASS, after 21 Aug 2026. It used to run DELETE FROM invitations WHERE token NOT LIKE 'ms_invite_%', which is destructive beyond anything the plant creates: the plant drops a constraint, the test then inserts exactly one row with the literal token 'not-a-prefixed-token', and that is the only row a restore has any business removing. A constraint count could not observe a deleted row, so the proof now carries both facts in one number, 1000 for the constraint and 1 per stray row, and a restore that left the row behind or deleted anything else reads as a different number."
       }
     },
     {
@@ -234,10 +235,10 @@
         "kind": "sql",
         "apply": "GRANT SELECT ON messages TO marginsheet_sync",
         "restore": "REVOKE ALL ON messages FROM marginsheet_sync",
-        "proof": "select has_table_privilege('marginsheet_sync','messages','SELECT')::int as n",
+        "proof": "select (has_table_privilege('marginsheet_sync','messages','SELECT')::int + has_table_privilege('marginsheet_sync','messages','INSERT')::int * 2 + has_table_privilege('marginsheet_sync','messages','UPDATE')::int * 4 + has_table_privilege('marginsheet_sync','messages','DELETE')::int * 8) as state",
         "appliedValue": 1,
         "restoredValue": 0,
-        "note": "THE DIRECTION IS THE POINT. Re-granting one forbidden table reproduces exactly the pre-0023 state: the role stays able to do its job, every pipeline test still passes, and nothing anywhere is visibly broken. That is the failure this control exists to catch, and it is the failure that sat in the schema for two weeks. Revoking a table the role NEEDS would also redden a test, and would prove almost nothing, because a sync worker that cannot read plaid_items breaks loudly on its first run."
+        "note": "THE DIRECTION IS THE POINT. Re-granting one forbidden table reproduces exactly the pre-0023 state: the role stays able to do its job, every pipeline test still passes, and nothing anywhere is visibly broken. That is the failure this control exists to catch, and it is the failure that sat in the schema for two weeks. Revoking a table the role NEEDS would also redden a test, and would prove almost nothing, because a sync worker that cannot read plaid_items breaks loudly on its first run. THE PROOF ASSERTS THE STATE IT FOUND RATHER THAN THE ABSENCE OF WHAT IT DID, after 20 Aug 2026. REVOKE ALL is deliberately broader than the plant, which is safe only while 0023 leaves this role nothing on this table, and the old proof asked about SELECT alone so it could not have noticed the restore removing a privilege the plant never granted. It now sums SELECT, INSERT, UPDATE and DELETE into one number, so restored must read 0: not 'the thing I did is gone' but 'the table is as I found it'."
       },
       "distinction": "Asserts 42501 rather than row counts. Every forbidden table carries household_isolation, so a read this role IS permitted returns zero rows when no GUC is set: a test asserting 'nothing came back' would pass with the wide grant fully intact, proving RLS works and saying nothing about the grant.",
       "nameNote": "A SUBSTRING, deliberately. The three forbidden-table tests are generated in a loop, so no full title appears literally in the source and the register's existence check could not find one. vitest -t matches substrings, so this runs all three; the planted failure reddens one of them and the run fails, which is what the harness reads. Caught by the register check itself, which exists precisely to stop a -t filter that matches nothing being read as a pass."
@@ -252,10 +253,10 @@
         "kind": "sql",
         "apply": "GRANT SELECT ON receivables TO marginsheet_sync",
         "restore": "REVOKE ALL ON receivables FROM marginsheet_sync",
-        "proof": "select has_table_privilege('marginsheet_sync','receivables','SELECT')::int as n",
+        "proof": "select (has_table_privilege('marginsheet_sync','receivables','SELECT')::int + has_table_privilege('marginsheet_sync','receivables','INSERT')::int * 2 + has_table_privilege('marginsheet_sync','receivables','UPDATE')::int * 4 + has_table_privilege('marginsheet_sync','receivables','DELETE')::int * 8) as state",
         "appliedValue": 1,
         "restoredValue": 0,
-        "note": "A table NOBODY NAMED, deliberately. sync-role-boundary attempts messages, known_context and decision_journal and requires three refusals, and all three still pass when a fourth table is granted. receivables is in none of those lists, so only the count notices. That is why this entry exists separately from sync-role-boundary."
+        "note": "A table NOBODY NAMED, deliberately. sync-role-boundary attempts messages, known_context and decision_journal and requires three refusals, and all three still pass when a fourth table is granted. receivables is in none of those lists, so only the count notices. That is why this entry exists separately from sync-role-boundary. THE PROOF ASSERTS THE STATE IT FOUND RATHER THAN THE ABSENCE OF WHAT IT DID, after 20 Aug 2026. REVOKE ALL is deliberately broader than the plant, which is safe only while 0023 leaves this role nothing on this table, and the old proof asked about SELECT alone so it could not have noticed the restore removing a privilege the plant never granted. It now sums SELECT, INSERT, UPDATE and DELETE into one number, so restored must read 0: not 'the thing I did is gone' but 'the table is as I found it'."
       },
       "distinction": "A COUNT CATCHES A WIDENING A NAMED-ITEM CHECK CANNOT. sync-role-boundary proves three specific tables are refused; this proves the set is exactly nine. Grant a fourth table nobody thought to name and the three refusals still pass while the count goes to ten. The deployed Worker reports the same number independently: sync/health returns tables:9 from information_schema, which only shows tables the connecting role holds privilege on, against api's 46. WIDENED DELIBERATELY 18 Aug 2026, nine to ten, for the household-state-changed outbox. A control firing on a legitimate widening is the control working, and the declaration moved BEFORE the grant so the red was a proof rather than a description. The reasoning that admits the tenth is narrow ON PURPOSE, because it is what stops an eleventh being argued in by analogy: the sync worker must write the signal inside the same transaction as the change it describes, so a write by anything else loses the atomicity the outbox exists for. Not 'the pipeline touches it'."
     },
@@ -526,12 +527,12 @@
       "name": "an ORDINARY table refuses a write into another household",
       "planted": {
         "kind": "sql",
-        "proof": "select count(*)::int from pg_policies where tablename = 'plaid_items' and policyname = 'sync_worker_write' and qual like '%household_id%'",
+        "proof": "select ((case when coalesce(qual,'') like '%household_id%' then 1 else 0 end) + (case when coalesce(with_check,'') like '%household_id%' then 2 else 0 end) + (case when coalesce(qual,'') like '%IS NULL%' then 4 else 0 end) + (case when cmd = 'ALL' then 8 else 0 end) + (case when permissive = 'PERMISSIVE' then 16 else 0 end) + (case when 'marginsheet_sync' = any(roles) then 32 else 0 end))::int as shape from pg_policies where tablename = 'plaid_items' and policyname = 'sync_worker_write'",
         "apply": "DROP POLICY \"sync_worker_write\" ON \"plaid_items\"; CREATE POLICY \"sync_worker_write\" ON \"plaid_items\" FOR ALL TO marginsheet_sync USING (true) WITH CHECK (true);",
         "restore": "DROP POLICY \"sync_worker_write\" ON \"plaid_items\"; CREATE POLICY \"sync_worker_write\" ON \"plaid_items\" FOR ALL TO marginsheet_sync USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
-        "appliedValue": 0,
-        "restoredValue": 1,
-        "note": "RESTORES USING (true) IN THE DATABASE, which is the historical state that allowed the confirmed write. IT IS A `sql` MUTATION AND THAT IS THE WHOLE POINT: the first version edited the migration FILE, which is inert, because the branch is migrated before the harness runs and changing an already-applied .sql changes nothing. All three policy controls reported 'broke it yes, went red NO' and the cause was the mutation, not the control."
+        "appliedValue": 56,
+        "restoredValue": 59,
+        "note": "RESTORES USING (true) IN THE DATABASE, which is the historical state that allowed the confirmed write. IT IS A `sql` MUTATION AND THAT IS THE WHOLE POINT: the first version edited the migration FILE, which is inert, because the branch is migrated before the harness runs and changing an already-applied .sql changes nothing. All three policy controls reported 'broke it yes, went red NO' and the cause was the mutation, not the control. THE PROOF READS THE WHOLE ROW RATHER THAN A SUBSTRING OF qual, after 21 Aug 2026. The previous version matched one LIKE against qual, so a restore that recreated the policy with a different WITH CHECK, a different command scope, or as RESTRICTIVE rather than PERMISSIVE would have read as clean: it could not see a defect rather than being known to have none, and that distinction was doing load-bearing work in a sentence that sounded like a classification. The shape is now six facts in one number, 1 for household_id in qual, 2 for household_id in with_check, 4 for IS NULL in qual, 8 for command ALL, 16 for PERMISSIVE, 32 for the role being named, so any of them changing under a restore reads as a different number and fails."
       },
       "distinction": "ONE OF THREE CONTROLS THAT DIFFER IN KIND. One refusal proves a boundary exists; three of the same shape prove one predicate works three times. This is the ordinary case, where household_id is the scope. Its SURVIVAL assertion is the property rather than the error: a refusal by policy and a match of zero rows are both acceptable, and asserting on the exception message would couple the control to Postgres wording."
     },
@@ -543,12 +544,12 @@
       "name": "provider_events accepts an UNATTRIBUTED row and refuses another household's",
       "planted": {
         "kind": "sql",
-        "proof": "select count(*)::int from pg_policies where tablename = 'provider_events' and policyname = 'sync_worker_write' and qual like '%IS NULL%'",
+        "proof": "select ((case when coalesce(qual,'') like '%household_id%' then 1 else 0 end) + (case when coalesce(with_check,'') like '%household_id%' then 2 else 0 end) + (case when coalesce(qual,'') like '%IS NULL%' then 4 else 0 end) + (case when cmd = 'ALL' then 8 else 0 end) + (case when permissive = 'PERMISSIVE' then 16 else 0 end) + (case when 'marginsheet_sync' = any(roles) then 32 else 0 end))::int as shape from pg_policies where tablename = 'provider_events' and policyname = 'sync_worker_write'",
         "apply": "DROP POLICY \"sync_worker_write\" ON \"provider_events\"; CREATE POLICY \"sync_worker_write\" ON \"provider_events\" FOR ALL TO marginsheet_sync USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
         "restore": "DROP POLICY \"sync_worker_write\" ON \"provider_events\"; CREATE POLICY \"sync_worker_write\" ON \"provider_events\" FOR ALL TO marginsheet_sync USING (household_id IS NULL OR household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id IS NULL OR household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
-        "appliedValue": 0,
-        "restoredValue": 1,
-        "note": "Removes the NULL clause IN THE DATABASE, which is the tidy-up a future reader would make. It reddens the PERMITTED half: the exception exists to keep webhooks working, and its failure mode is silence rather than an error."
+        "appliedValue": 59,
+        "restoredValue": 63,
+        "note": "Removes the NULL clause IN THE DATABASE, which is the tidy-up a future reader would make. It reddens the PERMITTED half: the exception exists to keep webhooks working, and its failure mode is silence rather than an error. THE PROOF READS THE WHOLE ROW RATHER THAN A SUBSTRING OF qual, after 21 Aug 2026. The previous version matched one LIKE against qual, so a restore that recreated the policy with a different WITH CHECK, a different command scope, or as RESTRICTIVE rather than PERMISSIVE would have read as clean: it could not see a defect rather than being known to have none, and that distinction was doing load-bearing work in a sentence that sounded like a classification. The shape is now six facts in one number, 1 for household_id in qual, 2 for household_id in with_check, 4 for IS NULL in qual, 8 for command ALL, 16 for PERMISSIVE, 32 for the role being named, so any of them changing under a restore reads as a different number and fails."
       },
       "distinction": "THE EXCEPTION, TESTED IN BOTH DIRECTIONS, because an exception that only proves the permitted half is an exception nobody has checked. Removing the NULL clause refuses the insert whose whole purpose is to record an event we cannot yet attribute, so webhooks stop being processed and Plaid's retries are the only trace. That is why the migration states what BREAKS rather than how the table differs."
     },
@@ -560,12 +561,12 @@
       "name": "applyRemoved's statement can no longer cross households",
       "planted": {
         "kind": "sql",
-        "proof": "select count(*)::int from pg_policies where tablename = 'transactions' and policyname = 'sync_worker_write' and qual like '%household_id%'",
+        "proof": "select ((case when coalesce(qual,'') like '%household_id%' then 1 else 0 end) + (case when coalesce(with_check,'') like '%household_id%' then 2 else 0 end) + (case when coalesce(qual,'') like '%IS NULL%' then 4 else 0 end) + (case when cmd = 'ALL' then 8 else 0 end) + (case when permissive = 'PERMISSIVE' then 16 else 0 end) + (case when 'marginsheet_sync' = any(roles) then 32 else 0 end))::int as shape from pg_policies where tablename = 'transactions' and policyname = 'sync_worker_write'",
         "apply": "DROP POLICY \"sync_worker_write\" ON \"transactions\"; CREATE POLICY \"sync_worker_write\" ON \"transactions\" FOR ALL TO marginsheet_sync USING (true) WITH CHECK (true);",
         "restore": "DROP POLICY \"sync_worker_write\" ON \"transactions\"; CREATE POLICY \"sync_worker_write\" ON \"transactions\" FOR ALL TO marginsheet_sync USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
-        "appliedValue": 0,
-        "restoredValue": 1,
-        "note": "Restores in the DATABASE exactly the condition under which this statement was CONFIRMED to flag another household's transaction with threw=nothing. Not hypothetical, and not a file edit: a migration already applied cannot be un-applied by rewriting it."
+        "appliedValue": 56,
+        "restoredValue": 59,
+        "note": "Restores in the DATABASE exactly the condition under which this statement was CONFIRMED to flag another household's transaction with threw=nothing. Not hypothetical, and not a file edit: a migration already applied cannot be un-applied by rewriting it. THE PROOF READS THE WHOLE ROW RATHER THAN A SUBSTRING OF qual, after 21 Aug 2026. The previous version matched one LIKE against qual, so a restore that recreated the policy with a different WITH CHECK, a different command scope, or as RESTRICTIVE rather than PERMISSIVE would have read as clean: it could not see a defect rather than being known to have none, and that distinction was doing load-bearing work in a sentence that sounded like a classification. The shape is now six facts in one number, 1 for household_id in qual, 2 for household_id in with_check, 4 for IS NULL in qual, 8 for command ALL, 16 for PERMISSIVE, 32 for the role being named, so any of them changing under a restore reads as a different number and fails."
       },
       "distinction": "THE OMISSION OF 4e's HOUSEHOLD PREDICATE IS DELIBERATE AND MUST NOT BE \"FIXED\". This test issues the removed-stream update WITHOUT the predicate applyRemoved now carries, because it tests the POLICY rather than the STATEMENT. Adding the predicate here would make the test pass for the wrong reason and the policy could be reverted with nothing going red. BOTH MUST HOLD INDEPENDENTLY, and that is the entire reason 4e landed before 4c: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal. FREE EVIDENCE, AND THE ONLY ONE OF THE THREE THAT IS NOT HYPOTHETICAL: this statement already did this once, against a real database, before the policy existed. IT OMITS 4e's HOUSEHOLD PREDICATE DELIBERATELY, so it tests the POLICY rather than the statement. Both must hold independently, which is the whole reason 4e landed first: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal."
     },
@@ -737,15 +738,15 @@
     {
       "id": "the-sync-runner-is-reachable",
       "control": "a route reaches runSyncForItem (services/sync/src/index.ts)",
-      "guards": "The sync runner has a caller, so a sync can actually be run.",
+      "guards": "The sync runner is reachable from a route, through the lock, so a sync can actually be run and cannot run beside another.",
       "test": "services/sync/test/apply-streams.test.ts",
       "name": "a route calls runSyncForItem",
       "planted": {
         "kind": "source",
-        "file": "services/sync/src/index.ts",
-        "find": "            await runSyncForItem(",
-        "replace": "            await neverCallsTheRunner(",
-        "note": "Renames the only call site so the runner is unreachable, restoring the state 4.5b prime shipped in. THE FIRST MUTATION WAS INERT AND THE HARNESS CAUGHT IT: it replaced the call with UNCALLED_runSyncForItem(, which STILL CONTAINS runSyncForItem( as a substring, so the assertion passed. A manual check appeared to confirm it red, but that run had mangled the file with an earlier command and credited the wrong mutation. The harness was right and the hand-verification was wrong, which is the harness earning its place: a mutation that changes the file without changing what the test sees is exactly what it reports."
+        "file": "services/sync/src/household-sync-do.ts",
+        "find": "          const result = await runSyncForItem(",
+        "replace": "          const result = await Promise.resolve({ ran: false } as unknown as ReturnType<typeof runSyncForItem>); void runSyncForItem; const unused = await (",
+        "note": "Renames the only call site so the runner is unreachable, restoring the state 4.5b prime shipped in. THE FIRST MUTATION WAS INERT AND THE HARNESS CAUGHT IT: it replaced the call with UNCALLED_runSyncForItem(, which STILL CONTAINS runSyncForItem( as a substring, so the assertion passed. A manual check appeared to confirm it red, but that run had mangled the file with an earlier command and credited the wrong mutation. The harness was right and the hand-verification was wrong, which is the harness earning its place: a mutation that changes the file without changing what the test sees is exactly what it reports. THE MUTATION MOVED WITH THE CALLER, 21 Aug 2026. It used to point at index.ts, which called the runner directly; both entry points now dispatch through the Durable Object, so the runner is called from there. The register's own applicability check caught the stale find text on the first run after the refactor and said what to do about it: update the register rather than delete the entry. That is the check earning its place, because a mutation whose find text is absent tests nothing and reports nothing."
       },
       "distinction": "WRITTEN BECAUSE THE DEFECT RECURRED ONE TASK AFTER BEING CRITICISED. 4.4 was faulted for runTransactionsSync counting rows with no caller, and 4.5b prime was reported as six pieces built when it was five plus a function nobody could call. NOTHING ELSE IN THE SUITE WOULD NOTICE: every test of the runner calls it directly, so a runner with no route passes its own tests completely. This asserts the caller exists, which is the one property a unit test structurally cannot check."
     },
@@ -763,6 +764,239 @@
         "note": "Renames the column so the code and the schema disagree, which is the state that shipped: the Worker wrote last_cursor_at and no migration created it. THIS IS A SOURCE MUTATION ON A MIGRATION AND THAT IS CORRECT HERE, unlike the 0026 policy controls: this control reads the migration TEXT rather than database state, so the file is where the thing it guards actually lives. Verified red 20 Aug 2026."
       },
       "distinction": "THE THIRD INSTANCE OF SOMETHING PASSING ITS OWN TESTS WHILE BEING UNABLE TO RUN. last_cursor_at is read by the watchdog through sweepReason(), whose tests construct an ItemSyncState BY HAND, so no test ever read it from a database: the code and the fixtures agreed with each other and both disagreed with the schema. 4.4 shipped a watchdog measuring progress by a column that was never created, and its whole suite passed. It surfaced on the first real sync, on the first statement that tried to WRITE it. IT IS A STATIC SCAN AND SAYS SO: it proves a name appears in a CREATE TABLE or ADD COLUMN, not that the migration applied or that the type is right. Direction 2 asserts it parsed real columns and real writes, because a regex that stops matching leaves it comparing two empty sets and passing perfectly."
+    },
+    {
+      "id": "sync-reach-inside-grant",
+      "control": "the reach scan (packages/schema/test/db/sync-worker-reach.test.ts)",
+      "guards": "Every statement the sync Worker issues is one marginsheet_sync is allowed to run, at column level, verified against the catalog.",
+      "test": "packages/schema/test/db/sync-worker-reach.test.ts",
+      "name": "holds every privilege the Worker's statements require",
+      "planted": {
+        "kind": "sql",
+        "apply": "REVOKE SELECT (id, first_sync_completed_at), UPDATE (first_sync_completed_at, updated_at) ON households FROM marginsheet_sync",
+        "restore": "GRANT SELECT (id, first_sync_completed_at), UPDATE (first_sync_completed_at, updated_at) ON households TO marginsheet_sync",
+        "proof": "select has_column_privilege('marginsheet_sync','households','first_sync_completed_at','UPDATE')::int as held",
+        "appliedValue": 0,
+        "restoredValue": 1,
+        "note": "Takes the 0028 grant away, which is HOW IT ACTUALLY WAS on 20 Aug 2026: not a wrong grant, an absent one. The purest form of the plausible mutation, because nobody writes the obviously broken version and the real failure mode is that nobody writes anything. THIS IS A SQL MUTATION AND IT HAS TO BE: the thing this control guards is a privilege, privileges live in the database, and a source mutation on an applied migration changes no database anywhere. Three controls got that wrong in one sitting on 19 Aug."
+      },
+      "distinction": "THE PRIVILEGE HALF OF THE CLASS columns-the-code-writes-exist CLOSED FOR COLUMNS. That one compares columns against migrations; nothing compared TABLES against GRANTS, and the first real production sync failed on 'permission denied for table households'. Both instances passed their own suites for the same reason, which is the finding worth keeping: markFirstSyncCompleted's tests pass a RECORDER as tx, so no statement ever met Postgres. A recorder proves a statement was CONSTRUCTED and proves nothing about whether it can EXECUTE. The reach is derived by static scan and says so; it is written to OVER-claim rather than under-claim, because an over-claim reddens this test and sends somebody to look while an under-claim is the silent gap the file exists to close. Direction 2 asserts the scan derived a reach large enough to distinguish a pass from a failure, and names first_sync_completed_at specifically, because a regex that stops matching would leave it comparing two empty sets and passing perfectly."
+    },
+    {
+      "id": "sync-reach-not-beyond-grant",
+      "control": "the over-grant half of the reach scan (packages/schema/test/db/sync-worker-reach.test.ts)",
+      "guards": "A table narrowed for marginsheet_sync by column stays narrow: no table-level grant covering it, and no enumerated column the Worker never uses.",
+      "test": "packages/schema/test/db/sync-worker-reach.test.ts",
+      "name": "holds nothing beyond that on any table narrowed by column",
+      "planted": {
+        "kind": "sql",
+        "apply": "GRANT SELECT ON households TO marginsheet_sync",
+        "restore": "REVOKE SELECT ON households FROM marginsheet_sync; GRANT SELECT (id, first_sync_completed_at) ON households TO marginsheet_sync",
+        "proof": "select (has_table_privilege('marginsheet_sync','households','SELECT')::int * 2 + has_column_privilege('marginsheet_sync','households','first_sync_completed_at','SELECT')::int) as state",
+        "appliedValue": 3,
+        "restoredValue": 1,
+        "note": "THE CHEAP OBVIOUS FIX, WHICH IS WHY IT IS THE MUTATION. Both people looking at the 20 Aug failure reached for a table grant first, and it is correct about the statement it unblocks: markFirstSyncCompleted runs fine afterwards, control 1 stays green, and the role quietly gains SELECT on avg_monthly_income, entitlement_state, address, hardship_flag and stripe_customer_id. It is also the shape recorded on 15 Aug in column-privileges.test.ts, where a table grant masked a column control and the migration read as a boundary that was not there. Note what the mutation does NOT do: it does not remove the column grant, so a check comparing only column privileges would still find them all present and pass. AND THE RESTORE IS TWO STATEMENTS, WHICH COST A DAY TO LEARN. REVOKE SELECT ON households strips the COLUMN-level SELECT grants too, so the obvious one-statement restore silently destroyed migration 0028's GRANT SELECT (id, first_sync_completed_at) and left the database less granted than it found it. The next control to read households then failed with permission denied, three controls later, with nothing connecting the two. THE OLD PROOF COULD NOT SEE IT: it asked only whether the table privilege was gone, which was true, so the harness reported a clean restore. The proof now encodes BOTH facts in one number, 2 for the table grant and 1 for the column grant, so applied reads 3 and restored reads 1 and a restore that loses the column grant reads 0 and fails loudly."
+      },
+      "distinction": "The direction the other half cannot see. sync-reach-inside-grant asks whether the role can run the Worker's statements, and a table grant makes that MORE true. This asks whether a narrowing that was ruled on is still a narrowing. It keys off which tables a migration narrows by column rather than off the privileges themselves, which is deliberate and is not a check reading its expectation from its subject: the catalog answers what the role HOLDS, and the migrations answer only which tables somebody INTENDED to be narrow. Nothing here takes a privilege from migration text. Direction 2 asserts at least one table is column-scoped, because with none it would compare nothing and pass."
+    },
+    {
+      "id": "connect-routes-are-all-gated",
+      "control": "the per-route gate scan (services/api/test/connect-surface.test.ts)",
+      "guards": "Every /plaid route the api Worker handles sits inside the session gate's condition, or is exempt with its reason in the source.",
+      "test": "services/api/test/connect-surface.test.ts",
+      "name": "names every /plaid route in the gate's condition, or exempts it out loud",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "      url.pathname === \"/plaid/ledger-readout\" ||\n",
+        "replace": "",
+        "note": "OMITS THE LINE, which is the shape this file already records as the purest plausible mutation: nobody writes an ungated route on purpose, and the failure mode is that nobody writes anything. The handler stays exactly where it is and stays correct; it simply stops being reached through the gate and falls through to the unauthenticated part of the Worker. Verified red 20 Aug 2026, on the right assertion, with the route named in the message."
+      },
+      "distinction": "THE BLOCK-LEVEL ASSERTION BESIDE IT CANNOT SEE THIS, and that is why this exists. 'gates link-token, accounts and the page behind getSession' proves the guarded REGION calls getSession, which stays true however many routes are handled somewhere else: its coverage is a property of the region rather than of the routes. Adding /plaid/ledger-readout made it concrete, because the route was gated in fact and nothing asserted it. The two exemptions are named in the test rather than inferred: the OAuth return arrives from the bank rather than from our own fetch, and the exchange carries its own session handling under its own control. Direction 2 asserts the scan found more than three routes, because a regex that stops matching would compare two empty sets and pass."
+    },
+    {
+      "id": "readout-statements-execute",
+      "control": "the readout execution test (packages/schema/test/db/ledger-readout-sql.test.ts)",
+      "guards": "The ledger readout's SQL parses and every column it names is permitted to marginsheet_sync, proven by executing it as that role.",
+      "test": "packages/schema/test/db/ledger-readout-sql.test.ts",
+      "name": "runs every statement and returns the seeded rows",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/ledger-readout-sql.ts",
+        "find": "           (min(t.date))::text as oldest,\n           (max(t.date))::text as newest,",
+        "replace": "           (max(t.date))::text as oldest,\n           (max(t.date))::text as newest,",
+        "note": "SWAPS min FOR max ON THE OLDEST DATE, leaving the alias saying oldest. It reads correctly, it is the classic slip between two adjacent near-identical lines, and it reddens exactly the assertion that carries the meaning: the readout exists to report how far back the history goes, so a MAX reported as the oldest date is the single wrong answer that would send the whole backfill investigation the other way. THE FIRST MUTATION HERE WAS INERT AND THE HARNESS CAUGHT IT: it moved a cast from outside a filter clause to inside, and Postgres parses those identically, so the file changed and behaviour did not. That is the register rule working, and it is the reason a mutation is reviewed as code rather than entered as data: the question is never 'does this edit the right file' but 'does this break the thing the test is supposed to notice'. A source mutation is right here even though the control touches a database: the thing it guards is a STATEMENT, and a statement lives in source. Contrast the 0028 grant controls, which guard a privilege and therefore need kind sql."
+      },
+      "distinction": "THE THIRD INSTANCE OF ONE SHAPE TODAY, and the one that finally got a test. last_cursor_at was a column no migration created; households was a table no grant covered; the readout was a statement nothing ran. All three passed their own suites and all three surfaced on a real run, because a typecheck proves a statement was CONSTRUCTED and says nothing about whether it can EXECUTE. It imports readLedger rather than restating the SQL, so the test cannot drift into agreeing with a copy of itself, and it runs as marginsheet_sync rather than the owner, because the owner passes through every grant and every policy and would hide two of the three things that can break. Direction 2 asserts the account row count BEFORE reading any aggregate: min, max and count all return defensible answers over zero rows, so a readout that matched nothing would satisfy every other assertion here. THE ROLE IS PART OF THE CONTROL: the first version ran in api and threw permission denied on plaid_items, because marginsheet_app holds that table as an enumerated column list and last_cursor_at was added by 0027 and granted to nobody. An owner connection would have reported the same statement as healthy."
+    },
+    {
+      "id": "household-guc-is-transactional",
+      "control": "the GUC receiver scan (services/api/test/guc-is-set-inside-a-transaction.test.ts)",
+      "guards": "Every household GUC is set on a transaction handle, so an is_local setting cannot die before the statement it scopes.",
+      "test": "services/api/test/guc-is-set-inside-a-transaction.test.ts",
+      "name": "sets it on a transaction, never on a connection",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "          const accounts = await sql.begin(async (tx) => {\n            await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;",
+        "replace": "          await sql`select set_config('marginsheet.household_id', ${householdId}, true)`;\n          const accounts = await sql.begin(async (tx) => {",
+        "note": "MOVES THE SETTING OUT OF THE TRANSACTION IT SCOPES, which is exactly how the code shipped rather than an invented break. Both versions read as correct: the GUC is set, the query runs, the household is named. The difference is that is_local ends the setting with its own statement, so household_isolation evaluates household_id = NULL and returns nothing while raising nothing. Nobody writes an obviously ungated query; what they write is this."
+      },
+      "distinction": "A CONVENTION SCAN PAIRED WITH A SEMANTICS PROOF, and each is named for what it is. This one reads the RECEIVER of every set_config call and requires a transaction handle; it cannot prove the handle is really a transaction, and a brace-matching regex over TypeScript would fail in a way nobody could read. packages/schema/test/db/guc-needs-a-transaction.test.ts carries the other half, demonstrating against a real database that the same query returns one row inside a transaction and zero outside it, with the positive case first so the negative one is not satisfied by a broken fixture. FOUND BY WRITING NEW CODE. Three sites were wrong and two were live: /plaid/accounts answered an empty account list for every household, and the invitation actor lookup refused with no_member. Neither raised anything. Direction 2 asserts the scan found more than four call sites, because a regex that stopped matching would iterate over nothing and pass."
+    },
+    {
+      "id": "guc-dies-outside-a-transaction",
+      "control": "the GUC semantics proof (packages/schema/test/db/guc-needs-a-transaction.test.ts)",
+      "guards": "The claim that an is_local GUC does not survive between statements, demonstrated against a real database rather than asserted in a comment.",
+      "test": "packages/schema/test/db/guc-needs-a-transaction.test.ts",
+      "name": "returns the row when the setting and the read share a transaction",
+      "planted": {
+        "kind": "sql",
+        "apply": "ALTER POLICY household_isolation ON financial_accounts USING (household_id = nullif(btrim(current_setting('marginsheet.wrong_key', true)), '')::uuid)",
+        "restore": "ALTER POLICY household_isolation ON financial_accounts USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid)",
+        "proof": "select (position('wrong_key' in pg_get_expr(polqual, polrelid)) > 0)::int as broken from pg_policy where polname = 'household_isolation' and polrelid = 'financial_accounts'::regclass",
+        "appliedValue": 1,
+        "restoredValue": 0,
+        "note": "POINTS THE POLICY AT A KEY NOTHING SETS, which is the same end state the bug produced by other means: the policy reads an unset setting and matches nothing. It reddens the POSITIVE case, which is the one that carries the meaning here, and deliberately not the negative case, which returns zero rows either way. A sql mutation is required because a policy lives in the database and a source edit on an applied migration changes no database anywhere."
+      },
+      "distinction": "IT PROVES A CLAIM RATHER THAN GUARDING A PATH, which is unusual here and is the point. The reasoning for why an is_local GUC breaks outside a transaction is easy to state and easy to get wrong, and it was stated correctly in a comment in phone-change.ts while three other call sites had it wrong. A comment is the weakest form of a rule. This makes the claim executable, and pairs with the receiver scan that enforces the consequence. The positive case runs FIRST and is not decoration: without it the negative case proves only that the query returns nothing, which a typo in the fixture would also produce."
+    },
+    {
+      "id": "link-token-asks-for-history",
+      "control": "the days_requested scan (services/sync/test/link-token-asks-for-history.test.ts)",
+      "guards": "Every link token asks Plaid for 730 days of transaction history, rather than accepting the silent 90 day default.",
+      "test": "services/sync/test/link-token-asks-for-history.test.ts",
+      "name": "asks for 730, the maximum, rather than any smaller number",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/reconnect.ts",
+        "find": "      transactions: { days_requested: 730 },",
+        "replace": "      transactions: { days_requested: 90 },",
+        "note": "SETS THE DEFAULT EXPLICITLY, which is the plausible wrong value rather than an obvious break: 90 is what Plaid uses when the field is absent, it is a number somebody could reasonably type while copying an example, and nothing about the resulting Item reports a problem. Removing the line entirely would also redden the test, and this is the better mutation because a wrong VALUE survives review more easily than a missing key."
+      },
+      "distinction": "THE COST OF THIS FIELD BEING WRONG IS NOT A SMALLER BACKFILL, IT IS A RE-CONSENT. Plaid's reference says the value cannot be updated once Transactions has been added to an Item, so repairing it means /item/remove and a new Item, which every affected household has to walk through Link again. The field was absent from this repository until 20 Aug 2026 and the resulting 90 day window was very nearly written up as an institution limit; SoFi's Item was confirmed from OUTSIDE our pipeline, with /transactions/get asked for 24 months returning 202. Direction 2 asserts reconnect.ts still contains a link token request at all, because a file that stopped creating one would satisfy a regex looking only for the field's absence."
+    },
+    {
+      "id": "purge-refuses-a-live-item",
+      "control": "the purge liveness gate (services/api/test/purge-refuses-a-live-item.test.ts)",
+      "guards": "The Item purge deletes only on positive evidence that Plaid no longer holds the Item, so an unknown answer refuses rather than proceeds.",
+      "test": "services/api/test/purge-refuses-a-live-item.test.ts",
+      "name": "gates the delete on liveness being gone, not on it not being live",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "          if (status.liveness !== \"gone\") {",
+        "replace": "          if (status.liveness === \"live\") {",
+        "note": "FLIPS THE GATE FROM POSITIVE EVIDENCE TO ABSENCE OF CONTRARY EVIDENCE, which is the mistake somebody would actually make: it reads as the same rule, it refuses the case everyone pictures, and it PERMITS every case where Plaid could not be asked. A network failure, a rate limit, an unrecognised error code and a missing token all produce unknown, and under this mutation all four delete the household's rows for an Item that may still be live at Plaid. Nothing about the code looks wrong."
+      },
+      "distinction": "THE FAILURE THIS GUARDS IS SILENT AND THE ONE IT PREVENTS IS NOT. A duplicate ledger after a relink is visible: Kept and Margin move by the value of the overlap. Deleting rows for a LIVE Item leaves a household connected at Plaid, billed monthly, with no row, no sync and no way to find it except by reading Plaid's dashboard. So the gate is deliberately asymmetric: refusing a purge that should have proceeded costs one manual retry, and permitting one that should not costs an invisible connection. The third assertion checks the GONE set itself, because widening that list would undo the gate without touching the gate's own line."
+    },
+    {
+      "id": "disconnect-rechecks-liveness",
+      "control": "the disconnect freshness gate (services/api/test/disconnect-refuses-unless-live.test.ts)",
+      "guards": "A confirmed disconnect reads the Item's liveness itself, at the moment of removal, rather than trusting a value read earlier.",
+      "test": "services/api/test/disconnect-refuses-unless-live.test.ts",
+      "name": "reads liveness itself rather than accepting it as a parameter",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/disconnect.ts",
+        "find": "  const status = await itemStatus(householdId, itemId, credentials, encryptionKey, databaseUrl);",
+        "replace": "  const status = { liveness: \"live\" as ItemLiveness, detail: { assumed: true } };",
+        "note": "REPLACES THE FRESH READ WITH AN ASSUMPTION, which is the optimisation somebody would actually reach for: the caller just ran a dry run, the answer was live, and asking again looks like a wasted Plaid call. It type-checks, it reads as a reasonable simplification, and it turns the gate below into a tautology that always passes. Nothing about the resulting code looks wrong."
+      },
+      "distinction": "THE GATE AND THE FRESHNESS OF WHAT IT GATES ARE TWO DIFFERENT PROPERTIES, and only one of them is visible in the gate's own line. 'refuses a confirmed call unless liveness is live' checks the comparison; this checks that the value being compared was obtained NOW. A dry run minutes earlier is not evidence about the present: an Item can be removed, expire or lose its credential in between. It is the same shape as the household GUC that did not survive between statements, recorded 20 Aug 2026: two individually correct reads with nothing establishing that the first still describes the second. Direction 2 asserts the module still calls /item/remove at all, because a file that stopped removing anything would satisfy a scan looking only for the absence of a parameter."
+    },
+    {
+      "id": "every-connection-opener-declares-the-household",
+      "control": "the GUC presence scan (services/api/test/guc-is-set-inside-a-transaction.test.ts)",
+      "guards": "Every module that opens its own database connection and writes declares the household, so no write policy from 0026 evaluates against an unset setting.",
+      "test": "services/api/test/guc-is-set-inside-a-transaction.test.ts",
+      "name": "is set at all by every file that opens a connection and writes",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/run-sync.ts",
+        "find": "      await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;",
+        "replace": "",
+        "note": "REMOVES THE ONLY DECLARATION FROM THE SYNC RUNNER, which is how disconnect.ts actually shipped: nobody writes a wrong GUC, the failure mode is that nobody writes one at all. The resulting code reads correctly and every statement still names the household in its own WHERE clause; the writes simply stop matching, because 0026's write policies read a SETTING rather than the statement. IT POINTS AT run-sync.ts RATHER THAN AT disconnect.ts, AND THAT IS THE CORRECTION. The first version removed one of TWO calls in disconnect.ts, leaving the other, so the file still contained a declaration and this file-level check stayed green: the harness reported broke-it yes, went-red NO, correctly. It had been verified locally against a strip of BOTH calls, which is a DIFFERENT MUTATION FROM THE ONE REGISTERED. A mutation is verified as written or it is not verified."
+      },
+      "distinction": "A SCAN THAT CHECKS THE FORM OF WHAT EXISTS CANNOT SEE WHAT IS ABSENT, and this is the second half of a control that had only the first. The receiver scan beside it reads every set_config call and requires a transaction handle, so a file with NO call contributes no rows and passes perfectly. disconnect.ts shipped with an UPDATE and no GUC, sat inside the scanned roots the entire time, and the scan was green. THE DISTINCTION IT DRAWS IS THE WHOLE RULE: a file that opens its own connection owes a GUC, and a helper that receives a tx does not, because the caller declared it. apply-streams.ts and outbox.ts write constantly and correctly set nothing. Direction 2 asserts more than two writing modules were found, because a regex that stopped matching would leave it filtering an empty list and passing."
+    },
+    {
+      "id": "liveness-can-say-gone",
+      "control": "the liveness classifier (services/sync/test/liveness-classification.test.ts)",
+      "guards": "A removed Item is classified as gone, so the disconnect's repair branch and the purge's gate can ever be reached.",
+      "test": "services/sync/test/liveness-classification.test.ts",
+      "name": "says gone for an Item Plaid no longer has",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/item-status.ts",
+        "find": "    return error.errorCode && GONE.has(error.errorCode) ? \"gone\" : \"unknown\";",
+        "replace": "    const shaped = error.toJSON() as { error_code?: string };\n    return shaped.error_code && GONE.has(shaped.error_code) ? \"gone\" : \"unknown\";",
+        "note": "RESTORES THE EXACT CODE THAT SHIPPED, which is the strongest available mutation: not a plausible invention but the real one. toJSON emits errorCode and this reads error_code, so the property is always undefined and the classifier can never say gone. IT TYPE-CHECKS, because a cast asserts a shape the compiler then stops verifying, which is why review passed it. Nothing errors at runtime either: every refusal simply reads as caution."
+      },
+      "distinction": "THE FIRST ASSERTION IS THE ONE THAT WAS MISSING, and its absence is the whole story. Every negative case here would pass against a classifier hard-wired to \"unknown\", which is precisely what shipped: a function whose refusals all look deliberate. A gate that can only refuse is indistinguishable from a careful gate until something needs it to permit. The consequences were two branches that could never be reached: the disconnect's repair path and the purge's permission to delete. FOUND BECAUSE THE INTERPRETATION TRAVELS WITH ITS EVIDENCE: the reply said liveness unknown while the detail beside it said ITEM_NOT_FOUND, and the contradiction was visible without reading the source."
+    },
+    {
+      "id": "balance-capture-is-per-day",
+      "control": "the balance capture test (packages/schema/test/db/balance-capture.test.ts)",
+      "guards": "Two balance writes on one day converge on the later figure in one snapshot rather than accumulating a row per sync.",
+      "test": "packages/schema/test/db/balance-capture.test.ts",
+      "name": "converges on the later figure within a day rather than accumulating",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/apply-balances.ts",
+        "find": "      on conflict (account_id, date) do update",
+        "replace": "      on conflict (account_id, date) do nothing",
+        "note": "KEEPS THE FIRST FIGURE INSTEAD OF THE LAST, which is the plausible wrong version rather than an obvious break: DO NOTHING reads as idempotent and safe, it still writes exactly one row per day so the count assertion passes, and only the VALUE is wrong. A projection reading the series would then see the balance at whatever moment the day's first sync happened to run rather than the closing figure."
+      },
+      "distinction": "THE PER-DAY CADENCE IS A RULING, NOT AN IMPLEMENTATION DETAIL, which is why it has a control. account_balance_snapshots is keyed by date and the projection reads a SERIES, so a row per sync would make that series depend on how often we happened to sync: a property of us rather than of the household's money. The fixture writes twice within a single day with DISTINCT figures, so accumulating leaves two rows and keeping the first leaves 500.25, and neither can be confused with the correct outcome."
+    },
+    {
+      "id": "deadline-aborts-rather-than-abandons",
+      "control": "the outbound-side deadline fixture (services/sync/test/deadline-aborts-the-request.test.ts)",
+      "guards": "A call that exceeds its deadline is CANCELLED rather than abandoned, so nothing is still running on the far side when the sync gives up.",
+      "test": "services/sync/test/deadline-aborts-the-request.test.ts",
+      "name": "makes the server see the client go away, which a race would not",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/plaid-client.ts",
+        "find": "    response = await fetch(`${credentials.baseUrl ?? DEFAULT_BASE_URL}${endpoint}`, {\n      method: \"POST\",\n      headers: { \"content-type\": \"application/json\" },\n      body,\n      signal: controller.signal,\n    });",
+        "replace": "    response = await Promise.race([\n      fetch(`${credentials.baseUrl ?? DEFAULT_BASE_URL}${endpoint}`, {\n        method: \"POST\",\n        headers: { \"content-type\": \"application/json\" },\n        body,\n      }),\n      new Promise<Response>((_, reject) => {\n        controller.signal.addEventListener(\"abort\", () => reject(new Error(\"deadline\")));\n      }),\n    ]);",
+        "note": "REPLACES THE ABORT WITH A RACE, which Guy named as the trap when he rejected both lock-timeout options on 19 Aug 2026. It is the mutation this control exists for and it is not an invention: it keeps the controller, keeps the timer, still sets signal.aborted, and therefore STILL THROWS DEADLINE_EXCEEDED. Everything visible from inside the caller is identical. VERIFIED 21 AUG 2026 THAT THE FIRST ASSERTION PASSES UNDER IT and only the outbound one fails, which is the whole demonstration: a caller-side test cannot distinguish a cancelled request from an abandoned one."
+      },
+      "distinction": "THE FIXTURE IS THE CONTROL AND THE REJECTION IS NOT. Promise.race against a timer stops WAITING, not WORKING: the hung call keeps running, can still write, and still holds whatever it held, so a raced deadline is the release-the-lock horn in better clothes. The difference lives entirely on the other side of the socket, so the test starts a real server, holds the request open and asserts the server SAW the client disconnect. Its sibling assertion, that the error is DEADLINE_EXCEEDED rather than NETWORK_ERROR, is a separate property: a deadline and a transport failure are different findings and sharing a code would make the message unable to distinguish its causes. Direction 2 lives inside the fixture rather than beside it: sawAbort asserts the server RECEIVED the request before reporting whether it was aborted, because a request that never arrived cannot have been cancelled and would answer false for the wrong reason."
+    },
+    {
+      "id": "sync-role-bounds-its-statements",
+      "control": "the statement bound scan (packages/schema/test/db/sync-role-statement-timeout.test.ts)",
+      "guards": "marginsheet_sync declares a 30s statement_timeout, so a hung query cannot hold a household's chain lock indefinitely.",
+      "test": "packages/schema/test/db/sync-role-statement-timeout.test.ts",
+      "name": "bounds it at 30s rather than at some value",
+      "planted": {
+        "kind": "sql",
+        "apply": "ALTER ROLE marginsheet_sync SET statement_timeout = '1d'",
+        "restore": "ALTER ROLE marginsheet_sync SET statement_timeout = '30s'",
+        "proof": "select (case when 'statement_timeout=30s' = any(coalesce(rolconfig, array[]::text[])) then 1 else 0 end) as ok from pg_roles where rolname = 'marginsheet_sync'",
+        "appliedValue": 0,
+        "restoredValue": 1,
+        "note": "WIDENS THE BOUND RATHER THAN REMOVING IT, which is the plausible wrong version: a timeout of a day is still a timeout, it satisfies any check that merely asks whether one EXISTS, and it bounds nothing a person would care about. Removing it entirely would also redden the test and is the weaker mutation, because nobody deletes a timeout on purpose; what they do is raise it until a failing query stops failing. A sql mutation is required because a role setting lives in the catalog and a source edit on an applied migration changes no database anywhere."
+      },
+      "distinction": "IT READS pg_roles.rolconfig RATHER THAN current_setting, AND THAT IS THE CONTROL. ALTER ROLE ... SET applies AT LOGIN, so a session arriving by SET ROLE keeps the settings of the role it CONNECTED as: current_setting would report what the session was given rather than what the role holds, passing while the declaration was absent and failing while it was present. That is the same defect as asking has_column_privilege by naming a role from an owner connection, found the same day in a different catalog, and the tell is identical: THE SESSION IS THE EASIER THING TO ASK AND IT ANSWERS A QUESTION ABOUT ITSELF. Direction 2 asserts marginsheet_app did NOT acquire the setting, because a migration applying it to every role would satisfy the positive assertions while taking a decision nobody made."
+    },
+    {
+      "id": "webhook-verification-refuses",
+      "control": "the signature check (services/sync/test/webhook-verification.test.ts)",
+      "guards": "A tampered Plaid webhook is refused, so the signature is a check rather than a formality.",
+      "test": "services/sync/test/webhook-verification.test.ts",
+      "name": "refuses a body that does not match the signed hash",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/webhook-verify.ts",
+        "find": "  const expected = payload.request_body_sha256;\n  if (typeof expected !== \"string\") return { verified: false, reason: \"no request_body_sha256 claim\" };\n  if (!equalsConstantTime(expected, await sha256Hex(rawBody))) {\n    return { verified: false, reason: \"the body does not match request_body_sha256\" };\n  }",
+        "replace": "  const expected = payload.request_body_sha256;\n  if (typeof expected !== \"string\") return { verified: false, reason: \"no request_body_sha256 claim\" };",
+        "note": "DROPS THE BODY HASH CHECK AND KEEPS THE SIGNATURE CHECK, which is the plausible version rather than an obvious break: the signature still verifies, the claim is still read and still required to be present, and every test of the happy path still passes. What is lost is the link between the token and THIS body, so a genuine correctly signed token can be replayed against any payload at all. A reviewer sees a signature being verified and stops there, which is exactly what happened when the claim was first written."
+      },
+      "distinction": "THE VERIFIER IS WATCHED REFUSING, NOT ONLY ACCEPTING (Guy, 21 Aug 2026). A signature verifier that accepts everything is indistinguishable from one that works, on a real event, forever: every webhook arrives, every one is processed, and nothing reports a fault. So the suite exercises the accept path AND five distinct tampering modes, each differing from the accepted token by exactly one thing, which is the minimal-mutation rule applied to a fixture. It signs its own webhooks against a local server standing in for the key endpoint, so both directions are proven offline rather than waiting on production. THE POSITIVE CASE IS ASSERTED FIRST AND IS NOT DECORATION: every refusal here would pass against a verifier hard-wired to reject, which is the same defect as a gate that can only refuse looking like a careful one, found earlier the same day in the liveness classifier."
     },
     {
       "id": "item-products-publishes-three-arrays",

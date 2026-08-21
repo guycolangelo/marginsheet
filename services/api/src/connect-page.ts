@@ -26,6 +26,9 @@ export const CONNECT_PAGE = `<!doctype html>
 <button id="go">Connect an institution</button>
 <button id="sync">Run a sync</button>
 <button id="products">Check consented products</button>
+<button id="readout">Ledger readout</button>
+<button id="disconnect">Disconnect an institution (dry run)</button>
+<button id="purge">Purge an Item (dry run)</button>
 <div id="out" hidden></div>
 <h2>Already connected</h2>
 <table id="accounts"><tbody></tbody></table>
@@ -40,6 +43,34 @@ function show(what, isError) {
   out.hidden = false;
   out.className = isError ? "err" : "";
   out.textContent = typeof what === "string" ? what : JSON.stringify(what, null, 2);
+}
+
+async function readBody(res) {
+  // NEVER substitute an empty object for an unparseable body. That is what
+  // shipped on 20 Aug: it reads as a successful call with nothing to report.
+  // The readout returns {ours, plaid} or an {error}
+  // object and has no path that returns an empty one, so an empty object on
+  // screen meant "the body
+  // was not JSON" while looking like "there was nothing to say".
+  //
+  // A DIAGNOSTIC THAT CANNOT REPORT ITS OWN FAILURE IS WORSE THAN NONE,
+  // because it reports something. The status, the content type and the raw
+  // first 2000 characters are shown instead, which is what a person needs to
+  // tell a 404 from a 500 from an HTML error page.
+  const text = await res.text();
+  try {
+    return { ok: res.ok, parsed: JSON.parse(text) };
+  } catch {
+    return {
+      ok: false,
+      parsed: {
+        unparseable: true,
+        status: res.status,
+        contentType: res.headers.get("content-type"),
+        body: text.slice(0, 2000),
+      },
+    };
+  }
 }
 
 async function listAccounts() {
@@ -71,16 +102,62 @@ document.getElementById("sync").onclick = async () => {
   // household does not hold.
   show("syncing... a first backfill can take a while");
   const res = await fetch("/plaid/sync", { method: "POST" });
-  const body = await res.json().catch(() => ({}));
-  show(body, !res.ok);
+  const { ok, parsed } = await readBody(res);
+  show(parsed, !ok);
   listAccounts();
+};
+
+document.getElementById("readout").onclick = async () => {
+  // OURS BESIDE PLAID'S, never one summarised into the other. The whole point
+  // is that our tables cannot say whether a count is what exists or what we
+  // kept, so the two numbers are printed side by side and the reader compares.
+  show("reading...");
+  const res = await fetch("/plaid/ledger-readout");
+  const { ok, parsed } = await readBody(res);
+  show(parsed, !ok);
+};
+
+document.getElementById("disconnect").onclick = async () => {
+  // DRY RUN ONLY FROM THIS BUTTON, like the purge. It reports what a confirmed
+  // call would do and what Plaid currently says; removing requires a separate
+  // deliberate call carrying confirm, which this page does not make. The two
+  // destructive actions on this surface behave identically on purpose: a
+  // household should not have to learn which buttons are safe.
+  const itemId = prompt("item_id to inspect for disconnect (dry run, nothing is removed)");
+  if (!itemId) return;
+  show("checking...");
+  const res = await fetch("/plaid/disconnect-item", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemId }),
+  });
+  const { ok, parsed } = await readBody(res);
+  show(parsed, !ok);
+};
+
+document.getElementById("purge").onclick = async () => {
+  // DRY RUN ONLY FROM THIS BUTTON. It reports what it would delete and what
+  // Plaid says about the Item; deleting requires a deliberate second call
+  // carrying confirm, which this page does not make. A destructive action one
+  // click from a diagnostic is the wrong shape for a throwaway surface.
+  const itemId = prompt("item_id to inspect for purge (dry run, nothing is deleted)");
+  if (!itemId) return;
+  show("checking...");
+  const res = await fetch("/plaid/purge-item", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemId }),
+  });
+  const { ok, parsed } = await readBody(res);
+  show(parsed, !ok);
 };
 
 document.getElementById("go").onclick = async () => {
   show("requesting a link token...");
   const res = await fetch("/plaid/link-token", { method: "POST" });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) return show(body, true);
+  const { ok, parsed } = await readBody(res);
+  if (!ok) return show(parsed, true);
+  const body = parsed;
 
   const handler = Plaid.create({
     token: body.linkToken,
@@ -98,8 +175,8 @@ document.getElementById("go").onclick = async () => {
         // endpoint would ignore it anyway.
         body: JSON.stringify({ publicToken }),
       });
-      const result = await ex.json().catch(() => ({}));
-      show({ status: ex.status, institution: metadata.institution, result }, !ex.ok);
+      const { ok: exOk, parsed: result } = await readBody(ex);
+      show({ status: ex.status, institution: metadata.institution, result }, !exOk);
       listAccounts();
     },
     onExit: (err, metadata) => {

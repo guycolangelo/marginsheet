@@ -1,0 +1,164 @@
+// The readout's statements, EXECUTED, as the role that runs them.
+//
+// WHY THIS EXISTS. The ledger readout shipped on 20 Aug 2026 with a green
+// typecheck and 230 passing unit tests, and the button returned an empty
+// object. Not one of those tests ever ran its four SQL statements against a
+// database: they were literals in a route handler, so a syntax error, a
+// missing privilege or an RLS predicate that matched nothing was invisible
+// until a person clicked a button in production.
+//
+// THE THIRD INSTANCE OF ONE SHAPE TODAY. last_cursor_at was a column no
+// migration created. households was a table no grant covered. This was a
+// statement nothing ran. All three passed their own suites; all three surfaced
+// on a real run. A typecheck proves a statement was CONSTRUCTED and proves
+// nothing about whether it can EXECUTE.
+//
+// IT IMPORTS readLedger RATHER THAN RESTATING ITS SQL. A test carrying its own
+// copy of the queries drifts from them by default, and then both sides are
+// green while disagreeing, which is the failure this file is named after.
+//
+// IT RUNS AS marginsheet_sync, not as the owner, and the role matters as much
+// as the execution. The first version ran these statements in api and threw
+// "permission denied for table plaid_items": marginsheet_app holds that table
+// as an enumerated column list, and last_cursor_at was added by 0027 and
+// granted to nobody. An owner connection passes through every grant and every
+// policy, so it would have reported that statement as perfectly healthy.
+
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import postgres from "postgres";
+import { readLedger, type Sql } from "../../../../services/sync/src/ledger-readout-sql.js";
+
+const sql = postgres(process.env.DATABASE_URL ?? "", { max: 1 });
+
+const HOUSEHOLD = "01998888-0000-7000-8000-00000000fead";
+const ITEM = "01998888-0001-7000-8000-00000000fead";
+const ACCOUNT = "01998888-0002-7000-8000-00000000fead";
+
+beforeAll(async () => {
+  // Seeded as the OWNER, deliberately: this fixture is about whether the app
+  // role can READ, and seeding through the same role would fold the write path
+  // into a test about reads.
+  await sql`insert into households (id, name) values (${HOUSEHOLD}, 'readout fixture')
+            on conflict (id) do nothing`;
+  await sql`insert into plaid_items (id, household_id, item_id)
+            values (${ITEM}, ${HOUSEHOLD}, 'item-readout-fixture')
+            on conflict (id) do nothing`;
+  await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, mask)
+            values (${ACCOUNT}, ${HOUSEHOLD}, ${ITEM}, 'acct-readout-fixture', 'Fixture Checking', 'depository', 'checking', '4321')
+            on conflict (id) do nothing`;
+  // TWO ROWS WITH DIFFERENT DATES AND ONE PENDING, so the aggregates have
+  // something to distinguish. min and max over a single row are equal, and a
+  // pending filter over zero pending rows returns 0 whether or not the filter
+  // works: a fixture that cannot tell a pass from a failure is the ninth
+  // finding, and it applies to this fixture as much as to any other.
+  // TWO SNAPSHOTS WITH DIFFERENT DATES AND DIFFERENT BALANCES, so min, max and
+  // the count can each be told from a broken query. One row would make the
+  // oldest and the newest the same value, which is the fixture that cannot
+  // distinguish a pass from a failure.
+  await sql`insert into account_balance_snapshots (household_id, account_id, date, current_balance, available_balance)
+            values (${HOUSEHOLD}, ${ACCOUNT}, date '2026-05-24', 1000.00, 900.00),
+                   (${HOUSEHOLD}, ${ACCOUNT}, date '2026-08-19', 1500.00, 1400.00)
+            on conflict do nothing`;
+  await sql`insert into transactions (household_id, account_id, date, authorized_date, amount, direction, pending, original_description)
+            values (${HOUSEHOLD}, ${ACCOUNT}, date '2026-05-01', date '2026-04-30', 12.34, 'expense', false, 'older'),
+                   (${HOUSEHOLD}, ${ACCOUNT}, date '2026-08-19', date '2026-08-18', 56.78, 'expense', true,  'newer')
+            on conflict do nothing`;
+});
+
+afterAll(async () => {
+  await sql`delete from account_balance_snapshots where household_id = ${HOUSEHOLD}`;
+  await sql`delete from transactions where household_id = ${HOUSEHOLD}`;
+  await sql`delete from financial_accounts where household_id = ${HOUSEHOLD}`;
+  await sql`delete from plaid_items where household_id = ${HOUSEHOLD}`;
+  await sql`delete from households where id = ${HOUSEHOLD}`;
+  await sql.end();
+});
+
+// WHAT THIS DOES NOT PROVE, said plainly. sync_worker_access is USING (true)
+// for marginsheet_sync, so row-level security is not what returns these rows
+// and this test does not exercise it. It proves the statements PARSE, that the
+// role is permitted every column they name, and that the results are shaped as
+// the readout claims. That is the whole of it, and it is what broke.
+describe("the ledger readout's statements execute as marginsheet_sync", () => {
+  it("runs every statement and returns the seeded rows", async () => {
+    // No try/catch. A thrown statement IS the finding, and swallowing it is how
+    // cross-household-upsert.test.ts proved nothing for two weeks: when a test
+    // tolerates an exception, the exception is part of the fixture.
+    // EVERYTHING THAT RUNS AS THE ROLE IS INSIDE THE finally THAT RESETS IT.
+    // The first version put the role probe above the try, so when it failed the
+    // session stayed as marginsheet_sync and afterAll's cleanup then failed
+    // with "permission denied for table transactions" -- a second, louder error
+    // about a different table, burying the one that mattered. A test that
+    // changes session state has to restore it on EVERY exit, not just the ones
+    // it expected to take.
+    await sql`set role marginsheet_sync`;
+    let readout;
+    let context;
+    try {
+      // WHO AM I, AND WHAT CAN I ACTUALLY READ, ASKED IN THE FAILING CONTEXT
+      // AND IN THE FORM THE QUERY USES. The 3-argument has_column_privilege
+      // answers for current_user; the 4-argument form names a role and is what
+      // the harness probe asked from an owner connection. Those two returned
+      // OPPOSITE answers on the same database minutes apart, so this asks the
+      // one that matches how the grant is actually exercised.
+      [context] = await sql<{ role: string; session: string; readable: boolean }[]>`
+        select current_user as role, session_user as session,
+               has_column_privilege('households', 'first_sync_completed_at', 'SELECT') as readable
+      `;
+      readout = await sql.begin(async (tx) => readLedger(tx as unknown as Sql, HOUSEHOLD));
+    } finally {
+      await sql`reset role`;
+    }
+
+    expect(
+      { role: context.role, readable: context.readable },
+      `the effective role cannot read what the migrations grant it. session_user=${context.session}`,
+    ).toEqual({ role: "marginsheet_sync", readable: true });
+
+    // THE ROW COUNT IS ASSERTED BEFORE ANYTHING IS READ FROM IT. Every
+    // aggregate below returns a defensible-looking answer over zero rows, so a
+    // readout that silently matched nothing would satisfy the rest of this test
+    // perfectly.
+    expect(readout.accounts, "the seeded account is not visible to the sync role").toHaveLength(1);
+
+    const account = readout.accounts[0];
+    expect(account.held).toBe(2);
+    expect(account.oldest).toBe("2026-05-01");
+    expect(account.newest).toBe("2026-08-19");
+    expect(account.oldest_authorized).toBe("2026-04-30");
+    // The filtered aggregates: 1 of the 2 rows is pending, 0 removed. Distinct
+    // values, so a filter that silently counted everything would fail.
+    expect(account.pending).toBe(1);
+    expect(account.removed).toBe(0);
+    expect(account.type).toBe("depository");
+
+    // THE BALANCE HALF. Distinct values throughout, so a query that dropped the
+    // correlated subqueries or read the wrong account would fail rather than
+    // coincide: two snapshots, two different dates, two different balances.
+    expect(account.snapshots).toBe(2);
+    expect(account.oldest_snapshot).toBe("2026-05-24");
+    expect(account.newest_snapshot).toBe("2026-08-19");
+    expect(account.account_updated_at, "the account row carries no updated_at").not.toBeNull();
+
+    expect(readout.byType).toHaveLength(1);
+    expect(readout.byType[0].held).toBe(2);
+    expect(readout.byType[0].accounts).toBe(1);
+
+    expect(readout.items).toHaveLength(1);
+
+    // THE EVENTS QUERY IS EXECUTED, WHICH IS THE POINT OF THIS FILE. An empty
+    // list here is the correct answer for a fixture that received no webhooks,
+    // and what it proves is that the statement PARSES and that the role is
+    // permitted every column it names. That is what broke the last time a
+    // statement was added to this module without running it.
+    expect(Array.isArray(readout.events), "the provider events query did not return a list").toBe(true);
+    expect(readout.household, "the household row was not readable").not.toBeNull();
+
+    // Both cursors are null on a fresh Item, so they are equal and neither is
+    // present. Asserting the SHAPE rather than a truthy value, because "equal"
+    // is true for two nulls and that is exactly the case a reader misreads.
+    expect(readout.cursors).toEqual([
+      { itemId: "item-readout-fixture", equal: true, inFlightPresent: false, lastCompletedPresent: false },
+    ]);
+  });
+});
