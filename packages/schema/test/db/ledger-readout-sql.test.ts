@@ -145,6 +145,13 @@ describe("the ledger readout's statements execute as marginsheet_sync", () => {
     expect(readout.byType[0].accounts).toBe(1);
 
     expect(readout.items).toHaveLength(1);
+
+    // THE EVENTS QUERY IS EXECUTED, WHICH IS THE POINT OF THIS FILE. An empty
+    // list here is the correct answer for a fixture that received no webhooks,
+    // and what it proves is that the statement PARSES and that the role is
+    // permitted every column it names. That is what broke the last time a
+    // statement was added to this module without running it.
+    expect(Array.isArray(readout.events), "the provider events query did not return a list").toBe(true);
     expect(readout.household, "the household row was not readable").not.toBeNull();
 
     // Both cursors are null on a fresh Item, so they are equal and neither is

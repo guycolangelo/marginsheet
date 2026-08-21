@@ -317,6 +317,20 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The general form, and it is the same instinct as **verify against the database, never against reports**: prefer the query that returns the rows over the query that returns a count, whenever you might need to ask a second question about the answer.
 
+- **A FIELD WHOSE NORMAL CASE LOOKS LIKE ITS FAILURE CASE IS NOT A SIGNAL.** 21 Aug 2026, caught in the pre-commitment rather than at 3am.
+
+  `provider_events.processed_at` was set only after a successful sync dispatch. **Most webhook codes do not ask for a sync**, so every one of them would have sat with `processed_at` null forever, indistinguishable from an event that was recorded and never handled.
+
+  **The acceptance criterion for the whole task was one of them.** `WEBHOOK_UPDATE_ACKNOWLEDGED` asks for no sync, so the single event chosen to prove the receiver worked would have appeared in the readout **wearing the exact shape of the failure the field exists to show**, and the stated response to that shape was *stop and diagnose*.
+
+  **IT IS THE JOIN SHAPE AGAIN, AND THE THING THAT FOUND IT WAS A PRACTICE RATHER THAN A CONTROL** (Guy, 21 Aug 2026). Neither half was wrong. The criterion was right about what a healthy receiver should show. The field was right about what it recorded. **The defect lived only in the pairing**, which is where every member of that family lives, and no examination of either half could have reached it.
+
+  **So this is an argument for the pre-commitment beyond decision hygiene.** Its usual justification is that a reading decided in advance cannot be argued down by sunk cost. This is a second and separate one: **saying what each outcome will mean forces the reading and the instrument into the same sentence.** A field whose normal case is indistinguishable from its failure case **cannot survive that sentence being written**, because writing it requires naming what you will see and what it will mean, and the two turn out to be the same string.
+
+  Which makes the practice a **detector** and not only a discipline. It is the only thing in this file that has found a join defect, and it found this one **before the data existed** rather than after it misled somebody.
+
+  `processed_at` now means **the receiver finished with this event**, marked on every path the handler reaches deliberately, and null only when it did not finish. **The rule generalises past this field: if the ordinary case and the broken case render identically, the field is decoration, and a reader who trusts it will act on noise.**
+
 - **A ZERO IS A CLAIM AND AN ABSENCE IS NOT.** (Guy, 21 Aug 2026.) The rendering half of the empty-result class, and it points the opposite way from the instinct.
 
   Plaid reports `0.00` for two investment accounts that hold real money. Whatever the cause, **we do not hold a trustworthy investment balance**, and the question is what a surface should then show. **Showing the zero is worse than showing nothing**, because a household reading `$0.00` has been told something, and a household seeing the account without a figure has been told nothing and knows it.

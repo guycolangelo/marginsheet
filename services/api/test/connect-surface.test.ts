@@ -51,7 +51,14 @@ describe("every connect route requires a session, except the one that cannot", (
     // Two exemptions, both deliberate and both with their reason in the source:
     // the OAuth return arrives from the bank rather than from our own fetch,
     // and the exchange carries its own session handling with its own control.
-    const EXEMPT = new Set(["/plaid/oauth-return", "/plaid/exchange"]);
+    // THREE EXEMPTIONS, EACH FOR A DIFFERENT REASON, AND NONE OF THEM "IT WAS
+    // AWKWARD". The OAuth return arrives from the bank rather than from our own
+    // fetch. The exchange carries its own session handling under its own
+    // control. The webhook arrives from PLAID, so there is no session and never
+    // will be: what stands in for one is the signature, verified in the sync
+    // Worker where the credentials live, and watched REFUSING as well as
+    // accepting before it is trusted.
+    const EXEMPT = new Set(["/plaid/oauth-return", "/plaid/exchange", "/plaid/webhook"]);
     const condition = INDEX.slice(
       INDEX.indexOf('url.pathname === "/plaid/link-token" ||'),
       INDEX.indexOf('url.pathname === "/connect"')

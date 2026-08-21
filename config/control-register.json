@@ -738,15 +738,15 @@
     {
       "id": "the-sync-runner-is-reachable",
       "control": "a route reaches runSyncForItem (services/sync/src/index.ts)",
-      "guards": "The sync runner has a caller, so a sync can actually be run.",
+      "guards": "The sync runner is reachable from a route, through the lock, so a sync can actually be run and cannot run beside another.",
       "test": "services/sync/test/apply-streams.test.ts",
       "name": "a route calls runSyncForItem",
       "planted": {
         "kind": "source",
-        "file": "services/sync/src/index.ts",
-        "find": "            await runSyncForItem(",
-        "replace": "            await neverCallsTheRunner(",
-        "note": "Renames the only call site so the runner is unreachable, restoring the state 4.5b prime shipped in. THE FIRST MUTATION WAS INERT AND THE HARNESS CAUGHT IT: it replaced the call with UNCALLED_runSyncForItem(, which STILL CONTAINS runSyncForItem( as a substring, so the assertion passed. A manual check appeared to confirm it red, but that run had mangled the file with an earlier command and credited the wrong mutation. The harness was right and the hand-verification was wrong, which is the harness earning its place: a mutation that changes the file without changing what the test sees is exactly what it reports."
+        "file": "services/sync/src/household-sync-do.ts",
+        "find": "          const result = await runSyncForItem(",
+        "replace": "          const result = await Promise.resolve({ ran: false } as unknown as ReturnType<typeof runSyncForItem>); void runSyncForItem; const unused = await (",
+        "note": "Renames the only call site so the runner is unreachable, restoring the state 4.5b prime shipped in. THE FIRST MUTATION WAS INERT AND THE HARNESS CAUGHT IT: it replaced the call with UNCALLED_runSyncForItem(, which STILL CONTAINS runSyncForItem( as a substring, so the assertion passed. A manual check appeared to confirm it red, but that run had mangled the file with an earlier command and credited the wrong mutation. The harness was right and the hand-verification was wrong, which is the harness earning its place: a mutation that changes the file without changing what the test sees is exactly what it reports. THE MUTATION MOVED WITH THE CALLER, 21 Aug 2026. It used to point at index.ts, which called the runner directly; both entry points now dispatch through the Durable Object, so the runner is called from there. The register's own applicability check caught the stale find text on the first run after the refactor and said what to do about it: update the register rather than delete the entry. That is the check earning its place, because a mutation whose find text is absent tests nothing and reports nothing."
       },
       "distinction": "WRITTEN BECAUSE THE DEFECT RECURRED ONE TASK AFTER BEING CRITICISED. 4.4 was faulted for runTransactionsSync counting rows with no caller, and 4.5b prime was reported as six pieces built when it was five plus a function nobody could call. NOTHING ELSE IN THE SUITE WOULD NOTICE: every test of the runner calls it directly, so a runner with no route passes its own tests completely. This asserts the caller exists, which is the one property a unit test structurally cannot check."
     },
@@ -982,6 +982,21 @@
         "note": "WIDENS THE BOUND RATHER THAN REMOVING IT, which is the plausible wrong version: a timeout of a day is still a timeout, it satisfies any check that merely asks whether one EXISTS, and it bounds nothing a person would care about. Removing it entirely would also redden the test and is the weaker mutation, because nobody deletes a timeout on purpose; what they do is raise it until a failing query stops failing. A sql mutation is required because a role setting lives in the catalog and a source edit on an applied migration changes no database anywhere."
       },
       "distinction": "IT READS pg_roles.rolconfig RATHER THAN current_setting, AND THAT IS THE CONTROL. ALTER ROLE ... SET applies AT LOGIN, so a session arriving by SET ROLE keeps the settings of the role it CONNECTED as: current_setting would report what the session was given rather than what the role holds, passing while the declaration was absent and failing while it was present. That is the same defect as asking has_column_privilege by naming a role from an owner connection, found the same day in a different catalog, and the tell is identical: THE SESSION IS THE EASIER THING TO ASK AND IT ANSWERS A QUESTION ABOUT ITSELF. Direction 2 asserts marginsheet_app did NOT acquire the setting, because a migration applying it to every role would satisfy the positive assertions while taking a decision nobody made."
+    },
+    {
+      "id": "webhook-verification-refuses",
+      "control": "the signature check (services/sync/test/webhook-verification.test.ts)",
+      "guards": "A tampered Plaid webhook is refused, so the signature is a check rather than a formality.",
+      "test": "services/sync/test/webhook-verification.test.ts",
+      "name": "refuses a body that does not match the signed hash",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/webhook-verify.ts",
+        "find": "  const expected = payload.request_body_sha256;\n  if (typeof expected !== \"string\") return { verified: false, reason: \"no request_body_sha256 claim\" };\n  if (!equalsConstantTime(expected, await sha256Hex(rawBody))) {\n    return { verified: false, reason: \"the body does not match request_body_sha256\" };\n  }",
+        "replace": "  const expected = payload.request_body_sha256;\n  if (typeof expected !== \"string\") return { verified: false, reason: \"no request_body_sha256 claim\" };",
+        "note": "DROPS THE BODY HASH CHECK AND KEEPS THE SIGNATURE CHECK, which is the plausible version rather than an obvious break: the signature still verifies, the claim is still read and still required to be present, and every test of the happy path still passes. What is lost is the link between the token and THIS body, so a genuine correctly signed token can be replayed against any payload at all. A reviewer sees a signature being verified and stops there, which is exactly what happened when the claim was first written."
+      },
+      "distinction": "THE VERIFIER IS WATCHED REFUSING, NOT ONLY ACCEPTING (Guy, 21 Aug 2026). A signature verifier that accepts everything is indistinguishable from one that works, on a real event, forever: every webhook arrives, every one is processed, and nothing reports a fault. So the suite exercises the accept path AND five distinct tampering modes, each differing from the accepted token by exactly one thing, which is the minimal-mutation rule applied to a fixture. It signs its own webhooks against a local server standing in for the key endpoint, so both directions are proven offline rather than waiting on production. THE POSITIVE CASE IS ASSERTED FIRST AND IS NOT DECORATION: every refusal here would pass against a verifier hard-wired to reject, which is the same defect as a gate that can only refuse looking like a careful one, found earlier the same day in the liveness classifier."
     }
   ]
 }
