@@ -105,7 +105,8 @@ const handler = {
       url.pathname === "/plaid/enable-liabilities" ||
       url.pathname === "/plaid/oauth-return" ||
       url.pathname === "/plaid/webhook" ||
-      url.pathname === "/connect"
+      url.pathname === "/connect" ||
+      url.pathname === "/favicon.ico"
     ) {
       // The OAuth return is the URL registered with Plaid. It carries no
       // secrets and does nothing but hand control back to the page, which
@@ -157,6 +158,32 @@ const handler = {
         BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
         BETTER_AUTH_URL: env.BETTER_AUTH_URL,
       });
+      // /favicon.ico: PUBLIC, AND IT HAS TO BE. A browser asks for it without
+      // credentials and before anything else on the page, so answering it
+      // behind the session gate returns 401 to a request that has no session to
+      // offer, and opens a database connection to decide that.
+      //
+      // The first version of this sat after getSession and after the household
+      // lookup, which is a connection per favicon request for a response that
+      // depends on neither.
+      //
+      // /connect is a real page a browser loads, so it asks, and gets a 404 in
+      // the console. Cosmetic, and it follows us into M8 if nobody answers it
+      // now: every surface a household opens makes the same request, and a 404
+      // in a console is the kind of noise that trains people to stop reading
+      // consoles.
+      //
+      // AN EMPTY 204 RATHER THAN AN ICON, deliberately. There is no mark yet,
+      // and inventing one here would put a placeholder in front of a household
+      // before the brand exists. 204 says there is nothing to show and the
+      // browser stops asking.
+      if (url.pathname === "/favicon.ico") {
+        return new Response(null, {
+          status: 204,
+          headers: { "cache-control": "public, max-age=86400" },
+        });
+      }
+
       const session = await auth.api.getSession({ headers: request.headers });
       if (!session?.session) return Response.json({ error: "not_signed_in" }, { status: 401 });
 

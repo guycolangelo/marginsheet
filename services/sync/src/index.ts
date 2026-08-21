@@ -18,6 +18,7 @@ import { handlePlaidWebhook } from "./webhook-handler.js";
 import { setItemWebhook } from "./set-webhook.js";
 import { clearFirstSyncMilestone } from "./clear-milestone.js";
 import { enableLiabilities } from "./enable-liabilities.js";
+import { importRecurring } from "./import-recurring.js";
 import { verifyPlaidWebhook } from "./webhook-verify.js";
 import { itemStatus } from "./item-status.js";
 import { readoutForHousehold } from "./ledger-readout.js";
