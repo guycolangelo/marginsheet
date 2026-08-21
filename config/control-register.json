@@ -92,11 +92,12 @@
       "planted": {
         "kind": "sql",
         "apply": "ALTER TABLE invitations DROP CONSTRAINT invitations_token_purpose_prefix",
-        "restore": "DELETE FROM invitations WHERE token NOT LIKE 'ms\\_invite\\_%'; ALTER TABLE invitations ADD CONSTRAINT invitations_token_purpose_prefix CHECK (token LIKE 'ms\\_invite\\_%')",
-        "proof": "select count(*)::int as n from pg_constraint where conname = 'invitations_token_purpose_prefix'",
+        "restore": "DELETE FROM invitations WHERE token = 'not-a-prefixed-token'; ALTER TABLE invitations ADD CONSTRAINT invitations_token_purpose_prefix CHECK (token LIKE 'ms\\_invite\\_%')",
+        "proof": "select ((select count(*) from pg_constraint where conname = 'invitations_token_purpose_prefix') * 1000 + (select count(*) from invitations where token = 'not-a-prefixed-token'))::int as state",
         "appliedValue": 0,
-        "restoredValue": 1,
-        "restoreNote": "The mutation lets the named test insert a row the constraint forbids, so the restore must remove it first. Found by running the harness: the restore failed with 'is violated by some row', which is a flaw in the planted failure rather than in the control."
+        "restoredValue": 1000,
+        "restoreNote": "The mutation lets the named test insert a row the constraint forbids, so the restore must remove it first. Found by running the harness: the restore failed with 'is violated by some row', which is a flaw in the planted failure rather than in the control.",
+        "note": " THE RESTORE NAMES ONE ROW RATHER THAN A CLASS, after 21 Aug 2026. It used to run DELETE FROM invitations WHERE token NOT LIKE 'ms_invite_%', which is destructive beyond anything the plant creates: the plant drops a constraint, the test then inserts exactly one row with the literal token 'not-a-prefixed-token', and that is the only row a restore has any business removing. A constraint count could not observe a deleted row, so the proof now carries both facts in one number, 1000 for the constraint and 1 per stray row, and a restore that left the row behind or deleted anything else reads as a different number."
       }
     },
     {
@@ -526,12 +527,12 @@
       "name": "an ORDINARY table refuses a write into another household",
       "planted": {
         "kind": "sql",
-        "proof": "select count(*)::int from pg_policies where tablename = 'plaid_items' and policyname = 'sync_worker_write' and qual like '%household_id%'",
+        "proof": "select ((case when coalesce(qual,'') like '%household_id%' then 1 else 0 end) + (case when coalesce(with_check,'') like '%household_id%' then 2 else 0 end) + (case when coalesce(qual,'') like '%IS NULL%' then 4 else 0 end) + (case when cmd = 'ALL' then 8 else 0 end) + (case when permissive = 'PERMISSIVE' then 16 else 0 end) + (case when 'marginsheet_sync' = any(roles) then 32 else 0 end))::int as shape from pg_policies where tablename = 'plaid_items' and policyname = 'sync_worker_write'",
         "apply": "DROP POLICY \"sync_worker_write\" ON \"plaid_items\"; CREATE POLICY \"sync_worker_write\" ON \"plaid_items\" FOR ALL TO marginsheet_sync USING (true) WITH CHECK (true);",
         "restore": "DROP POLICY \"sync_worker_write\" ON \"plaid_items\"; CREATE POLICY \"sync_worker_write\" ON \"plaid_items\" FOR ALL TO marginsheet_sync USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
-        "appliedValue": 0,
-        "restoredValue": 1,
-        "note": "RESTORES USING (true) IN THE DATABASE, which is the historical state that allowed the confirmed write. IT IS A `sql` MUTATION AND THAT IS THE WHOLE POINT: the first version edited the migration FILE, which is inert, because the branch is migrated before the harness runs and changing an already-applied .sql changes nothing. All three policy controls reported 'broke it yes, went red NO' and the cause was the mutation, not the control."
+        "appliedValue": 56,
+        "restoredValue": 59,
+        "note": "RESTORES USING (true) IN THE DATABASE, which is the historical state that allowed the confirmed write. IT IS A `sql` MUTATION AND THAT IS THE WHOLE POINT: the first version edited the migration FILE, which is inert, because the branch is migrated before the harness runs and changing an already-applied .sql changes nothing. All three policy controls reported 'broke it yes, went red NO' and the cause was the mutation, not the control. THE PROOF READS THE WHOLE ROW RATHER THAN A SUBSTRING OF qual, after 21 Aug 2026. The previous version matched one LIKE against qual, so a restore that recreated the policy with a different WITH CHECK, a different command scope, or as RESTRICTIVE rather than PERMISSIVE would have read as clean: it could not see a defect rather than being known to have none, and that distinction was doing load-bearing work in a sentence that sounded like a classification. The shape is now six facts in one number, 1 for household_id in qual, 2 for household_id in with_check, 4 for IS NULL in qual, 8 for command ALL, 16 for PERMISSIVE, 32 for the role being named, so any of them changing under a restore reads as a different number and fails."
       },
       "distinction": "ONE OF THREE CONTROLS THAT DIFFER IN KIND. One refusal proves a boundary exists; three of the same shape prove one predicate works three times. This is the ordinary case, where household_id is the scope. Its SURVIVAL assertion is the property rather than the error: a refusal by policy and a match of zero rows are both acceptable, and asserting on the exception message would couple the control to Postgres wording."
     },
@@ -543,12 +544,12 @@
       "name": "provider_events accepts an UNATTRIBUTED row and refuses another household's",
       "planted": {
         "kind": "sql",
-        "proof": "select count(*)::int from pg_policies where tablename = 'provider_events' and policyname = 'sync_worker_write' and qual like '%IS NULL%'",
+        "proof": "select ((case when coalesce(qual,'') like '%household_id%' then 1 else 0 end) + (case when coalesce(with_check,'') like '%household_id%' then 2 else 0 end) + (case when coalesce(qual,'') like '%IS NULL%' then 4 else 0 end) + (case when cmd = 'ALL' then 8 else 0 end) + (case when permissive = 'PERMISSIVE' then 16 else 0 end) + (case when 'marginsheet_sync' = any(roles) then 32 else 0 end))::int as shape from pg_policies where tablename = 'provider_events' and policyname = 'sync_worker_write'",
         "apply": "DROP POLICY \"sync_worker_write\" ON \"provider_events\"; CREATE POLICY \"sync_worker_write\" ON \"provider_events\" FOR ALL TO marginsheet_sync USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
         "restore": "DROP POLICY \"sync_worker_write\" ON \"provider_events\"; CREATE POLICY \"sync_worker_write\" ON \"provider_events\" FOR ALL TO marginsheet_sync USING (household_id IS NULL OR household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id IS NULL OR household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
-        "appliedValue": 0,
-        "restoredValue": 1,
-        "note": "Removes the NULL clause IN THE DATABASE, which is the tidy-up a future reader would make. It reddens the PERMITTED half: the exception exists to keep webhooks working, and its failure mode is silence rather than an error."
+        "appliedValue": 59,
+        "restoredValue": 63,
+        "note": "Removes the NULL clause IN THE DATABASE, which is the tidy-up a future reader would make. It reddens the PERMITTED half: the exception exists to keep webhooks working, and its failure mode is silence rather than an error. THE PROOF READS THE WHOLE ROW RATHER THAN A SUBSTRING OF qual, after 21 Aug 2026. The previous version matched one LIKE against qual, so a restore that recreated the policy with a different WITH CHECK, a different command scope, or as RESTRICTIVE rather than PERMISSIVE would have read as clean: it could not see a defect rather than being known to have none, and that distinction was doing load-bearing work in a sentence that sounded like a classification. The shape is now six facts in one number, 1 for household_id in qual, 2 for household_id in with_check, 4 for IS NULL in qual, 8 for command ALL, 16 for PERMISSIVE, 32 for the role being named, so any of them changing under a restore reads as a different number and fails."
       },
       "distinction": "THE EXCEPTION, TESTED IN BOTH DIRECTIONS, because an exception that only proves the permitted half is an exception nobody has checked. Removing the NULL clause refuses the insert whose whole purpose is to record an event we cannot yet attribute, so webhooks stop being processed and Plaid's retries are the only trace. That is why the migration states what BREAKS rather than how the table differs."
     },
@@ -560,12 +561,12 @@
       "name": "applyRemoved's statement can no longer cross households",
       "planted": {
         "kind": "sql",
-        "proof": "select count(*)::int from pg_policies where tablename = 'transactions' and policyname = 'sync_worker_write' and qual like '%household_id%'",
+        "proof": "select ((case when coalesce(qual,'') like '%household_id%' then 1 else 0 end) + (case when coalesce(with_check,'') like '%household_id%' then 2 else 0 end) + (case when coalesce(qual,'') like '%IS NULL%' then 4 else 0 end) + (case when cmd = 'ALL' then 8 else 0 end) + (case when permissive = 'PERMISSIVE' then 16 else 0 end) + (case when 'marginsheet_sync' = any(roles) then 32 else 0 end))::int as shape from pg_policies where tablename = 'transactions' and policyname = 'sync_worker_write'",
         "apply": "DROP POLICY \"sync_worker_write\" ON \"transactions\"; CREATE POLICY \"sync_worker_write\" ON \"transactions\" FOR ALL TO marginsheet_sync USING (true) WITH CHECK (true);",
         "restore": "DROP POLICY \"sync_worker_write\" ON \"transactions\"; CREATE POLICY \"sync_worker_write\" ON \"transactions\" FOR ALL TO marginsheet_sync USING (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid) WITH CHECK (household_id = nullif(btrim(current_setting('marginsheet.household_id', true)), '')::uuid);",
-        "appliedValue": 0,
-        "restoredValue": 1,
-        "note": "Restores in the DATABASE exactly the condition under which this statement was CONFIRMED to flag another household's transaction with threw=nothing. Not hypothetical, and not a file edit: a migration already applied cannot be un-applied by rewriting it."
+        "appliedValue": 56,
+        "restoredValue": 59,
+        "note": "Restores in the DATABASE exactly the condition under which this statement was CONFIRMED to flag another household's transaction with threw=nothing. Not hypothetical, and not a file edit: a migration already applied cannot be un-applied by rewriting it. THE PROOF READS THE WHOLE ROW RATHER THAN A SUBSTRING OF qual, after 21 Aug 2026. The previous version matched one LIKE against qual, so a restore that recreated the policy with a different WITH CHECK, a different command scope, or as RESTRICTIVE rather than PERMISSIVE would have read as clean: it could not see a defect rather than being known to have none, and that distinction was doing load-bearing work in a sentence that sounded like a classification. The shape is now six facts in one number, 1 for household_id in qual, 2 for household_id in with_check, 4 for IS NULL in qual, 8 for command ALL, 16 for PERMISSIVE, 32 for the role being named, so any of them changing under a restore reads as a different number and fails."
       },
       "distinction": "THE OMISSION OF 4e's HOUSEHOLD PREDICATE IS DELIBERATE AND MUST NOT BE \"FIXED\". This test issues the removed-stream update WITHOUT the predicate applyRemoved now carries, because it tests the POLICY rather than the STATEMENT. Adding the predicate here would make the test pass for the wrong reason and the policy could be reverted with nothing going red. BOTH MUST HOLD INDEPENDENTLY, and that is the entire reason 4e landed before 4c: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal. FREE EVIDENCE, AND THE ONLY ONE OF THE THREE THAT IS NOT HYPOTHETICAL: this statement already did this once, against a real database, before the policy existed. IT OMITS 4e's HOUSEHOLD PREDICATE DELIBERATELY, so it tests the POLICY rather than the statement. Both must hold independently, which is the whole reason 4e landed first: a predicate somebody forgets is a hole, a policy somebody forgets is a refusal."
     },
