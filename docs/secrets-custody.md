@@ -2,6 +2,26 @@
 
 ## Updated 15 August 2026 (Task 0.3). This document lists what exists and where it lives. It never contains values.
 
+## WHICH BUILD IS RUNNING: read the deploy log, not a Worker
+
+**You do not need a credential to find out what version is deployed**, and reaching for one is the wrong first move. Read the **last successful production deploy's verify step**:
+
+```
+gh run list --workflow=deploy.yml --limit 5 --json databaseId,conclusion
+gh run view <id> --log | grep "ok: .*build="
+```
+
+It prints both Workers:
+
+```
+ok: build=3c635ff environment=production database.ok=true migrations=41, every declared secret non-empty
+ok: sync build=3c635ff database.ok=true migrations=41, every declared secret non-empty
+```
+
+**`DEBUG_PROBE_TOKEN` interrogates a Worker. It does not answer what version one is.** That distinction is written here because on 21 August 2026 a build SHA was treated as unreadable, a rotation was designed to make it readable, and it merged before anyone read the log that had been printing it on every deploy all along. **The blocker was the search, not the access.**
+
+**And the second half is worth as much as the first.** Both Workers are asserted against the expected SHA **independently**, on every production deploy, so **a half-shipped production shows as two different values or a failed step.** That is the detector the 16 August 2026 incident earned, working correctly, in a place nobody reads. **The line that makes it readable is worth more than the detector was.**
+
 ## Stores
 
 1. **Wrangler secrets**: runtime, per service, per environment. Set by Guy in his terminal via `wrangler secret put` (interactive prompt or a local pipe); values touch nothing else.
@@ -78,6 +98,13 @@ comment, where nobody refused by the probe is reading.
 The cost of the design is real and is accepted: **an unauthenticated 404 and a
 nonexistent route are the same response, so the probe cannot tell you it is
 missing.** What it can tell you is that a correct token returns a body.
+
+### It is not how you read a build SHA
+
+See **WHICH BUILD IS RUNNING** at the top of this document. The deploy log prints
+both Workers' SHAs on every production deploy and needs no credential. A person
+holding the question "which version is live" is not reading a token's inventory
+row, which is why the answer is at the top rather than here.
 
 ### Retrieval is a rotation
 
