@@ -66,11 +66,25 @@ export interface HouseholdRow {
   first_sync_completed_at: string | null;
 }
 
+export interface EventRow {
+  source: string; event_type: string | null; event_id: string;
+  created_at: string; processed_at: string | null; household_id: string | null;
+}
+
 export interface Readout {
   accounts: AccountRow[];
   byType: TypeRow[];
   items: ItemRow[];
   household: HouseholdRow | null;
+  /** THE PROVIDER EVENTS, ADDED BEFORE THE WEBHOOK WAS SWITCHED ON.
+   *
+   *  Asked directly on 21 Aug 2026: how would anyone SEE
+   *  WEBHOOK_UPDATE_ACKNOWLEDGED arrive? The answer was nothing showed it. The
+   *  readout did not report provider_events, Sentry only sees failures, and a
+   *  webhook that verified and recorded correctly would have landed in silence.
+   *  THAT IS THE WRONG SHAPE FOR AN ACCEPTANCE CRITERION: an event nobody can
+   *  observe cannot be the thing that proves the task is done. */
+  events: EventRow[];
   cursors: Array<{ itemId: string; equal: boolean; inFlightPresent: boolean; lastCompletedPresent: boolean }>;
 }
 
@@ -148,6 +162,20 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
       from households where id = ${householdId}
   `;
 
+  // MOST RECENT FIRST, AND CAPPED. A readout is read by a person, and twenty
+  // rows is enough to see the last webhook and whether it was processed.
+  // processed_at being null on a recent row is the interesting case: recorded
+  // and never acted on.
+  const events = await tx<EventRow[]>`
+    select source::text, event_type, event_id,
+           (created_at)::text as created_at, (processed_at)::text as processed_at,
+           (household_id)::text as household_id
+      from provider_events
+     where household_id = ${householdId} or household_id is null
+     order by created_at desc
+     limit 20
+  `;
+
   // THE CURSORS ARE REPORTED AS A COMPARISON, not as two opaque strings. Equal
   // after a clean run; unequal means the pagination stopped in flight. A reader
   // should not have to diff two base64 blobs by eye to learn which happened.
@@ -155,6 +183,7 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
     accounts,
     byType,
     items,
+    events,
     household: households[0] ?? null,
     cursors: items.map((i) => ({
       itemId: i.item_id,
