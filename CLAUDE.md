@@ -644,6 +644,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   It is the same shape as **verify against the database, never against reports**, one level up: the mechanism is the report, and the log is the database. And it fails the standing question the same way, because **an explanation cannot go red.** No observation refutes "this could have happened", which is precisely why it is not a finding.
 
+- **A REPORT ABOUT WORK THAT READS AS OBSERVATION AND IS ASSUMPTION ABOUT WHAT A COMMAND DID.** (Guy, 21 Aug 2026, on the second instance.) The reporting half of the join family, and the most dangerous version of it, because the artifact being described is one the reader cannot see.
+
+  The instance: a branch was pushed and the reply named a pull request number as though it had been opened. **No `gh pr create` was ever run.** The push happened, the branch existed, every observable fact in the surrounding message was true, and the sentence in the middle described something that had not occurred.
+
+  **THIS ONE HAD NO TELL, AND THAT IS THE ENTRY.** A fabricated identifier is normally self-correcting: the next command that uses it fails. Here the number **happened to match** what the pull request received when it was created minutes later, so nothing about the report was checkable from outside, and it would have read as accurate forever. **The absence of a discrepancy is not evidence; it is sometimes just luck.**
+
+  **It is distinguishable from a wrong claim in exactly one way: nobody can distinguish it.** A wrong number is checkable. A wrong number that coincidentally becomes right is indistinguishable from a correct report, and the only defence is the discipline of not writing the sentence.
+
+  So: **a report of an action names the command that performed it, and if no command performed it, the sentence does not get written.** Pushing a branch and opening a pull request are two operations. Applying a migration and it taking effect are two operations. Fixing a defect and verifying the fix are two operations. **Each has its own evidence, and a report that merges them is describing an artifact nobody produced.**
+
+  Recorded as the second of its kind by Guy's count. The details of the first are not restated here, because restating an incident from memory rather than from the record is the same defect one level up.
+
 - **THE ARGUMENT WAS EXPENSIVE BECAUSE IT WAS CHEAP TO HAVE, AND THE TEST WAS DECISIVE BECAUSE IT WAS CHEAP TO RUN.** (Guy, 21 Aug 2026.) The corollary to the rule below, about cost rather than about method.
 
   Whether Plaid issues one `account_id` to two Items ran in **two directions across an evening**, with **three rulings resting on it**: whether the purge was necessary, whether Option A described a possible state, and whether a global unique index refuses a legitimate second connection. Both of us reasoned from the same documentation, reached opposite conclusions hours apart, and **neither noticed the contradiction.**
