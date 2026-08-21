@@ -136,7 +136,25 @@ export async function itemProducts(
 export async function createLinkToken(
   householdId: string,
   credentials: PlaidCredentials,
-  redirectUri: string
+  redirectUri: string,
+  /** REQUIRED, NOT OPTIONAL, AND THE OMISSION COST TWO LIVE ITEMS.
+   *
+   *  An Item created without a webhook receives NOTHING from Plaid. Not just no
+   *  completion signal: no SYNC_UPDATES_AVAILABLE, no reauth notice, nothing.
+   *  It syncs when a person clicks and at no other time, and the ledger goes
+   *  stale silently between clicks while every check agrees with it.
+   *
+   *  On 21 Aug 2026 the readout showed ONE Item with completion flags, SoFi,
+   *  which had had its webhook set BY HAND through /plaid/set-webhook. Chase
+   *  and Amex had none, because this key was absent here and set-webhook is a
+   *  manual repair route rather than part of the connect flow.
+   *
+   *  IT LOOKED LIKE AN INSTITUTION DIFFERENCE AND IT WAS A FIELD WE NEVER SENT,
+   *  which is exactly `days_requested` five days earlier: a uniform absence on
+   *  our side, read as a property of the providers. The tell both times was
+   *  several institutions agreeing, and CLAUDE.md already says agreement is
+   *  evidence about US when one of our parameters reached all of them. */
+  webhookUrl: string
 ): Promise<{ linkToken: string; expiration: string | null }> {
   const link = await callPlaid<{ link_token: string; expiration?: string }>(
     "/link/token/create",
@@ -148,6 +166,7 @@ export async function createLinkToken(
       user: { client_user_id: householdId },
       client_name: "MarginSheet",
       products: ["transactions"],
+      webhook: webhookUrl,
       // HOW MUCH HISTORY PLAID PULLS, AND IT IS A FIELD WE NEVER SENT.
       //
       // The default is 90 days and the maximum is 730. Every Item created

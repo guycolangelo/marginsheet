@@ -42,8 +42,22 @@ export interface RunResult {
    *  when an account belongs to another household, which is the case the
    *  household predicate exists to prevent, so reporting the input would hide
    *  the only failure worth seeing. */
-  accountsTouched: number;
-  snapshotsWritten: number;
+  /** WRITES ISSUED, NOT ACCOUNTS TOUCHED, AND THE OLD NAMES SAID THE SECOND.
+   *
+   *  Amex reported 28 and 28 across SIX accounts, which read as a defect and
+   *  was not one. applyBalances runs PER PAGE, deliberately: Plaid resends the
+   *  same current balances with every page so the last one wins, and a
+   *  pagination that dies midway leaves balances fresher than it found them.
+   *  Plaid also returns only accounts that HAVE TRANSACTIONS on a given page,
+   *  so the per-page count varies and sums to 28 over 11 pages rather than to 6
+   *  or to 66. The snapshot upsert then collapses those writes onto 6 rows.
+   *
+   *  Renamed on 21 Aug 2026 after somebody reasoned from the number and reached
+   *  a wrong conclusion, which is the fifth field this week whose name promised
+   *  a different quantity than it carried. The behaviour was correct in every
+   *  one of them; the name was the defect. */
+  balanceWritesIssued: number;
+  snapshotUpsertsIssued: number;
   signalId: string | null;
 }
 
@@ -76,8 +90,8 @@ export async function runSyncForItem(
       if (!item) throw new Error(`no plaid_item ${itemRowId} for this household`);
       if (!item.access_token_ciphertext) throw new Error(`plaid_item ${itemRowId} holds no token`);
 
-      let accountsTouched = 0;
-      let snapshotsWritten = 0;
+      let balanceWritesIssued = 0;
+      let snapshotUpsertsIssued = 0;
 
       const accessToken = await decryptToken(item.access_token_ciphertext, encryptionKey);
 
@@ -106,8 +120,8 @@ export async function runSyncForItem(
           // which is the right direction for a value that describes NOW rather
           // than a ledger entry that describes an event.
           const balances = await applyBalances(tx as unknown as Tx, householdId, page.accounts ?? []);
-          accountsTouched += balances.accounts;
-          snapshotsWritten += balances.snapshots;
+          balanceWritesIssued += balances.accounts;
+          snapshotUpsertsIssued += balances.snapshots;
           return { written, flagged };
         }
       );
@@ -157,8 +171,8 @@ export async function runSyncForItem(
         pages: outcome.pages,
         restarts: outcome.restarts,
         firstSync,
-        accountsTouched,
-        snapshotsWritten,
+        balanceWritesIssued,
+        snapshotUpsertsIssued,
         signalId,
       };
     });
