@@ -60,8 +60,12 @@ export interface AccountRow {
  *  them, and enough real descriptions to tell a payment from a refund. */
 export interface DirectionAuditRow {
   type: string | null;
-  sign: string;
+  account: string | null;
   stored_direction: string | null;
+  /** What Plaid sent, RECOVERED FROM `direction` because it is the only record
+   *  of it left. `amount` is stored as Math.abs, so the sign is discarded at
+   *  write time and `direction` is the sole survivor. */
+  plaid_sign_implied: string;
   rows: number;
   min_amount: string | null;
   max_amount: string | null;
@@ -211,12 +215,29 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
   // cost scales with the number of things examined refuses to answer about the
   // subjects exactly when there are most of them, which is how the per-account
   // cross-check came back silent rather than zero on 20 Aug.
+  //
+  // ITS FIRST VERSION GROUPED ON THE SIGN OF `t.amount` AND CALLED THE COLUMN
+  // `sign`. THAT FIELD COULD ONLY EVER READ "positive", because apply-streams
+  // stores Math.abs(amount), so the sign is discarded at write time. Four
+  // buckets came back, all "positive", and the field was read as Plaid's sign
+  // by the person who received it, which turned a degenerate column into a
+  // wrong diagnosis within minutes.
+  //
+  // IT IS THE NINTH FINDING AGAIN, IN AN INSTRUMENT BUILT TO SETTLE A FINDING:
+  // what values can this field take, and does the failing case exist among
+  // them? Here it could take exactly ONE value, and a one-valued field wearing
+  // the name of the thing under investigation is worse than no field.
+  //
+  // WHAT ACTUALLY CARRIES PLAID'S SIGN IS `direction` ITSELF, because
+  // directionOf is a pure function of it: income means Plaid sent a negative.
+  // That is why the split is legible at all, and it is also why the repair can
+  // identify its rows: THE SIGN SURVIVES NOWHERE ELSE.
   const directionAudit = await tx<DirectionAuditRow[]>`
     select fa.type,
-           case when t.amount > 0 then 'positive'
-                when t.amount < 0 then 'negative'
-                else 'zero' end as sign,
+           coalesce(fa.name, '') || ' ' || coalesce(fa.mask, '') as account,
            t.direction::text as stored_direction,
+           case when t.direction = 'income' then 'negative' else 'positive' end
+             as plaid_sign_implied,
            (count(*))::int as rows,
            (min(t.amount))::text as min_amount,
            (max(t.amount))::text as max_amount,
