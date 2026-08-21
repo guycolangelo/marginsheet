@@ -327,6 +327,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **The repair is a pair rather than a better single value.** Both ends are now fetched, newest at offset 0 and oldest at offset `total - 1`, and reported together with a flag saying whether `oldest <= newest` held. **A single date cannot be checked against anything. A pair carries its own contradiction**, and the flag says plainly when the ordering assumption this all rests on has stopped being true.
 
+- **A DOCUMENTED MECHANISM USED AS A PREMISE ABOUT A CASE NOBODY OBSERVED, AND THE CONTRADICTION LIVED IN TWO MESSAGES HOURS APART.** (Guy, 21 Aug 2026, about his own reading.) The convergence entry one step over, and the step is what makes it worth its own note.
+
+  The mechanism, that Plaid ids are Item-scoped, is documented and plausible. It was used as a premise in a conclusion about a case that had **never been observed**: that a global unique index on `plaid_account_id` refuses a second household linking a shared joint account. **Three confident consequences arrived attached to it**, and each followed correctly from the premise.
+
+  **The premise contradicted a claim made hours earlier in the same conversation**, and neither of us saw it. If ids are Item-scoped, two households get different ids and the index refuses nothing; if the index refuses them, ids are not Item-scoped and the purge performed that night was unnecessary. **Both statements were independently plausible, and they never appeared side by side.**
+
+  **THE TELL IS STRUCTURAL AND IT IS NOT ABOUT CARE.** A contradiction between two things one person said hours apart is close to invisible to that person, because each was reasonable when said and neither is re-read. It is visible to a second reader immediately, and it was: the correction came from being asked to confirm rather than from noticing.
+
+  So the practice is the cheap one. **When a conclusion rests on a premise, say which claim it depends on, and check whether anything already said requires the opposite.** And where the premise is about a third party's behaviour in a case nobody has run, **the answer is a spike rather than an argument**: `account-id-scoping.test.ts` builds two Sandbox Items and compares the id sets, and either answer is useful, which is the mark of a question worth testing.
+
 - **A FINDING ABOUT THE WORLD, CAUSED BY A PARAMETER WE NEVER SET. When several independent sources agree, check whether they were asked the same question before concluding something about the sources.** (Guy, 20 Aug 2026.) A new species, and worse than the others here, because it would have been written down as a fact about a third party and inherited by everyone who read it afterwards.
 
   The near-miss. SoFi's first sync returned 201 transactions, which is thin, and two earlier institutions had already looked short. The conclusion being drafted was a `projection-spec` finding: **two institutions break the uniform-window assumption, so it is a pattern rather than a Capital One quirk.** Every step was reasonable. Three sources, agreeing, about the outside world.
