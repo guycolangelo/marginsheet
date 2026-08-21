@@ -317,6 +317,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The general form, and it is the same instinct as **verify against the database, never against reports**: prefer the query that returns the rows over the query that returns a count, whenever you might need to ask a second question about the answer.
 
+- **A ZERO IS A CLAIM AND AN ABSENCE IS NOT.** (Guy, 21 Aug 2026.) The rendering half of the empty-result class, and it points the opposite way from the instinct.
+
+  Plaid reports `0.00` for two investment accounts that hold real money. Whatever the cause, **we do not hold a trustworthy investment balance**, and the question is what a surface should then show. **Showing the zero is worse than showing nothing**, because a household reading `$0.00` has been told something, and a household seeing the account without a figure has been told nothing and knows it.
+
+  **The instinct runs the other way**, which is why it needs writing down: a rendered number looks complete, a blank looks unfinished, and the pressure on a Balance Sheet is always to fill the cell. **Filling it with a value the data does not support converts a gap into a false statement**, and the false statement is the version nobody checks.
+
+  **The fifth instance today of a number that reads as an answer and is not one**, and the list is worth seeing together because the surfaces differ and the shape does not: `oldestInWindow` reporting the newest date; an empty account list reading as nothing connected; a milestone already set reading as not-yet-due; a gate that could only refuse reading as caution; and now a withheld balance reading as zero.
+
+  **The rule is the same each time. Show nothing, or show why, but never show a figure the data does not support.** And where a value can be absent for two reasons, the surface says which, because that is the difference between a household with no investments and a household whose investments we cannot see.
+
 - **A CROSS-CHECK FIELD THAT ANSWERED A DIFFERENT QUESTION THAN ITS NAME, AND WAS WRONG IN THE DIRECTION THAT HIDES THE FINDING.** 20 Aug 2026, in the readout built specifically to answer that question from outside our own pipeline.
 
   `plaidTotals` asked `/transactions/get` for `count: 1, offset: 0` and called the result **`oldestInWindow`**. That endpoint returns **most-recent-first**, so one row at offset 0 is the **newest** transaction. There was not even a page for it to be the oldest of: the field was the newest date wearing the oldest date's name, in the one field the readout existed to produce.
