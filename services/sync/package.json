@@ -6,7 +6,7 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude '**/zombie-prevention.test.ts'",
-    "test:sandbox": "vitest run test/zombie-prevention.test.ts test/account-id-scoping.test.ts"
+    "test:sandbox": "vitest run test/zombie-prevention.test.ts test/account-id-scoping.test.ts test/amount-sign-by-account-type.test.ts"
   },
   "dependencies": {
     "postgres": "^3",
