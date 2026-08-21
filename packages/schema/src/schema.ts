@@ -421,11 +421,26 @@ export const categories = pgTable(
   ]
 );
 
+/** M5's FILING of a transaction. Not a fact: see moneyFlow for that.
+ *
+ *  `undetermined` was added by 0034 and is NOT `unclassified`, which invariant 9
+ *  bans. It is M5's honest output for a card credit it cannot resolve into a
+ *  payment or a refund. */
 export const transactionDirection = pgEnum("transaction_direction", [
   "income",
   "expense",
   "transfer",
+  "undetermined",
 ]);
+
+/** M4's FACT: which way the money moved. Always knowable from the sign of
+ *  Plaid's amount, which is positive for money leaving the account on both
+ *  depository and credit accounts.
+ *
+ *  DELIBERATELY NOT commitmentDirection, which shares this vocabulary and is a
+ *  property of a recurring obligation rather than of one movement of money.
+ *  Folding them was considered on 21 Aug 2026 and rejected; see 0035. */
+export const moneyFlow = pgEnum("money_flow", ["inflow", "outflow"]);
 
 export const reviewState = pgEnum("review_state", [
   "auto_filed",
@@ -474,7 +489,10 @@ export const transactions = pgTable(
     normalizedMerchantKey: text("normalized_merchant_key"),
     originalDescription: text("original_description"),
 
-    direction: transactionDirection("direction").notNull(),
+    /** M5's filing. NULL until filed; see 0035. */
+    direction: transactionDirection("direction"),
+    /** M4's fact: which way the money moved. */
+    flow: moneyFlow("flow").notNull(),
     categoryId: uuidRef("category_id"),
     plLine: plLine("pl_line"),
     accountType: text("account_type"),

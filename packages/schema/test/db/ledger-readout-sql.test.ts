@@ -59,9 +59,9 @@ beforeAll(async () => {
             values (${HOUSEHOLD}, ${ACCOUNT}, date '2026-05-24', 1000.00, 900.00),
                    (${HOUSEHOLD}, ${ACCOUNT}, date '2026-08-19', 1500.00, 1400.00)
             on conflict do nothing`;
-  await sql`insert into transactions (household_id, account_id, date, authorized_date, amount, direction, pending, original_description)
-            values (${HOUSEHOLD}, ${ACCOUNT}, date '2026-05-01', date '2026-04-30', 12.34, 'expense', false, 'older'),
-                   (${HOUSEHOLD}, ${ACCOUNT}, date '2026-08-19', date '2026-08-18', 56.78, 'expense', true,  'newer')
+  await sql`insert into transactions (household_id, account_id, date, authorized_date, amount, flow, pending, original_description)
+            values (${HOUSEHOLD}, ${ACCOUNT}, date '2026-05-01', date '2026-04-30', 12.34, 'outflow', false, 'older'),
+                   (${HOUSEHOLD}, ${ACCOUNT}, date '2026-08-19', date '2026-08-18', 56.78, 'outflow', true,  'newer')
             on conflict do nothing`;
 });
 

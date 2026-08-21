@@ -45,8 +45,15 @@
 // express rather than from what Plaid happens to send, and CLAUDE.md already
 // records why the boundary argument is the one a case cannot defeat.
 //
-// WHERE THE ANSWER LIVES: production. Chase is connected and a real card
-// payment either exists in our rows or does not. Owed in docs/open-items.json.
+// SETTLED IN PRODUCTION ON 21 AUG 2026, AND THE RESOLUTION WAS BIGGER THAN THE
+// QUESTION. Chase's rows showed 56 card credits, so Plaid does sign a card
+// credit negative, and the convention is CONSISTENT across account types:
+// positive is money out, on depository and credit alike. THERE IS NO CARD
+// INVERSION. The real defect was that one column held a FACT and a FILING at
+// once, so 0035 split them: `flow` is M4's fact, `direction` is M5's filing.
+//
+// THIS SPIKE NOW GUARDS THE FACT HALF. flowOf is a pure function of the sign
+// and this is the only thing that checks the sign is what we think it is.
 //
 // THE HAZARD THIS EXISTS TO PRICE (Guy, 21 Aug 2026). A card payment appears
 // TWICE: a debit on checking and a credit on the card. Applied by sign alone

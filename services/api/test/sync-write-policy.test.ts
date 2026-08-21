@@ -129,8 +129,8 @@ describe.skipIf(!configured)("the sync role writes within one household", () => 
     `;
     const txnId = `txn-${crypto.randomUUID()}`;
     await owner`
-      insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, direction)
-      values (${B}, ${acctB.id}, ${txnId}, '2026-08-01', 42.00, 'expense')
+      insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, flow)
+      values (${B}, ${acctB.id}, ${txnId}, '2026-08-01', 42.00, 'outflow')
     `;
 
     // Deliberately WITHOUT the household predicate 4e added, so this tests the

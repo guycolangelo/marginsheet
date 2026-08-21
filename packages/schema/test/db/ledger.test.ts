@@ -43,8 +43,8 @@ describe("invariant 1: transaction, account, and item households all agree", () 
     const otherHousehold = uuid();
 
     await expect(
-      sql`insert into transactions (household_id, account_id, date, amount, direction)
-          values (${otherHousehold}, ${a.accountId}, '2026-08-15', 42.00, 'expense')`
+      sql`insert into transactions (household_id, account_id, date, amount, flow)
+          values (${otherHousehold}, ${a.accountId}, '2026-08-15', 42.00, 'outflow')`
     ).rejects.toThrow(/transactions_account_same_household_fk/);
 
     await cleanup(a.household);
@@ -66,8 +66,8 @@ describe("invariant 1: transaction, account, and item households all agree", () 
     const a = await seedHousehold();
 
     const [row] = await sql<{ id: string }[]>`
-      insert into transactions (household_id, account_id, date, amount, direction)
-      values (${a.household}, ${a.accountId}, '2026-08-15', 42.00, 'expense')
+      insert into transactions (household_id, account_id, date, amount, flow)
+      values (${a.household}, ${a.accountId}, '2026-08-15', 42.00, 'outflow')
       returning id
     `;
     expect(row.id).toBeTruthy();
@@ -107,8 +107,8 @@ describe("direction drops unclassified (invariant 9)", () => {
   it("rejects unclassified outright, rather than storing it", async () => {
     const a = await seedHousehold();
     await expect(
-      sql`insert into transactions (household_id, account_id, date, amount, direction)
-          values (${a.household}, ${a.accountId}, '2026-08-15', 10.00, 'unclassified')`
+      sql`insert into transactions (household_id, account_id, date, amount, flow, direction)
+          values (${a.household}, ${a.accountId}, '2026-08-15', 10.00, 'outflow', 'unclassified')`
     ).rejects.toThrow(/invalid input value for enum/i);
     await cleanup(a.household);
   });
@@ -225,12 +225,12 @@ describe("ledger column types and uniqueness", () => {
     const plaidId = `txn_${uuid()}`;
 
     await sql`
-      insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, direction)
-      values (${a.household}, ${a.accountId}, ${plaidId}, '2026-08-15', 10.00, 'expense')
+      insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, flow)
+      values (${a.household}, ${a.accountId}, ${plaidId}, '2026-08-15', 10.00, 'outflow')
     `;
     await expect(
-      sql`insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, direction)
-          values (${a.household}, ${a.accountId}, ${plaidId}, '2026-08-16', 11.00, 'expense')`
+      sql`insert into transactions (household_id, account_id, plaid_transaction_id, date, amount, flow)
+          values (${a.household}, ${a.accountId}, ${plaidId}, '2026-08-16', 11.00, 'outflow')`
     ).rejects.toThrow(/transactions_plaid_transaction_id_unique/);
 
     await cleanup(a.household);

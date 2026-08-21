@@ -27,10 +27,20 @@ export type Tx = (strings: TemplateStringsArray, ...values: unknown[]) => Promis
 /** One transaction as Plaid reports it, narrowed to what M4 stores.
  *
  *  M4 stores FACTS AND NOTHING DERIVED. category_id, pl_line, review_state,
- *  confidence and the transfer fields are M5's, and writing a guess into them
- *  here would be a filing decision made by the pipeline. `direction` is the one
- *  judgement call and it is arithmetic rather than interpretation: Plaid signs
- *  outflows positive, so a positive amount is an expense. */
+ *  confidence, `direction` and the transfer fields are M5's, and writing a
+ *  guess into them here would be a filing decision made by the pipeline.
+ *
+ *  THIS COMMENT ONCE CARVED OUT ONE EXCEPTION AND THE EXCEPTION WAS THE DEFECT.
+ *  It read: "`direction` is the one judgement call and it is arithmetic rather
+ *  than interpretation: Plaid signs outflows positive, so a positive amount is
+ *  an expense." The premise is true. The conclusion is a filing. A deposit from
+ *  ADP and a deposit from Joint Savings are the SAME FACT and DIFFERENT
+ *  FILINGS, and no amount of arithmetic separates them, so 520 internal vault
+ *  transfers were stored as income and 56 card credits as income on cards.
+ *
+ *  The rule stated above would have prevented it. A rule with one exemption is
+ *  how this class arrives, and the exemption always has a reason or nobody
+ *  would have written it. `flow` is the fact M4 is entitled to write. */
 export interface PlaidTransaction {
   transaction_id: string;
   account_id: string;
@@ -46,9 +56,13 @@ export interface PlaidTransaction {
   counterparties?: unknown;
 }
 
-/** Plaid signs money LEAVING the account positive. */
-function directionOf(amount: number): "income" | "expense" {
-  return amount > 0 ? "expense" : "income";
+/** Plaid signs money LEAVING the account positive, on depository and credit
+ *  accounts alike, so this is a FACT and not an interpretation.
+ *
+ *  It is the whole of what M4 may say about which way the money went. What that
+ *  movement MEANS is `direction`, and M5 writes it. */
+function flowOf(amount: number): "inflow" | "outflow" {
+  return amount > 0 ? "outflow" : "inflow";
 }
 
 /** Writes added and modified transactions for ONE household.
@@ -84,14 +98,14 @@ export async function applyAddedAndModified(
     const rows = await tx`
       insert into transactions (
         household_id, account_id, plaid_transaction_id, date, authorized_date,
-        amount, iso_currency, merchant_name, original_description, direction,
+        amount, iso_currency, merchant_name, original_description, flow,
         account_type, plaid_pfc_primary, plaid_pfc_detailed, pending
       )
       select
         ${householdId}, fa.id, ${t.transaction_id}, ${t.date}::date,
         ${t.authorized_date ?? null}::date, ${Math.abs(t.amount)},
         ${t.iso_currency_code ?? null}, ${t.merchant_name ?? null},
-        ${t.name ?? null}, ${directionOf(t.amount)}::transaction_direction,
+        ${t.name ?? null}, ${flowOf(t.amount)}::money_flow,
         fa.type, ${t.personal_finance_category?.primary ?? null},
         ${t.personal_finance_category?.detailed ?? null}, ${t.pending ?? false}
       from financial_accounts fa
@@ -103,7 +117,7 @@ export async function applyAddedAndModified(
             amount = excluded.amount,
             merchant_name = excluded.merchant_name,
             original_description = excluded.original_description,
-            direction = excluded.direction,
+            flow = excluded.flow,
             plaid_pfc_primary = excluded.plaid_pfc_primary,
             plaid_pfc_detailed = excluded.plaid_pfc_detailed,
             -- THE SETTLE. A modified row arriving with pending=false is a

@@ -61,11 +61,10 @@ export interface AccountRow {
 export interface DirectionAuditRow {
   type: string | null;
   account: string | null;
+  /** M4's fact. */
+  flow: string | null;
+  /** M5's filing. NULL for every row until M5 exists; see 0035. */
   stored_direction: string | null;
-  /** What Plaid sent, RECOVERED FROM `direction` because it is the only record
-   *  of it left. `amount` is stored as Math.abs, so the sign is discarded at
-   *  write time and `direction` is the sole survivor. */
-  plaid_sign_implied: string;
   rows: number;
   min_amount: string | null;
   max_amount: string | null;
@@ -228,16 +227,15 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
   // them? Here it could take exactly ONE value, and a one-valued field wearing
   // the name of the thing under investigation is worse than no field.
   //
-  // WHAT ACTUALLY CARRIES PLAID'S SIGN IS `direction` ITSELF, because
-  // directionOf is a pure function of it: income means Plaid sent a negative.
-  // That is why the split is legible at all, and it is also why the repair can
-  // identify its rows: THE SIGN SURVIVES NOWHERE ELSE.
+  // SINCE 0035 THE SIGN HAS ITS OWN COLUMN, `flow`, and this reports it
+  // directly instead of recovering it. `direction` is reported beside it and
+  // is NULL for every row until M5 files anything, which is the honest state
+  // rather than a gap.
   const directionAudit = await tx<DirectionAuditRow[]>`
     select fa.type,
            coalesce(fa.name, '') || ' ' || coalesce(fa.mask, '') as account,
+           t.flow::text as flow,
            t.direction::text as stored_direction,
-           case when t.direction = 'income' then 'negative' else 'positive' end
-             as plaid_sign_implied,
            (count(*))::int as rows,
            (min(t.amount))::text as min_amount,
            (max(t.amount))::text as max_amount,
@@ -248,8 +246,8 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
       join financial_accounts fa
         on fa.id = t.account_id and fa.household_id = t.household_id
      where t.household_id = ${householdId} and not t.removed
-     group by fa.type, 2, t.direction
-     order by fa.type, 2, t.direction
+     group by fa.type, 2, t.flow, t.direction
+     order by fa.type, 2, t.flow, t.direction
   `;
 
   return {

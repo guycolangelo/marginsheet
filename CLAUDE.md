@@ -877,34 +877,30 @@ The canon's operational rules amend named specs and **landed 19 August 2026 as a
 
 **That is the general form worth carrying past this column: a provider figure that summarises rows we already hold is not a second source, it is the same money counted again.** The tell is that both are correct and the pair is not.
 
-## THE DIRECTION RULE (locked 21 August 2026)
+## FACT AND FILING ARE TWO COLUMNS (locked 21 August 2026)
 
-**The instrument does not change what a transaction means. It changes WHEN the transaction is recognised**, which is already ruled: card purchases at transaction, installment loans as payments land.
+**Which way the money moved is a fact. What that movement means is a filing.** One column held both from 0003 to 0035, and every misfiled row was that confusion rather than a sign bug.
 
-| Case | Direction |
-|---|---|
-| Card, not a payment or refund | spending |
-| Depository debit, not a payment | spending |
-| Depository credit | income, **unless** refund or reimbursement |
-| Card credit | **NEVER income.** Payment (transfer), or refund (nets against spending) |
+| Column | Values | Written by |
+|---|---|---|
+| `transactions.flow` | `inflow` / `outflow` | **M4.** Always knowable from Plaid's sign. |
+| `transactions.direction` | income / expense / transfer / undetermined | **M5.** NULL until filed. |
 
-**The last line is the hazard.** A card payment appears **twice**: a debit on checking and a credit on the card, and **both are transfer**. Applied by sign alone, the same event registers as spending and income simultaneously, **inflating both sides of the P&L and leaving Kept unchanged**, which is the version that looks plausible, because the number the household reads does not move.
+**The sentence that settles it: a deposit from ADP and a deposit from Joint Savings are the same fact and different filings.** No amount of arithmetic separates them, so a pipeline that names either one is guessing.
 
-**Same shape as the balance finding: a rule correct within one account type, inverting across another, with a column name that reads as uniform.** `amount` reads as uniform the way `current_balance` does, and both are two facts sharing one name.
+**Plaid's sign is consistent across account types** and there is no card inversion: positive is money out, on depository and credit alike. That was settled against Chase's rows on 21 Aug, after a Sandbox spike could not answer it.
 
-**It is not hypothetical, and the writer already does it.** `apply-streams.ts` derives `direction` from the sign, and states the premise as settled: *"Plaid signs outflows positive, so a positive amount is an expense."* True for a depository account, inverted for a card.
+**What the conflation actually cost, measured.** 1,928 rows: **520 internal SoFi vault transfers filed as income** ("From Joint Savings", "From Entertainment Vault"), **56 card credits filed as income**, and card payments filed as spending on the depository side. A card payment double-counts wherever both accounts are connected: spending on checking, income on the card, **inflating both sides of the P&L while leaving Kept unchanged**, which is the version that looks plausible because the number the household reads does not move.
 
-**The file's own doctrine would have prevented it.** The same comment block says M4 *"stores FACTS AND NOTHING DERIVED"*, and that writing a guess into a filing field *"would be a filing decision made by the pipeline"*, and then carves out exactly one exception on the grounds that direction is *"arithmetic rather than interpretation."* **The exception is the defect.** A rule stated correctly and then exempted once is how this class arrives, and the exemption always has a reason or nobody would have written it.
+**The recognition rule is unchanged and now belongs to M5:** card, not a payment or refund, is spending; depository debit, not a payment, is spending; depository credit is income unless refund or reimbursement; **a card credit is never income**, being a payment (transfer) or a refund (nets against spending). The instrument changes *when* a transaction is recognised, never *what* it means.
 
-**`transaction_direction` has three values and the writer can only ever return two.** `transfer` exists, since 0003, and no code path produces it. That is the gate-that-can-only-refuse shape moved into a writer: a function structurally unable to emit one of its outcomes, which no test of the outcomes it does emit can see.
+**Why the exemption was the defect.** `apply-streams.ts` stated the right rule, that M4 stores facts and nothing derived, and then carved out exactly one exception on the grounds that direction was *"arithmetic rather than interpretation."* The premise was true and the conclusion was a filing. **A rule with one exemption is how this class arrives, and the exemption always has a reason or nobody would have written it.**
 
-**Payment versus refund is M5's filing decision, not the pipeline's**, so there is no safe sign-only default for a card credit and the writer must know the account type.
+**The repair was mechanical only because the bug was pure.** `direction` was a pure function of the sign, and `amount` is stored through `Math.abs`, so `direction` was the only surviving record of it and inverting it needed no judgement anywhere. **That is the bug's one good consequence** (Guy): had M4 been filing with any real interpretation, the repair would have meant re-deriving every row from Plaid instead of one statement.
 
-**The spike sent to settle Plaid's sign could not, and the finding does not depend on it.** `ins_109508` returned 9 credit rows, every one a positive purchase, and 2 negatives on depository: **the dataset holds card purchases and no card payment**, so the failing case is not representable in the fixture. Injecting one through a Sandbox custom user is circular, since the sign would be ours.
+**Two decisions recorded so nobody rediscovers them by breaking something.** `transactions_merchant_key_idx` stays keyed on `direction` although it probably wants `flow`, because **changing an index M5 will design against, before M5 has designed, is guessing at a requirement.** And `money_flow` is a new type rather than a reuse of `commitment_direction`: they share a vocabulary and are not the same fact, since a commitment's direction is a property of a recurring obligation and a transaction's flow is a property of one movement of money. **Folding them makes a future divergence expensive and buys one fewer type.**
 
-**The spike's own pre-commitment read that absence as an answer**, saying the concern would be theoretical if no negative appeared. Zero negatives is equally consistent with Plaid never signing a card credit negative and with a dataset containing no card credits, and **nine purchases cannot distinguish those.** The fixture check asked whether credit rows exist and never whether the failing case could exist among them, **which is this file's ninth finding, committed by someone who had cited it two commits earlier.** The rule survives being known; only the control catches it.
-
-**Take either branch and the writer is wrong**, which is why the finding stood while its evidence was being retracted: a negative card payment becomes `income`, a positive one becomes `expense` and is counted as spending on the card and on checking both. **The right answer is `transfer` and the function cannot return it.** That is an argument from what the writer can express rather than from what Plaid sends, and this file already records why a boundary argument is the one a case cannot defeat.
+**A comment asserting singularity is not checkable by reading either writer.** 0004 named `resolveDirection` the single source of truth for `direction`; M4 wrote it anyway; `resolveDirection` exists in a spec and three migration comments and no code. **The claim was false for four migrations and nothing could have caught it**, because the claim is about a relationship between files and no file holds it. **Counting alone would not have caught it either:** there was exactly one writer, so a cardinality check reads 1, agrees with "single source", and passes. **The failure was cardinality one with the wrong member**, so the check is on the identity of the writer set. `config/single-writer-columns.json` and its control are that check, and `claim_holds` is a forcing field: true obligates the declared writers to be the claimed one, false obligates a reason.
 
 ## Vocabulary and format (locked; lint-enforced)
 

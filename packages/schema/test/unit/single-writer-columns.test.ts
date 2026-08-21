@@ -44,7 +44,7 @@ const declaration = JSON.parse(
     declared_writers: string[];
     claimed_writer: string;
     claim_holds: boolean;
-    reason?: string;
+    reason?: string | null;
   }>;
 };
 
@@ -133,9 +133,22 @@ describe("who writes this column", () => {
       ).toEqual(declared);
     });
 
-    it(`${label}: the scan actually located a write`, () => {
-      // Without this, a change to the SQL extraction empties `actual`, and an
-      // empty set equals an empty declaration on the day somebody clears it.
+    it(`${label}: the scan actually located a write, unless none is declared`, () => {
+      // WITHOUT THIS, a change to the SQL extraction empties `actual`, and an
+      // empty set equals an empty declaration, so the control passes while
+      // seeing nothing.
+      //
+      // ZERO DECLARED WRITERS IS A LEGITIMATE STATE AND NOT AN EXEMPTION FROM
+      // THE CHECK. transactions.direction has none as of 0035, because it is
+      // M5's filing and M5 does not exist. The set comparison above still runs
+      // and still catches a writer appearing. What is suspended is only the
+      // non-empty requirement, and only where the declaration says so, so a
+      // scanner that silently stopped seeing writes still reddens on every
+      // column that HAS one.
+      if (spec.declared_writers.length === 0) {
+        expect(actual, `${label} declares no writers but something writes it`).toEqual([]);
+        return;
+      }
       expect(actual.length, `no write to ${label} was found anywhere; the scanner has stopped seeing it`).toBeGreaterThan(0);
     });
 
