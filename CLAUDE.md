@@ -973,6 +973,18 @@ So when a check reports pending and its run reports `completed/success`, **read 
 
 **It was found by a test failing and the code being right**, which is the only reason it surfaced at all. A comment describing a mechanism the code does not have is invisible to every control in this file, because the code is correct and the sentence is about it.
 
+## THE UNIT A PROVIDER BILLS IN IS NOT THE UNIT YOU COUNT IN (recorded 21 August 2026)
+
+Plaid bills Liabilities **per Item per month**. Guy's household holds three Items carrying ten credit accounts, so enabling everything is **three charges, not ten**.
+
+**The error would have been easy in the direction that overstates**, and a dry run reporting cards would have put the money model off by more than three times. It reads naturally: ten cards, ten charges. **A cost surface must name the provider's unit explicitly**, because the unit a reader has in mind is the one their own domain uses.
+
+**A billing decision that cannot be scoped is a route that makes the wrong choice cheaper than the right one** (Guy). The first version of `/internal/enable-liabilities` took only `confirm` and enabled every Item on the household. That is **permission to enable that names no place**, which is the same hole as `AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE`: a permission to rotate a role that never said which one, and it destroyed shared dev.
+
+Here the cost is concrete. **SoFi holds zero credit accounts, so enabling it buys nothing and starts a charge.** Applying now requires an explicit list of Item ids and refuses without one, an unknown id is refused rather than skipped, and the dry run still surveys everything so the list can be chosen from it. **Guard the target, not the action**, applied to money instead of to a database.
+
+**And a route should be honest about what it cannot undo, which is rarer than a route that warns.** The flag does not call Plaid, so clearing it beforehand starts nothing; after the first call the billing is Plaid's and our column is irrelevant. Saying the second half is the part that matters, because a reader who sees a reversible-looking flag will assume the whole thing is reversible.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.

@@ -417,12 +417,15 @@ export default {
       if (!env.NEON_DATABASE_URL) {
         return Response.json({ error: "sync is not configured" }, { status: 503 });
       }
-      const b = (await request.json().catch(() => ({}))) as { householdId?: string; confirm?: boolean };
+      const b = (await request.json().catch(() => ({}))) as { householdId?: string; confirm?: boolean; itemIds?: string[] };
       if (!b.householdId) {
         return Response.json({ error: "householdId is required" }, { status: 400 });
       }
       try {
-        const result = await enableLiabilities(env.NEON_DATABASE_URL, b.householdId, b.confirm === true);
+        const result = await enableLiabilities(
+          env.NEON_DATABASE_URL, b.householdId, b.confirm === true,
+          Array.isArray(b.itemIds) ? b.itemIds : []
+        );
         return Response.json(result, { status: result.refused ? 409 : 200 });
       } catch (error) {
         const e = error as { message?: string };
