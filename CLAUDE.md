@@ -941,9 +941,21 @@ The canon's operational rules amend named specs and **landed 19 August 2026 as a
 
 **A set-once field recording an EVENT is safe, because events do not get redefined. A set-once field recording a JUDGEMENT is exposed, because judgements are exactly what gets redefined.** Spending a grant is spending a grant. *"We hold this household's history"* is a conclusion, and the conclusion moved.
 
-**That is the question to ask of the next one: is this field recording something that happened, or something we decided?** The second kind needs the migration obligation written down when the field is created, not when somebody needs it.
+**That is the question to ask of the next one: is this field recording something that happened, or something we decided?**
+
+**The obligation, stated plainly, because it is checkable when the column is written rather than when somebody needs it: A SET-ONCE COLUMN RECORDING A JUDGEMENT CARRIES A MIGRATION OBLIGATION FROM THE MOMENT IT EXISTS, because the judgement can be redefined and the rows cannot.** That obligation is written down with the column, not discovered later by whoever needs the redefinition to apply.
 
 **The correction itself is a route, not a hand-run statement**, because a correction to a set-once milestone should leave a record of who did it and when, and a psql session leaves nothing. Dry run by default, reporting the current value and what would still block a re-fire.
+
+## A CHECK CAN REPORT `in_progress` AFTER CONCLUDING `success` (recorded 21 August 2026)
+
+Small, and it goes in the record because of what it would look like next time.
+
+On PR #155 `gitleaks` reported **`in_progress/success`**: conclusion set, status stale, while the run containing it read `completed/success`. `gh pr checks` reads the status, so the check listed as **pending** long after it had passed. Nothing was overridden and the merge was accepted normally.
+
+**It is a false negative in the direction that blocks rather than permits, which is the safe direction** and is why it cost nothing here. But it means **"all checks green" read from the API can be wrong about a check that passed**, and the consequence is the reading rather than the outcome: a merge that proceeded correctly can look, in the record, like one that happened under a red.
+
+So when a check reports pending and its run reports `completed/success`, **read the job's conclusion rather than its status**, and say which you read. This file already requires that nothing merges with a red required check and that `--admin` is not available as a convenience; distinguishing a stale status from a genuine red is what keeps that rule enforceable rather than merely stated.
 
 ## Vocabulary and format (locked; lint-enforced)
 

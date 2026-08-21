@@ -101,6 +101,7 @@ const handler = {
       url.pathname === "/plaid/purge-item" ||
       url.pathname === "/plaid/disconnect-item" ||
       url.pathname === "/plaid/set-webhook" ||
+      url.pathname === "/plaid/clear-first-sync-milestone" ||
       url.pathname === "/plaid/oauth-return" ||
       url.pathname === "/plaid/webhook" ||
       url.pathname === "/connect"
@@ -272,6 +273,26 @@ const handler = {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ householdId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/clear-first-sync-milestone" && request.method === "POST") {
+          // THE HOUSEHOLD COMES FROM THE SESSION, NEVER FROM THE BODY, so this
+          // can only ever correct the caller's own milestone. A body-supplied
+          // household would make a correction route into a cross-household
+          // write, which is the shape every finding of 19 Aug was about.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const b = (await request.json().catch(() => ({}))) as { confirm?: boolean };
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/clear-first-sync-milestone", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId, confirm: b.confirm === true }),
             })
           );
           return new Response(await response.text(), {
