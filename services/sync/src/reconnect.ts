@@ -51,7 +51,6 @@ export async function reconnectItem(
     if (!row.access_token_ciphertext) throw new Error(`plaid_item ${itemRowId} holds no token`);
 
     const accessToken = await decryptToken(row.access_token_ciphertext, encryptionKey);
-    const declared = new Set([...CONSENT.products, ...CONSENT.additionalConsentedProducts]);
     const link = await callPlaid<{ link_token: string }>("/link/token/create", credentials, {
       user: { client_user_id: householdId },
       client_name: "MarginSheet",
@@ -103,6 +102,13 @@ export async function itemProducts(
    *  arrays made that visible only to somebody who already knew what we ask
    *  for; reporting the DIFFERENCE makes it visible to anybody who runs it. */
   consentedButNotDeclared: string[];
+  /** True when this Item is listed in the declaration's grandfathered block,
+   *  meaning wider consent is a decision rather than drift. THE EXTRA PRODUCTS
+   *  ARE STILL LISTED ABOVE: tolerating is not hiding, and a reader should see
+   *  the state and the reason rather than a clean result concealing both. */
+  widerConsentIsExpected: boolean;
+  /** Why, when it is expected. Null when it is not. */
+  widerConsentReason: string | null;
   /** Declared and not consented, which is the direction that BREAKS things: a
    *  product we intend to use and were not granted fails at the endpoint rather
    *  than here. */
@@ -118,12 +124,17 @@ export async function itemProducts(
     if (!row.access_token_ciphertext) throw new Error(`plaid_item ${itemRowId} holds no token`);
 
     const accessToken = await decryptToken(row.access_token_ciphertext, encryptionKey);
-    const declared = new Set([...CONSENT.products, ...CONSENT.additionalConsentedProducts]);
     const item = await callPlaid<{
-      item: { products?: string[]; billed_products?: string[]; consented_products?: string[] };
+      item: { item_id?: string; products?: string[]; billed_products?: string[]; consented_products?: string[] };
     }>("/item/get", credentials, { access_token: accessToken });
 
     const consented = item.item.consented_products ?? [];
+    const declared = new Set([...CONSENT.products, ...CONSENT.additionalConsentedProducts]);
+    // Keyed on Plaid's item_id, which is Plaid's namespace, and that is right
+    // here: the grandfathering is a fact about an ITEM AT PLAID rather than
+    // about a row of ours, so it must survive our row being rebuilt.
+    const grandfathered =
+      CONSENT.grandfathered.find((g) => g.itemId === item.item.item_id)?.reason ?? null;
 
     return {
       products: item.item.products ?? [],
@@ -133,6 +144,8 @@ export async function itemProducts(
       // edge-rules against the live Cloudflare zone: a dashboard setting is
       // invisible to code review until something compares the two.
       consentedButNotDeclared: consented.filter((p) => !declared.has(p)),
+      widerConsentIsExpected: Boolean(grandfathered),
+      widerConsentReason: grandfathered ?? null,
       declaredButNotConsented: [...declared].filter((p) => !consented.includes(p)),
     };
   } finally {

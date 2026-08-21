@@ -22,21 +22,52 @@
     "SAME SHAPE AS edge-rules AND secret-inventory: declare what we intend, ask the",
     "provider what is true, fail on the difference."
   ],
-
-  "products": ["transactions"],
-
-  "additionalConsentedProducts": ["liabilities"],
-
+  "products": [
+    "transactions"
+  ],
+  "additionalConsentedProducts": [
+    "liabilities"
+  ],
   "why": {
     "transactions": "The ledger. Every figure in the product derives from it.",
     "liabilities": "Consented at link time and billed on first use, because a product cannot be added to an Item after creation without taking the household back through Link. The four Chase cards are exactly the case it exists for."
   },
-
   "deliberatelyNotRequested": {
     "assets": "Asset reports. Nothing calls /asset_report/*, and nothing in any spec plans to.",
     "identity": "Plaid identity. Our identity work is Better Auth plus Twilio Verify; the household's name and address come from them, not from the bank.",
     "identity_match": "Identity comparison. Same reasoning, and it would mean sending a household's details to a third party to be scored.",
     "signal": "ACH risk scoring. We move no money, so there is nothing to score.",
     "investments": "Would be required for ANY investment figure, since balances read 0.00 without it. It is a real decision rather than an omission and is tracked in docs/open-items.json."
-  }
+  },
+  "grandfathered": [
+    {
+      "itemId": "1V9o5vY39XCaEBKkzZvys7QZq380wyHbELggk",
+      "reason": "SoFi, relinked 21 Aug 2026 to obtain 730 days of history, before the dashboard narrowing. Not worth a second relink: nothing in this system calls assets, identity, identity_match or signal."
+    },
+    {
+      "itemId": "XdVLmy6Ydzskg0EEjVQmHmgoE0zAywuryb4M1",
+      "reason": "Chase, connected 21 Aug 2026, before the dashboard narrowing. Same reasoning."
+    }
+  ],
+  "grandfatheredWhy": [
+    "ITEMS THAT CARRY WIDER CONSENT BY DECISION RATHER THAN BY DRIFT (Guy, 21 Aug 2026).",
+    "",
+    "Plaid dashboard settings apply to an Item AT CREATION, so narrowing the",
+    "enabled products is FORWARD ONLY. These two Items were created before the",
+    "narrowing and keep consent to assets, identity, identity_match and signal.",
+    "The only way to change that is a relink, which costs a household trip through",
+    "Link to remove reach nothing uses.",
+    "",
+    "THEY ARE LISTED SO THE CHECK TOLERATES THEM RATHER THAN FAILING. A check that",
+    "is red by design teaches people to ignore it, and an ignored check is worth",
+    "less than no check: it corrodes every true red beside it, which is the same",
+    "damage a flaky test does.",
+    "",
+    "THE EXTRA PRODUCTS ARE STILL REPORTED. Tolerating is not hiding. The route",
+    "names them and says they are expected for this Item, so a reader sees the",
+    "state and the reason rather than a clean result that conceals both.",
+    "",
+    "REMOVING AN ENTRY IS HOW THIS EXPIRES. If either Item is ever relinked, its",
+    "line comes out and the check goes back to full strictness for it."
+  ]
 }

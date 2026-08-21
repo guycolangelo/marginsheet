@@ -96,6 +96,28 @@ describe("a failed Plaid call leaks neither the token nor the secret", () => {
   });
 });
 
+/** The text of itemProducts, bounded by the NEXT DECLARATION rather than by a
+ *  brace.
+ *
+ *  ONE STATEMENT OF THE BOUNDARY, because there were two and only one was
+ *  fixed. Both tests below sliced independently on the first "\n}", and when
+ *  the function grew a multi-line return type they both started reading a
+ *  region that ends inside the type annotation. Repairing one left the other
+ *  failing for a reason that had nothing to do with what it asserts.
+ *
+ *  FOURTH TIME IN TWO DAYS A STRING-SLICED FIXTURE HAS READ THE WRONG REGION.
+ *  The lesson is the boundary rather than the bug: syntax a regex can be fooled
+ *  by is exactly what a source file is made of, so the boundary has to be
+ *  something structural that cannot recur inside what it bounds. */
+function itemProductsSource(): string {
+  const source = readFileSync(join(import.meta.dirname, "..", "src", "reconnect.ts"), "utf8");
+  const fn = source.slice(source.indexOf("export async function itemProducts"));
+  const next = fn.indexOf("\nexport ", 1);
+  const body = next > 0 ? fn.slice(0, next) : fn;
+  expect(body.length, "itemProducts could not be bounded, so these assert nothing").toBeGreaterThan(200);
+  return body;
+}
+
 describe("the item-products route publishes products and no credential", () => {
   it("publishes the products and the difference, and nothing else", () => {
     // ENUMERATED, not spread. /item/get also returns the institution id, the
@@ -111,22 +133,7 @@ describe("the item-products route publishes products and no credential", () => {
     // against the live Cloudflare zone, and it is what turns a dashboard
     // setting into something code review can see.
     const source = readFileSync(join(import.meta.dirname, "..", "src", "reconnect.ts"), "utf8");
-    // BOUNDED BY THE NEXT DECLARATION, not by a brace. Two brace-based
-    // boundaries were tried and both read the wrong region: the first "\n}"
-    // landed inside a multi-line return TYPE once this function grew one, and
-    // so did the first "}" at column zero, because a type annotation closes
-    // with "}>" there. Both reported a missing field that was plainly present.
-    //
-    // FOURTH TIME A STRING-SLICED FIXTURE HAS READ THE WRONG REGION in two
-    // days, after the purge test anchoring on a route name that also appears
-    // in a condition list. THE LESSON IS THE BOUNDARY RATHER THAN THE BUG:
-    // syntax that a regex can be fooled by is exactly what a source file is
-    // made of, so the boundary has to be something structural that does not
-    // recur inside what it bounds.
-    const fn = source.slice(source.indexOf("export async function itemProducts"));
-    const next = fn.indexOf("\nexport ", 1);
-    const body = next > 0 ? fn.slice(0, next) : fn;
-    expect(body.length, "the function could not be bounded, so this asserts nothing").toBeGreaterThan(200);
+    const body = itemProductsSource();
     expect(body).toMatch(/products: item\.item\.products/);
     expect(body).toMatch(/billedProducts: item\.item\.billed_products/);
     expect(body).toMatch(/consentedProducts: consented/);
@@ -142,8 +149,10 @@ describe("the item-products route publishes products and no credential", () => {
   it("scopes the lookup to the household", () => {
     // The row id is ours and cannot collide, so this is defence in depth
     // rather than a fix. It costs nothing to be correct without the policy.
-    const source = readFileSync(join(import.meta.dirname, "..", "src", "reconnect.ts"), "utf8");
-    const fn = source.slice(source.indexOf("export async function itemProducts"));
-    expect(fn.slice(0, 1400)).toMatch(/where id = \$\{itemRowId\} and household_id = \$\{householdId\}/);
+    // A FIXED CHARACTER COUNT WAS THE THIRD VARIANT OF THE SAME FRAGILITY. This
+    // read the first 1400 characters, and the function outgrew it the moment a
+    // return type was added, so the statement it asserts about fell outside the
+    // window it was reading. A magic length is a boundary that nothing checks.
+    expect(itemProductsSource()).toMatch(/where id = \$\{itemRowId\} and household_id = \$\{householdId\}/);
   });
 });
