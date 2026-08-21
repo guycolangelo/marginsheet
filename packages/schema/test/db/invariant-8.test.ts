@@ -62,7 +62,7 @@ async function seed(): Promise<Fixture> {
       (household_id, account_id, date, amount, flow, normalized_merchant_key,
        review_state, queue_reason)
     values
-      (${household}, ${account.id}, '2026-08-15', 200.00, 'income', ${merchantKey},
+      (${household}, ${account.id}, '2026-08-15', 200.00, 'inflow', ${merchantKey},
        'needs_review', 'unclassified_inflow')
     returning id
   `;
