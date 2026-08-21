@@ -965,6 +965,23 @@
         "note": "REPLACES THE ABORT WITH A RACE, which Guy named as the trap when he rejected both lock-timeout options on 19 Aug 2026. It is the mutation this control exists for and it is not an invention: it keeps the controller, keeps the timer, still sets signal.aborted, and therefore STILL THROWS DEADLINE_EXCEEDED. Everything visible from inside the caller is identical. VERIFIED 21 AUG 2026 THAT THE FIRST ASSERTION PASSES UNDER IT and only the outbound one fails, which is the whole demonstration: a caller-side test cannot distinguish a cancelled request from an abandoned one."
       },
       "distinction": "THE FIXTURE IS THE CONTROL AND THE REJECTION IS NOT. Promise.race against a timer stops WAITING, not WORKING: the hung call keeps running, can still write, and still holds whatever it held, so a raced deadline is the release-the-lock horn in better clothes. The difference lives entirely on the other side of the socket, so the test starts a real server, holds the request open and asserts the server SAW the client disconnect. Its sibling assertion, that the error is DEADLINE_EXCEEDED rather than NETWORK_ERROR, is a separate property: a deadline and a transport failure are different findings and sharing a code would make the message unable to distinguish its causes. Direction 2 lives inside the fixture rather than beside it: sawAbort asserts the server RECEIVED the request before reporting whether it was aborted, because a request that never arrived cannot have been cancelled and would answer false for the wrong reason."
+    },
+    {
+      "id": "sync-role-bounds-its-statements",
+      "control": "the statement bound scan (packages/schema/test/db/sync-role-statement-timeout.test.ts)",
+      "guards": "marginsheet_sync declares a 30s statement_timeout, so a hung query cannot hold a household's chain lock indefinitely.",
+      "test": "packages/schema/test/db/sync-role-statement-timeout.test.ts",
+      "name": "bounds it at 30s rather than at some value",
+      "planted": {
+        "kind": "sql",
+        "apply": "ALTER ROLE marginsheet_sync SET statement_timeout = '1d'",
+        "restore": "ALTER ROLE marginsheet_sync SET statement_timeout = '30s'",
+        "proof": "select (case when 'statement_timeout=30s' = any(coalesce(rolconfig, array[]::text[])) then 1 else 0 end) as ok from pg_roles where rolname = 'marginsheet_sync'",
+        "appliedValue": 0,
+        "restoredValue": 1,
+        "note": "WIDENS THE BOUND RATHER THAN REMOVING IT, which is the plausible wrong version: a timeout of a day is still a timeout, it satisfies any check that merely asks whether one EXISTS, and it bounds nothing a person would care about. Removing it entirely would also redden the test and is the weaker mutation, because nobody deletes a timeout on purpose; what they do is raise it until a failing query stops failing. A sql mutation is required because a role setting lives in the catalog and a source edit on an applied migration changes no database anywhere."
+      },
+      "distinction": "IT READS pg_roles.rolconfig RATHER THAN current_setting, AND THAT IS THE CONTROL. ALTER ROLE ... SET applies AT LOGIN, so a session arriving by SET ROLE keeps the settings of the role it CONNECTED as: current_setting would report what the session was given rather than what the role holds, passing while the declaration was absent and failing while it was present. That is the same defect as asking has_column_privilege by naming a role from an owner connection, found the same day in a different catalog, and the tell is identical: THE SESSION IS THE EASIER THING TO ASK AND IT ANSWERS A QUESTION ABOUT ITSELF. Direction 2 asserts marginsheet_app did NOT acquire the setting, because a migration applying it to every role would satisfy the positive assertions while taking a decision nobody made."
     }
   ]
 }
