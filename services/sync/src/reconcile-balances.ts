@@ -110,19 +110,58 @@ export interface ReconciliationOutcome {
   driftingAccounts: string[];
 }
 
-/** Reconciles every account of one household and records one row each.
+/** Reconciles the accounts OF ONE ITEM and records one row each.
  *
  *  Runs INSIDE the sync's transaction, after the streams and the balances have
  *  been applied, so the reported balance and the transactions it is checked
- *  against come from the same sync rather than from two moments. */
+ *  against come from the same sync rather than from two moments.
+ *
+ *  SCOPED TO THE ITEM, AND THE FIRST VERSION WAS NOT. It took only a household
+ *  and reconciled every account the household holds, so a run over three Items
+ *  produced three verdicts on all eighteen accounts and Chase's block rendered
+ *  judgements on SoFi's cards.
+ *
+ *  MISATTRIBUTION IS THE SMALL HALF. THE LARGE HALF IS THAT A RECONCILIATION
+ *  ONLY MEANS ANYTHING FOR AN ACCOUNT WHOSE BALANCE WAS JUST READ. The check
+ *  asks whether a reported balance moved by the transactions we saw. An account
+ *  belonging to an Item that did not sync has a balance from some earlier
+ *  moment and no new transactions, so `expected` equals `previous` equals
+ *  `reported` and it reconciles to zero. THAT IS A MEASUREMENT OF NOTHING
+ *  RECORDED AS A PASSING OBSERVATION.
+ *
+ *  AND A PASSING OBSERVATION IS NOT INERT. The window confirms drift across
+ *  three consecutive NON-ZERO differences, so a zero written by an Item that
+ *  never looked at the account BREAKS THE RUN. A healthy Item's sync could
+ *  clear a real drift signal on an account it does not own, which is the
+ *  failure that made this worth fixing rather than tidying: an account under a
+ *  needs_reauth Item was reconciled inside a healthy Item's sync and read as
+ *  fine.
+ *
+ *  IT ALSO INFLATED THE WINDOW. Three Items meant three rows per account per
+ *  household sync, so DRIFT_OBSERVATIONS was reachable within a single run and
+ *  only the six hour span stopped it. The span was load-bearing against an
+ *  artifact of our own loop rather than against an institution flapping, which
+ *  is not what it was reasoned for.
+ *
+ *  WHY SCOPING RATHER THAN RESTRUCTURING THE READOUT. Moving reconciliation out
+ *  of the per-Item loop and running it once per household would fix the nesting
+ *  and keep the defect: it would still evaluate accounts whose balances were not
+ *  refreshed in that run. Nesting under an itemId is CORRECT once the scope is
+ *  correct, because a reconciliation observation genuinely belongs to the sync
+ *  that produced the balance it reads. */
 export async function reconcileBalances(
   tx: Tx,
-  householdId: string
+  householdId: string,
+  /** OUR row id for the Item, not Plaid's item_id. The caller already holds it:
+   *  runSyncForItem takes it as a parameter and passed only the household. */
+  itemRowId: string
 ): Promise<ReconciliationOutcome> {
   const accounts = (await tx`
     select fa.id, fa.type, fa.current_balance::text as current_balance
       from financial_accounts fa
-     where fa.household_id = ${householdId} and fa.is_active
+     where fa.household_id = ${householdId}
+       and fa.plaid_item_id = ${itemRowId}
+       and fa.is_active
      order by fa.id
   `) as { id: string; type: string | null; current_balance: string | null }[];
 

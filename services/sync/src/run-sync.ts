@@ -131,7 +131,10 @@ export async function runSyncForItem(
       // the reported balance and the transactions it is checked against come
       // from one sync rather than from two moments. Reconciling outside the
       // transaction would compare a balance to a ledger that had moved.
-      const reconciliation = await reconcileBalances(tx as unknown as Tx, householdId);
+      // THIS ITEM'S ACCOUNTS, not the household's. The balances just refreshed
+      // belong to this Item, and an account whose balance was not read has no
+      // new observation to make.
+      const reconciliation = await reconcileBalances(tx as unknown as Tx, householdId, itemRowId);
 
       const firstSync = await markFirstSyncCompleted(tx as unknown as Tx, householdId);
 
