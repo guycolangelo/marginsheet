@@ -130,7 +130,7 @@ describe.skipIf(!configured)("the sync role can still do its actual job", () => 
 });
 
 describe.skipIf(!configured)("the narrowing is enumerated, so a new table is not silently reachable", () => {
-  it("holds grants on exactly the 10 tables 0023 and 0024 name", async () => {
+  it("holds grants on exactly the 11 tables 0023, 0024 and 0038 name", async () => {
     // The shape assertion. If somebody adds a table and grants it broadly,
     // this goes red and sends them to 0023's comment, which explains why the
     // list is a list.
@@ -142,6 +142,17 @@ describe.skipIf(!configured)("the narrowing is enumerated, so a new table is not
     `;
     expect(rows.map((r) => r.table_name)).toEqual([
       "account_balance_snapshots",
+      // ADDED BY 0038, DELIBERATELY AND BY NAME, which is the process 0023's
+      // own comment prescribes: "if the pipeline needs a tenth table, add it
+      // here by name and add it to the negative control's knowledge".
+      //
+      // IT IS THE RIGHT KIND OF WIDENING and that distinction is the whole
+      // point of the enumeration. balance_reconciliations is a table the sync
+      // pipeline OWNS and writes as part of its one job. The same migration's
+      // first draft would have granted insight_ledger, which is a conversation
+      // table 0023 names as its own example of what this role must not reach,
+      // and that was refused rather than added here.
+      "balance_reconciliations",
       "commitments",
       "financial_accounts",
       "household_state_signals",
