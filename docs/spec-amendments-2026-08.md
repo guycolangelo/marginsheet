@@ -436,3 +436,37 @@ This follows `FraudReply.boundary_line`, typed as the literal `true`, which is t
 - The golden suite must be able to fail on a term stated without these fields populated.
 
 ---
+
+---
+
+## 14. The reconciliation invariant states its population and its gap (amends `conversation-service-spec.md` §the reconciliation invariant; ruled by Guy, 21 August 2026)
+
+### The finding, and it is neither of the two branches that were expected
+
+The question put was: does the spec name a population, or is it silent? **It names one, and the implementation cannot meet it, and that is a third thing.**
+
+The invariant reads: *"computed flows are reconciled against Plaid-reported balances **per account on every sync**"*.
+
+**That population is unachievable on the endpoint we sync through.** `/transactions/sync` returns balances only for accounts it returns transactions for, and it returns only accounts that **have** transactions on a page. So **"Plaid-reported balances per account on every sync" is not an input that exists** on this path. It would require `/accounts/balance/get`, a separate call.
+
+**This is not an implementation that ignored its spec.** The spec assumed an input the chosen endpoint does not supply, and nothing discovered that until a reconciler was built and pointed at real accounts. Recorded that way deliberately: "the implementation drifted" would be the easier sentence and the wrong one.
+
+### The restatement
+
+**No drift observed across N consecutive observations on accounts with N or more observations, and the count of accounts with fewer than N observations, stated beside it.**
+
+**The gap is reported, not footnoted.** A criterion that reports its coverage without reporting its gap is halfway to the defect it exists to prevent. If five accounts are unobserved, **the criterion says five.**
+
+On the founder household as of 21 August 2026 that number is **five**: Xmas Gifts (0 transactions ever), Vacation (1, in August 2026), Chase 7956 (4 in two years, last October 2025), and both investment accounts, which are excluded by design because Plaid reports `0.00` for them while they hold real money.
+
+### The standing limitation, which is a property rather than a gap
+
+**Reconciliation-on-sync cannot reach a balance change that arrives without a transaction, and it never will.** An account is observed when Plaid returns it, Plaid returns it when it has transactions, so a fee or interest applied outside the transaction feed on a dormant account is invisible to this mechanism.
+
+**Nobody should read the invariant as a statement about balances generally.** It is a statement about balances **that moved with transactions we received**.
+
+**1b did not create this and the sequence must not be read as losing coverage.** Before 1b, unrefreshed accounts were reconciled against stale balances and produced zeros, which counted as clean observations. **The gap existed and was concealed by exactly the rows that made the criterion look green.** The fix made it visible. Anyone reading the two changes in order will otherwise conclude coverage was lost, when what was lost was a false claim of it.
+
+### Tolerance
+
+The invariant says *"drift beyond tolerance"*. **The tolerance is zero**, ruled 21 August 2026: any non-zero threshold is a guess about an error nobody has observed, and every failure expected here is timing rather than magnitude, so a dollar threshold answers the wrong axis.

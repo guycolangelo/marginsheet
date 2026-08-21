@@ -12,6 +12,24 @@
 // small real errors permanently while doing nothing about the transient ones it
 // was chosen for.
 //
+// WHAT THIS COVERS, AND IT IS NARROWER THAN "BALANCES" (amendment 14).
+//
+// An account is observed when Plaid returns it, and /transactions/sync returns
+// only accounts that HAVE TRANSACTIONS on a page. So this reconciles balances
+// THAT MOVED WITH TRANSACTIONS WE RECEIVED, and a fee or interest applied
+// outside the transaction feed on a dormant account is invisible to it.
+//
+// THAT IS A PROPERTY OF THE MECHANISM RATHER THAN A GAP IN IT, and the spec's
+// original population, "per account on every sync", was never achievable on
+// this endpoint: it would need /accounts/balance/get, deferred to M6a with its
+// reasoning in docs/open-items.json.
+//
+// 1b DID NOT CREATE THIS. Before it, unrefreshed accounts were reconciled
+// against stale balances and produced zeros that counted as CLEAN
+// OBSERVATIONS, so the gap existed and was concealed by exactly the rows that
+// made the criterion look green. Reading the two changes in sequence looks like
+// coverage was lost; what was lost was a false claim of it.
+//
 // THE LIMITATION, WITH ITS CONSEQUENCE, BECAUSE THE CONSEQUENCE IS WHAT A
 // READER NEEDS (Guy, 21 Aug 2026).
 //
