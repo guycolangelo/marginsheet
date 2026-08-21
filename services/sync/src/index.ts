@@ -13,6 +13,7 @@
 // Presence is the empty-string incident with a better disguise.
 
 import { readSyncSchemaHealth } from "@marginsheet/shared/db";
+import { disconnectItem } from "./disconnect.js";
 import { itemStatus } from "./item-status.js";
 import { readoutForHousehold } from "./ledger-readout.js";
 import { readLedger, type Sql as ReadoutSql } from "./ledger-readout-sql.js";
@@ -246,6 +247,46 @@ export default {
     // api, which can read the tables; this route exists ONLY to obtain a number
     // that did not come from us, because a readout assembled from our tables
     // agrees with itself whatever went wrong.
+    // POST /internal/disconnect-item: remove one Item at Plaid.
+    //
+    // THE FIRST PIECE OF M8's DISCONNECT FLOW. A household disconnecting a bank
+    // and an operator removing an Item are the same call with a different
+    // caller, so this is built as the real path rather than as scaffolding.
+    if (url.pathname === "/internal/disconnect-item" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const b = (await request.json().catch(() => ({}))) as {
+        householdId?: string; itemId?: string; confirm?: boolean;
+      };
+      if (!b.householdId || !b.itemId) {
+        return Response.json({ error: "householdId and itemId are required" }, { status: 400 });
+      }
+      try {
+        const result = await disconnectItem(
+          b.householdId,
+          b.itemId,
+          { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+          env.TOKEN_ENCRYPTION_KEY,
+          env.NEON_DATABASE_URL,
+          b.confirm === true
+        );
+        return Response.json(result, { status: result.refused ? 409 : 200 });
+      } catch (error) {
+        // Every failure comes back as JSON carrying its detail, for the reason
+        // the readout learned: an escaped exception becomes an error page the
+        // caller cannot parse, and an unparseable body reads as nothing to say.
+        const e = error as { toJSON?: () => unknown; message?: string };
+        return Response.json(
+          { error: "disconnect failed", detail: e.toJSON ? e.toJSON() : { message: e.message ?? "unknown" } },
+          { status: 500 }
+        );
+      }
+    }
+
     // POST /internal/item-status: is this Item still live at Plaid?
     //
     // Asked before api deletes anything of ours. It lives here because the
