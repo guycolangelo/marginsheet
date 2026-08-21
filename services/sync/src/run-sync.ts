@@ -26,6 +26,7 @@ import { runTransactionsSync, type SyncOutcome, type SyncPage } from "./transact
 import type { PlaidCredentials } from "./plaid-client.js";
 import { applyAddedAndModified, applyRemoved, markFirstSyncCompleted, didChange, type Tx } from "./apply-streams.js";
 import { applyBalances } from "./apply-balances.js";
+import { reconcileBalances } from "./reconcile-balances.js";
 import { onSyncComplete, type SyncStatus } from "./sync-state.js";
 
 export interface RunResult {
@@ -126,6 +127,12 @@ export async function runSyncForItem(
         }
       );
 
+      // AFTER THE STREAMS AND THE BALANCES, INSIDE THE SAME TRANSACTION, so
+      // the reported balance and the transactions it is checked against come
+      // from one sync rather than from two moments. Reconciling outside the
+      // transaction would compare a balance to a ledger that had moved.
+      const reconciliation = await reconcileBalances(tx as unknown as Tx, householdId);
+
       const firstSync = await markFirstSyncCompleted(tx as unknown as Tx, householdId);
 
       await tx`
@@ -172,6 +179,7 @@ export async function runSyncForItem(
         restarts: outcome.restarts,
         firstSync,
         balanceWritesIssued,
+        reconciliation,
         snapshotUpsertsIssued,
         signalId,
       };

@@ -45,6 +45,8 @@ const DECLARED: Record<string, string> = {
     "the diagnostic readout, which reports raw per-account values to an operator and never aggregates across types",
   "packages/schema/src/schema.ts":
     "the column definitions",
+  "services/sync/src/reconcile-balances.ts":
+    "4.6 reconciliation, which is credit current's ONE consumer and reads depository current to VERIFY rather than to interpret. It selects the column and immediately hands it to forReconciliation, so the branded value is what the rest of the module sees. THE SCAN CAUGHT THIS FILE ON ITS FIRST RUN, which is the declaration working as designed: adding a reader is a diff somebody reviews rather than a column that was already in scope.",
 };
 
 function sources(): string[] {
