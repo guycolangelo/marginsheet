@@ -115,7 +115,7 @@ export async function importRecurring(
     // from those two would be inventing an estimate, and estimates are sourced
     // or asked, never invented. A band arrives from the census or from a
     // household statement, both of which outrank this.
-    const expected = JSON.stringify({ kind: "fixed", amount: Math.abs(amount) });
+    const expectedAmount = Math.abs(amount);
 
     // is_active false means Plaid has stopped believing this recurs. That is
     // ENDED rather than PAUSED: paused is a household decision and nothing
@@ -128,7 +128,14 @@ export async function importRecurring(
          expected_amount, next_expected_date, source, status)
       values
         (${householdId}, ${merchantKey}, ${direction}::commitment_direction, ${accounts[0].id},
-         ${cadence}::cadence, ${expected}::jsonb, ${s.predicted_next_date ?? null}::date,
+         ${cadence}::cadence,
+         -- BUILT IN SQL RATHER THAN PASSED AS A STRING. A JSON string handed to
+         -- a jsonb parameter is serialised again by the driver, so the column
+         -- ends up holding a jsonb STRING rather than an object and
+         -- expected_amount->>'amount' reads null. The row is written, the shape
+         -- looks right in a dump, and every consumer gets nothing.
+         jsonb_build_object('kind', 'fixed', 'amount', ${expectedAmount}::numeric),
+         ${s.predicted_next_date ?? null}::date,
          'plaid_recurring'::commitment_source, ${status}::commitment_status)
       on conflict (household_id, merchant_key, direction, cadence, account_id) do update
         set expected_amount = excluded.expected_amount,
