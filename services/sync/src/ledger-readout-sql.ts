@@ -144,6 +144,24 @@ export interface Readout {
    *  fields exist on that code; whether Amex sent them is a question about a
    *  particular run, and only these rows answer it. */
   historyCompletion: HistoryCompletionRow[];
+  /** AN ACCEPTANCE CRITERION, REPORTED AS ONE RATHER THAN AS A COUNT.
+   *
+   *  Plaid Sandbox cannot construct a pending-to-posted transition, so
+   *  invariant 8 was rewritten on 17 Aug 2026 to claim only what Sandbox
+   *  proves and this was left as a gap awaiting production. Webhooks went live
+   *  on all three institutions on 21 Aug, so the next settle happens
+   *  UNATTENDED, and a number inside a routine sync result is missed precisely
+   *  because the result is routine (Guy).
+   *
+   *  `discharged` is the whole point: it is a sentence about a criterion, not a
+   *  statistic, and it reads the same whether or not anybody was watching. */
+  settleCriterion: {
+    discharged: boolean;
+    firstObservedAt: string | null;
+    settlesObserved: number;
+    stillPending: number;
+    note: string;
+  };
 }
 
 /** Reads everything the readout reports from OUR tables.
@@ -298,11 +316,36 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
      limit 50
   `;
 
+  // ONE QUERY, TWO NUMBERS, AND A SENTENCE. Reading the pending count beside
+  // the settle count matters: zero settles with zero pending means nothing has
+  // had the chance yet, and zero settles with nine pending means the transition
+  // has not happened. Those are different states and a single number conflates
+  // them, which is the empty-result class this file keeps meeting.
+  const [settle] = await tx<{ first_at: string | null; settles: number; pending: number }[]>`
+    select (min(settled_at))::text as first_at,
+           (count(*) filter (where settled_at is not null))::int as settles,
+           (count(*) filter (where pending))::int as pending
+      from transactions
+     where household_id = ${householdId} and not removed
+  `;
+
   return {
     accounts,
     byType,
     directionAudit,
     historyCompletion,
+    settleCriterion: {
+      discharged: (settle?.settles ?? 0) > 0,
+      firstObservedAt: settle?.first_at ?? null,
+      settlesObserved: settle?.settles ?? 0,
+      stillPending: settle?.pending ?? 0,
+      note:
+        (settle?.settles ?? 0) > 0
+          ? "DISCHARGED: a pending transaction was observed becoming posted. Invariant 8's pending-to-posted gap, open since 17 Aug 2026 because Plaid Sandbox cannot construct this transition, is now proven in production."
+          : (settle?.pending ?? 0) > 0
+            ? "OPEN, and reachable: pending rows exist, so the transition can still be observed on a future sync."
+            : "OPEN, and NOT currently reachable: no pending rows exist, so nothing can settle. This is not the same as the transition failing.",
+    },
     items,
     events,
     household: households[0] ?? null,

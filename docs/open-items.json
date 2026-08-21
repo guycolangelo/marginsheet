@@ -92,7 +92,7 @@
   },
   {
     "id": "sandbox-cannot-build-four-of-five-fixtures",
-    "item": "Invariant 8 lists five Sandbox error fixtures and FOUR CANNOT BE CONSTRUCTED (spike 1d, 17 Aug 2026). Constructible: ITEM_LOGIN_REQUIRED via /sandbox/item/reset_login. Not constructible: item error (webhook_type has no code ERROR), removed transactions (TRANSACTIONS_REMOVED is not fireable and the removed stream was empty in every run), pending to posted (0 pending across 48 default-user transactions and across user_custom shapes), reversal as an event. The invariant is rewritten to claim what Sandbox can actually prove; the rest are gaps rather than tests written against fixtures that cannot fail.",
+    "item": "Invariant 8 lists five Sandbox error fixtures and FOUR CANNOT BE CONSTRUCTED (spike 1d, 17 Aug 2026). Constructible: ITEM_LOGIN_REQUIRED via /sandbox/item/reset_login. Not constructible: item error (webhook_type has no code ERROR), removed transactions (TRANSACTIONS_REMOVED is not fireable and the removed stream was empty in every run), pending to posted (0 pending across 48 default-user transactions and across user_custom shapes), reversal as an event. The invariant is rewritten to claim what Sandbox can actually prove; the rest are gaps rather than tests written against fixtures that cannot fail. PENDING-TO-POSTED IS NOW INSTRUMENTED FOR PRODUCTION (21 Aug 2026). Migration 0037 adds transactions.settled_at, set once by apply-streams on the transition only: the stored row pending and the arriving row posted. A row first seen posted keeps NULL, which is what makes the column mean a TRANSITION rather than a state. The readout reports settleCriterion as a sentence rather than a count, because webhooks went live on all three institutions the same day and the next settle therefore happens UNATTENDED, where a number in a routine sync result is missed. Nine pending rows existed across the three institutions when this was written, so the transition is reachable rather than merely awaited. The other three fixtures are unchanged and still gaps.",
     "owner": "build",
     "owed_to": "M4, and invariant 9 at M9 for the states only real Items produce",
     "raised": "2026-08-17",
@@ -670,6 +670,15 @@
     "owner": "build, gated on Guy's approval of the plan",
     "trigger": "before the next institution is connected, since a third omission would be found the same way as the first two",
     "owed_to": "M4 Plaid pipeline. Raised 21 Aug 2026 after the second omission in the same function.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "milestone-was-set-under-the-old-meaning-and-can-only-be-corrected-now",
+    "item": "GUY'S HOUSEHOLD CARRIES first_sync_completed_at = 2026-08-20 17:18:41, SET UNDER THE PRE-0036 MEANING. It fired on SoFi's first sync, when the household held one institution at 90 days of history, before Chase and Amex were connected at all. Under 0036's meaning, WE HOLD THIS HOUSEHOLD'S HISTORY, that value is not true of the moment it records. IT IS NOT BLOCKED, WHICH IS THE OPPOSITE OF THE CONCERN AND WORSE IN ONE WAY: markFirstSyncCompleted guards on first_sync_completed_at IS NULL, so the new confirmation logic will NEVER EVALUATE for this household and the wrong value simply stands. Amex's unconfirmed Item cannot block a milestone that has already fired. THE WINDOW TO CORRECT IT CLOSES AND DOES NOT REOPEN. The field feeds the M13 intro trigger and the day-3-to-5 census, neither of which exists, so clearing it today costs nothing and it re-fires correctly once Amex and Chase confirm. After M13 ships, clearing it re-arms an intro that already went out and the household meets MyKeeper twice, which is the exact failure the immutability exists to prevent. So this is cheap now and impossible later, and that asymmetry is the whole item. NEEDS A RULING rather than a fix, because clearing production data is Guy's call.",
+    "owner": "Guy",
+    "trigger": "before M13 is built, because the correction is free until the intro exists and unavailable afterwards",
+    "owed_to": "M13 intro and the census scheduling. Raised 21 Aug 2026 when 0036 changed what the field means.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
   }

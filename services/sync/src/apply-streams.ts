@@ -124,6 +124,22 @@ export async function applyAddedAndModified(
             -- pending transaction becoming posted, and it must land on the
             -- SAME row rather than creating a second one.
             pending = excluded.pending,
+            -- AND IT IS RECORDED, ONCE, ON THE TRANSITION ONLY. Both halves of
+            -- the condition are load-bearing: transactions.pending is the
+            -- STORED row and excluded.pending is the arriving one, so this fires
+            -- only where a row we held as pending arrives posted. A row that
+            -- arrives posted having never been seen pending keeps NULL, which
+            -- is correct: we did not observe it settle.
+            --
+            -- The null check makes it set-once. Without it, a later modify of
+            -- an already-posted row would leave the condition false anyway, but
+            -- relying on that couples this to the other branch, and the
+            -- criterion this discharges is worth an explicit guard.
+            settled_at = case
+              when transactions.pending and not excluded.pending and transactions.settled_at is null
+                then now()
+              else transactions.settled_at
+            end,
             updated_at = now()
         where transactions.household_id = ${householdId}
       returning id
