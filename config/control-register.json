@@ -913,10 +913,10 @@
       "name": "is set at all by every file that opens a connection and writes",
       "planted": {
         "kind": "source",
-        "file": "services/sync/src/disconnect.ts",
-        "find": "      await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;\n      return tx`\n        update plaid_items\n           set status = 'disconnected', updated_at = now()",
-        "replace": "      return tx`\n        update plaid_items\n           set status = 'disconnected', updated_at = now()",
-        "note": "REMOVES THE LINE, WHICH IS HOW THE FILE ACTUALLY SHIPPED on 20 Aug 2026 rather than an invented break. Nobody writes a wrong GUC; the failure mode is that nobody writes one at all. The resulting code reads correctly, the statement still names the household in its WHERE clause, and the UPDATE matches nothing and raises nothing because sync_worker_write reads a SETTING rather than the statement."
+        "file": "services/sync/src/run-sync.ts",
+        "find": "      await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;",
+        "replace": "",
+        "note": "REMOVES THE ONLY DECLARATION FROM THE SYNC RUNNER, which is how disconnect.ts actually shipped: nobody writes a wrong GUC, the failure mode is that nobody writes one at all. The resulting code reads correctly and every statement still names the household in its own WHERE clause; the writes simply stop matching, because 0026's write policies read a SETTING rather than the statement. IT POINTS AT run-sync.ts RATHER THAN AT disconnect.ts, AND THAT IS THE CORRECTION. The first version removed one of TWO calls in disconnect.ts, leaving the other, so the file still contained a declaration and this file-level check stayed green: the harness reported broke-it yes, went-red NO, correctly. It had been verified locally against a strip of BOTH calls, which is a DIFFERENT MUTATION FROM THE ONE REGISTERED. A mutation is verified as written or it is not verified."
       },
       "distinction": "A SCAN THAT CHECKS THE FORM OF WHAT EXISTS CANNOT SEE WHAT IS ABSENT, and this is the second half of a control that had only the first. The receiver scan beside it reads every set_config call and requires a transaction handle, so a file with NO call contributes no rows and passes perfectly. disconnect.ts shipped with an UPDATE and no GUC, sat inside the scanned roots the entire time, and the scan was green. THE DISTINCTION IT DRAWS IS THE WHOLE RULE: a file that opens its own connection owes a GUC, and a helper that receives a tx does not, because the caller declared it. apply-streams.ts and outbox.ts write constantly and correctly set nothing. Direction 2 asserts more than two writing modules were found, because a regex that stopped matching would leave it filtering an empty list and passing."
     }

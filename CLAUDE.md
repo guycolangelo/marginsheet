@@ -249,6 +249,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: `set role`, `set_config` at session scope, search_path, anything that outlives a statement gets restored in a `finally` that covers **every** statement executed under it, including the assertions.
 
+- **A ROUTE WHOSE GUARD REFUSES A REPEAT CANNOT REPAIR ITS OWN PARTIAL FAILURE, AND PARTIAL FAILURE IS EXACTLY WHEN A REPEAT IS WHAT YOU NEED.** (Guy, 20 Aug 2026.)
+
+  The disconnect refuses unless Plaid reports the Item live. It removed the Item, failed to mark our row, and **re-running was then refused, correctly**, because Plaid now reported it gone. **The guard was right and the absence of a repair path was the defect.**
+
+  **So any destructive route with a precondition has to ask what the precondition failing MEANS: "already done" or "half done". Those want different answers**, and a single refusal collapses them into one.
+
+  **THE DECIDING PROPERTY IS WHETHER THE ACTION CAN BE ATOMIC.** The purge has the same guard shape and does not have this defect, because all four of its deletes sit in one transaction: there is no half-done state to repair, and a repeat after success reports "no such item" rather than refusing for the wrong reason. The disconnect **cannot** be atomic, because it spans an external system and a database, and no transaction covers both.
+
+  **Where an action crosses a boundary you do not control, atomicity is unavailable and a repair path is mandatory rather than optional.** The repair is narrower than the action: the disconnect's marks our record to agree with a state Plaid has already confirmed, makes no Plaid call, and deletes nothing. It is safe precisely BECAUSE the precondition failed in the "already done" direction.
+
 - **THE THIRD GUC INSTANCE, AND THE SECOND WRITTEN AFTER THE SWEEP. Knowing the rule twice over did not prevent it, which is the argument for the scan being required rather than for care.** (Guy, 20 Aug 2026.)
 
   `disconnect.ts` was written hours after the sweep that found two live defects of exactly this kind, by someone who had just recorded the rule, and it shipped with an UPDATE and no `set_config`. **The Item was removed at Plaid and our row was never marked.**
