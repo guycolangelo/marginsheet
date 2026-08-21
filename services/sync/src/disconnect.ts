@@ -35,6 +35,9 @@ export interface DisconnectResult {
   rowsMarked?: number;
   refused?: string;
   willDo?: string[];
+  /** Set when the Item was already gone at Plaid and our row was brought into
+   *  agreement with that, without any Plaid call and without deleting anything. */
+  reconciled?: boolean;
 }
 
 export async function disconnectItem(
@@ -78,13 +81,45 @@ export async function disconnectItem(
                 "mark our plaid_items row disconnected",
                 "leave every transaction, account and snapshot in place: the purge route owns those",
               ]
-            : [`nothing: a confirmed call is refused unless Plaid reports the Item live, and it reports ${status.liveness}`],
+            : status.liveness === "gone" && row.status !== "disconnected"
+              ? [
+                  "call Plaid not at all: the Item is already gone",
+                  `mark our plaid_items row disconnected, which currently says ${row.status}`,
+                  "delete nothing",
+                ]
+              : [`nothing: a confirmed call is refused unless Plaid reports the Item live, and it reports ${status.liveness}`],
       };
     }
 
     // REFUSES UNLESS PLAID REPORTS IT LIVE. The mirror of the purge's gate, and
     // asymmetric for the same reason: removing an Item we cannot confirm is
     // live risks acting on the wrong subject, while refusing costs one retry.
+    // THE REPAIR BRANCH, and it exists because the route could not fix its own
+    // partial failure. On 20 Aug 2026 a confirmed disconnect removed the Item
+    // at Plaid and then failed to mark our row, and re-running was refused,
+    // correctly, because Plaid now reported the Item gone. The gate was right
+    // and the operator was stuck: a dead Item wearing a healthy status, with
+    // the only route that knows about it refusing to touch it.
+    //
+    // MARKING IS NOT REMOVING. This calls Plaid not at all and deletes nothing.
+    // It reconciles our record with a state Plaid has already confirmed, which
+    // is the one action that is safe precisely BECAUSE the Item is gone.
+    if (status.liveness === "gone" && row.status !== "disconnected") {
+      const fixed = await sql.begin(async (tx) => {
+        await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+        return tx`
+          update plaid_items
+             set status = 'disconnected', updated_at = now()
+           where item_id = ${itemId} and household_id = ${householdId}
+          returning id
+        `;
+      });
+      return {
+        itemId, dryRun: false, liveness: status.liveness, plaidDetail: status.detail,
+        statusWas: row.status, reconciled: true, rowsMarked: fixed.length,
+      };
+    }
+
     if (status.liveness !== "live") {
       return {
         itemId, dryRun: false, liveness: status.liveness, plaidDetail: status.detail,
@@ -109,12 +144,30 @@ export async function disconnectItem(
     // healthy. It is recorded rather than papered over. The window is one
     // statement, the next status read reports the truth, and the repair is to
     // set the status by hand or let the purge remove the row entirely.
-    const marked = await sql`
-      update plaid_items
-         set status = 'disconnected', updated_at = now()
-       where item_id = ${itemId} and household_id = ${householdId}
-      returning id
-    `;
+    // THE GUC, IN A TRANSACTION WITH THE WRITE IT SCOPES. Shipped without it on
+    // 20 Aug 2026 and the Item was removed at Plaid while this UPDATE matched
+    // NOTHING and raised nothing: migration 0026's sync_worker_read is
+    // USING (true), so the SELECT above succeeded, and sync_worker_write
+    // requires the household, so an unset setting made the predicate NULL.
+    //
+    // THE STATEMENT NAMING THE HOUSEHOLD IS NOT THE SAME REQUIREMENT AS THE
+    // POLICY READING IT. This UPDATE already carried household_id in its WHERE
+    // clause, which is what every-write-declares-a-household checks, and it was
+    // still refused, because the policy reads a SETTING rather than the
+    // statement. Two mechanisms, both required, and satisfying one says nothing
+    // about the other.
+    //
+    // It was visible only because this returns rows ACTUALLY updated. Reporting
+    // the id it was handed would have said rowsMarked 1 and been wrong.
+    const marked = await sql.begin(async (tx) => {
+      await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+      return tx`
+        update plaid_items
+           set status = 'disconnected', updated_at = now()
+         where item_id = ${itemId} and household_id = ${householdId}
+        returning id
+      `;
+    });
 
     return {
       itemId,

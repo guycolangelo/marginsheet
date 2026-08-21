@@ -52,11 +52,52 @@ for (const root of ROOTS) {
   }
 }
 
+
+/** Files that OPEN THEIR OWN CONNECTION and write. Those owe a GUC; a helper
+ *  that receives a tx from its caller does not, because the caller set it.
+ *
+ *  THE DISTINCTION IS THE WHOLE RULE. apply-streams.ts and outbox.ts write
+ *  constantly and correctly set nothing: they take a Tx and the runner that
+ *  opened it declared the household. A file that calls postgres() itself has no
+ *  caller to rely on. */
+const writers = ROOTS.flatMap((root) =>
+  sources(root)
+    .map((file) => ({ file, src: readFileSync(file, "utf8") }))
+    .filter(({ src }) => /\bpostgres\(/.test(src))
+    .filter(({ src }) => /`[^`]*\b(update\s+[a-z_]+\s+set|insert\s+into\s+[a-z_]+|delete\s+from\s+[a-z_]+)/is.test(src))
+    .map(({ file, src }) => ({
+      file: file.replace(/.*\/(services\/.*)/, "$1"),
+      setsGuc: /select set_config\('marginsheet\.household_id'/.test(src),
+    }))
+);
+
 describe("the household GUC is always set on a transaction handle", () => {
   it("found the call sites, so this is not scanning an empty set", () => {
     // Direction 2. A regex that stopped matching would leave every assertion
     // below iterating over nothing and passing perfectly.
     expect(calls.length, "no set_config call sites found: the scan matched nothing").toBeGreaterThan(4);
+  });
+
+  it("is set at all by every file that opens a connection and writes", () => {
+    // THE GAP THIS CLOSES, AND IT WAS FOUND BY BEING BITTEN. The scan above
+    // reads the RECEIVER of every set_config call, so a file with NO call
+    // contributes no rows and passes perfectly. disconnect.ts shipped on
+    // 20 Aug 2026 with an UPDATE and no GUC, was inside the scanned roots the
+    // whole time, and the scan was green.
+    //
+    // The failure was silent in SQL: sync_worker_read on plaid_items is
+    // USING (true) so the SELECT succeeded, sync_worker_write requires the
+    // household, and an unset setting made the predicate NULL. The UPDATE
+    // matched nothing and raised nothing. It was visible only because the route
+    // returned rows ACTUALLY updated rather than the id it was handed.
+    //
+    // A SCAN THAT CHECKS THE FORM OF WHAT EXISTS CANNOT SEE WHAT IS ABSENT.
+    expect(writers.length, "no writing modules found: this scan matched nothing").toBeGreaterThan(2);
+    const missing = writers.filter((w) => !w.setsGuc).map((w) => w.file);
+    expect(
+      missing,
+      `these modules open their own connection and write, but never declare the household. Every write policy from migration 0026 reads current_setting, so an unset one makes the predicate NULL: the statement matches nothing and raises nothing.\n  ${missing.join("\n  ")}`,
+    ).toEqual([]);
   });
 
   it("sets it on a transaction, never on a connection", () => {

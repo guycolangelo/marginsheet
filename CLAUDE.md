@@ -249,6 +249,28 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: `set role`, `set_config` at session scope, search_path, anything that outlives a statement gets restored in a `finally` that covers **every** statement executed under it, including the assertions.
 
+- **A ROUTE WHOSE GUARD REFUSES A REPEAT CANNOT REPAIR ITS OWN PARTIAL FAILURE, AND PARTIAL FAILURE IS EXACTLY WHEN A REPEAT IS WHAT YOU NEED.** (Guy, 20 Aug 2026.)
+
+  The disconnect refuses unless Plaid reports the Item live. It removed the Item, failed to mark our row, and **re-running was then refused, correctly**, because Plaid now reported it gone. **The guard was right and the absence of a repair path was the defect.**
+
+  **So any destructive route with a precondition has to ask what the precondition failing MEANS: "already done" or "half done". Those want different answers**, and a single refusal collapses them into one.
+
+  **THE DECIDING PROPERTY IS WHETHER THE ACTION CAN BE ATOMIC.** The purge has the same guard shape and does not have this defect, because all four of its deletes sit in one transaction: there is no half-done state to repair, and a repeat after success reports "no such item" rather than refusing for the wrong reason. The disconnect **cannot** be atomic, because it spans an external system and a database, and no transaction covers both.
+
+  **Where an action crosses a boundary you do not control, atomicity is unavailable and a repair path is mandatory rather than optional.** The repair is narrower than the action: the disconnect's marks our record to agree with a state Plaid has already confirmed, makes no Plaid call, and deletes nothing. It is safe precisely BECAUSE the precondition failed in the "already done" direction.
+
+- **THE THIRD GUC INSTANCE, AND THE SECOND WRITTEN AFTER THE SWEEP. Knowing the rule twice over did not prevent it, which is the argument for the scan being required rather than for care.** (Guy, 20 Aug 2026.)
+
+  `disconnect.ts` was written hours after the sweep that found two live defects of exactly this kind, by someone who had just recorded the rule, and it shipped with an UPDATE and no `set_config`. **The Item was removed at Plaid and our row was never marked.**
+
+  **Why it was silent, and it is the class already recorded one level down.** `sync_worker_read` on `plaid_items` is `USING (true)`, so the SELECT that found the row succeeded. `sync_worker_write` requires the household, and an unset setting made the predicate NULL, so the UPDATE **matched nothing and raised nothing.** A missing grant would have raised `42501`. A bad enum would have raised `22P02`. **An RLS predicate that matches nothing is not an error**, which is why this is the third one.
+
+  **The statement named the household and was still refused.** Its `WHERE` clause carried `household_id`, which is what `every-write-declares-a-household` checks. The policy reads a **setting**, not the statement. **Two mechanisms, both required, and satisfying one says nothing about the other.**
+
+  **It was visible only because of yesterday's rule: return what happened, not what was asked for.** The route reported rows ACTUALLY updated. Had it returned the id it was handed, `rowsMarked: 1` would have been indistinguishable from success, and the row would have read healthy for a dead Item indefinitely. That rule has now caught something in a route nobody wrote it for, which is the argument for applying it by default rather than where a problem is anticipated.
+
+  **AND THE SCAN WAS GREEN THE WHOLE TIME, WHICH IS THE LARGER FINDING.** The receiver scan reads every `set_config` call and requires a transaction handle. **A file with no call contributes no rows and passes**, so it checked the form of what existed and could never see what was absent. `disconnect.ts` was inside its roots throughout. The presence half now exists, and it draws the distinction the rule actually needs: **a module that opens its own connection owes a GUC; a helper that receives a `tx` does not, because its caller declared one.**
+
 - **POSTGRES NAMES THE TABLE WHEN THE BOUNDARY IS THE COLUMN, so the error points at the wrong artifact.** (Guy, 20 Aug 2026.) Small, and it cost a wrong first hypothesis, so it is written down.
 
   `permission denied for table plaid_items` was raised because the role lacked **one column**. `marginsheet_app` holds `plaid_items` perfectly well: eleven columns enumerated in 0002 plus `last_completed_cursor` from 0025. What it lacked was `last_cursor_at`, which 0027 added and granted to nobody, exactly as 0002's comment promised it would behave.
