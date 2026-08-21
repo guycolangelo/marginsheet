@@ -321,7 +321,7 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   `provider_events.processed_at` was set only after a successful sync dispatch. **Most webhook codes do not ask for a sync**, so every one of them would have sat with `processed_at` null forever, indistinguishable from an event that was recorded and never handled.
 
-  **The acceptance criterion for the whole task was one of them.** `WEBHOOK_UPDATE_ACKNOWLEDGED` asks for no sync, so the single event chosen to prove the receiver worked would have appeared in the readout **wearing the exact shape of the failure the field exists to show** — and the stated response to that shape was *stop and diagnose*.
+  **The acceptance criterion for the whole task was one of them.** `WEBHOOK_UPDATE_ACKNOWLEDGED` asks for no sync, so the single event chosen to prove the receiver worked would have appeared in the readout **wearing the exact shape of the failure the field exists to show**, and the stated response to that shape was *stop and diagnose*.
 
   **It was caught because the reading was pre-committed.** Writing down what each outcome would mean, before the data arrived, put the criterion and the field's behaviour beside each other for the first time. Neither was wrong alone. **The pre-commitment is what made the pair visible**, which is the same reason it exists for every other reading in this file: it forces the question of what you will actually see.
 
