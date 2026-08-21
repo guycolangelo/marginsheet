@@ -4,14 +4,16 @@
     "item": "The /auth/confirm pages carry minimal placeholder styling. Design holds the sign-in surfaces; what ships now is legibility only and is not a design decision.",
     "owner": "Guy (Design)",
     "owed_to": "M8",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "postmark-test-mode",
     "item": "Postmark is in test mode pending approval, so production sends are limited to @marginsheet.com recipients. The live send to guy@astonishent.com is still owed once it clears.",
     "owner": "Guy",
     "owed_to": "Postmark account approval",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "twilio-trial-caller-id",
@@ -19,42 +21,48 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: A2P 10DLC clearance, late Aug 2026 at the earliest, then a live send by Guy.",
     "raised": "2026-08-16",
-    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest"
+    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest",
+    "trigger_kind": "prose"
   },
   {
     "id": "provider-events-handler-half",
     "item": "Invariant 5's handler half is unbuilt. It now covers four providers rather than three, since Postmark bounce and complaint webhooks joined Plaid, Stripe and Twilio in provider_events (amendment 7).",
     "owner": "build",
     "owed_to": "M4 and M7",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "canon-fixtures",
     "item": "Five canon fixtures are owed before the golden suite can judge composed output against them. FraudReply first.",
     "owner": "Guy",
     "owed_to": "M10",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "rotation-guard-declaration",
     "item": "The role-rotation guard trusts the caller's declaration of the target branch. NEON_TEST_BRANCH=pr-1 aimed at dev would still rotate dev. Verifying the declaration against Neon's branch endpoint would close it.",
     "owner": "build",
     "owed_to": "unscheduled",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "journey-copy-review",
     "item": "Trademark placement is a copy-review item rather than lint (ruled 16 Aug 2026), because the unit of first use is a journey and a linter cannot see one. That makes it depend on a journey copy review, which is not scheduled anywhere yet. The sign-in journey is the first that needs one.",
     "owner": "Guy (Design)",
     "owed_to": "M8, with the sign-in surfaces",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "edge-rate-limit-rule",
     "item": "The per-source magic-link edge rule is deployed at the free plan's fixed shape: 10 requests per 10 seconds, ip.src only, no cf.colo.id, mitigation timeout not exposed. That is a burst brake rather than a sustained-rate control, so the per-email limit and the global ceiling in our own code are load-bearing rather than secondary. Revisit on any plan upgrade: 60 second period, cf.colo.id as a second characteristic, 600 second mitigation.",
     "owner": "Guy",
     "owed_to": "a Cloudflare plan upgrade",
-    "raised": "2026-08-16"
+    "raised": "2026-08-16",
+    "trigger_kind": "prose"
   },
   {
     "id": "recovery-twilio-credentials",
@@ -62,56 +70,64 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: A2P 10DLC clearance, late Aug 2026 at the earliest. NOT 3.3, which only built the path.",
     "raised": "2026-08-17",
-    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest"
+    "trigger": "A2P 10DLC clearance, late August 2026 at the earliest",
+    "trigger_kind": "prose"
   },
   {
     "id": "second-credential-write-path",
     "item": "Recovery writes passkey credentials directly rather than through @better-auth/passkey, because the plugin requires a session and \u00a71 says the session exists only after the credential. Two paths writing the same shape is a drift surface. A THIRD is a ruling, not an implementation detail. Drift is caught by the named assertion that a recovery-registered passkey must AUTHENTICATE through the plugin.",
     "owner": "build",
     "owed_to": "standing constraint, reviewed whenever @better-auth/passkey is upgraded",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "planted-failure-inertness",
     "item": "The planted-failure harness proves a mutation changed the FILE, not that it changed BEHAVIOUR, and proving the second is undecidable in general. So a 'test did not go red' result has two causes it cannot distinguish: an insensitive control, or an inert mutation. One was already found this way: a mutation whose injected condition was always undefined. The failure message names both causes, and register mutations need reviewing as code rather than as data.",
     "owner": "build",
     "owed_to": "standing constraint, reviewed whenever a register entry is added",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sandbox-cannot-build-four-of-five-fixtures",
     "item": "Invariant 8 lists five Sandbox error fixtures and FOUR CANNOT BE CONSTRUCTED (spike 1d, 17 Aug 2026). Constructible: ITEM_LOGIN_REQUIRED via /sandbox/item/reset_login. Not constructible: item error (webhook_type has no code ERROR), removed transactions (TRANSACTIONS_REMOVED is not fireable and the removed stream was empty in every run), pending to posted (0 pending across 48 default-user transactions and across user_custom shapes), reversal as an event. The invariant is rewritten to claim what Sandbox can actually prove; the rest are gaps rather than tests written against fixtures that cannot fail.",
     "owner": "build",
     "owed_to": "M4, and invariant 9 at M9 for the states only real Items produce",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "pending-to-posted-unexercised",
     "item": "THE ONE TRACKED LOUDEST (Guy, 17 Aug 2026). Pending to posted is NOT an error path. It is the normal daily behaviour of every card transaction in the product, and categorization-spec section 10 turns on it. Plaid Sandbox cannot construct it: zero pending transactions across 48 default-user rows and across every user_custom shape tried, so no CI fixture can express the transition. M4 tests the transition against a hand-built fixture of our own rows, which proves our filing and reconciliation logic and DOES NOT prove Plaid's shape is what we assumed. Those are two different claims and only the first is made. THE SECOND CAN ONLY BE PROVEN IN ONE PLACE: invariant 9, against the founder household's real institutions. A silent double-count on this transition reaches a household's Kept figure before anyone sees it. RESEQUENCED 17 Aug 2026: the founder household's real institutions connect at 4.5b, EARLY in M4, rather than at the end. Finding that our filing logic mishandles a settling transaction in week one of M4 is a fix; finding it at invariant 9 with the module otherwise done is a rewrite. Connecting early exercises section 10 during the build and does NOT discharge invariant 9, which still needs a full backfill across every founder institution as M9's precondition.",
     "owner": "Guy",
     "owed_to": "4.5b for the real settling transaction, invariant 9 at M9 for the full backfill",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "historical-update-not-fireable",
     "item": "plaid-pipeline-spec section 4 gives HISTORICAL_UPDATE real work: it marks backfill-complete for the M13 intro trigger. Sandbox will not fire it (INVALID_FIELD), so the webhook half of that trigger cannot be exercised in CI. The trigger's 30 minute fallback and the 'I have connected all my accounts' button remain testable; the webhook path does not.",
     "owner": "build",
     "owed_to": "M13, flagged from M4",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sandbox-transactions-create-is-inert",
     "item": "/sandbox/transactions/create returns 200 and changes nothing on a default-user Item, and returns 400 on a user_custom Item. Proven by looking for a marker description rather than by counting, because Sandbox generates transactions on its own and a count cannot tell a mutation from natural generation. An endpoint that reports success and does nothing is the same shape as a control that cannot fail. Nothing in M4 may build a fixture on it.",
     "owner": "build",
     "owed_to": "standing constraint on M4 fixtures",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sync-mutation-branch-not-deterministic",
     "item": "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION is real and cannot be produced on demand. Plaid refuses a mid-pagination cursor when the underlying data changes, which is what a webhook landing mid-sync does, so the pipeline persists TWO cursors: the in-flight one for a crash, and the last-completed-sync one as the fallback on that error. Reproduced 3 times out of 5 against freshly created Sandbox Items still generating transactions, which is flaky and therefore not a fixture. M4 tests the HANDLER against a synthesised 400 and does not claim to have proven Plaid's behaviour; the live observation is the evidence for the branch existing.",
     "owner": "build",
     "owed_to": "M4 for the handler test, invariant 9 at M9 for the live behaviour",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "production-plaid-credentials",
@@ -119,7 +135,8 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: Claude FLAGS on reaching 4.5b, then Guy runs the paste session. PRODUCTION ENVIRONMENT ONLY.",
     "raised": "2026-08-17",
-    "trigger": "Claude flags on reaching 4.5b; Guy runs the paste session"
+    "trigger": "Claude flags on reaching 4.5b; Guy runs the paste session",
+    "trigger_kind": "prose"
   },
   {
     "id": "auth-is-production-only",
@@ -127,7 +144,8 @@
     "owner": "build",
     "owed_to": "a ruling, then either config or a stated limitation",
     "raised": "2026-08-17",
-    "trigger": "no action owed; it is closed by auth being served in a lower environment, or by a later ruling. Until then it exists so a reader knows what a green dev run does not cover."
+    "trigger": "no action owed; it is closed by auth being served in a lower environment, or by a later ruling. Until then it exists so a reader knows what a green dev run does not cover.",
+    "trigger_kind": "prose"
   },
   {
     "id": "canon-revision-two-registers-one-voice",
@@ -135,21 +153,24 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: the design track completing. HARD DEADLINE: M12.",
     "raised": "2026-08-15",
-    "trigger": "the design track completing"
+    "trigger": "the design track completing",
+    "trigger_kind": "prose"
   },
   {
     "id": "article-as-answer-m2-amendment",
     "item": "The article-as-answer pattern is owed as an M2 amendment with its own plan (Guy, 15 Aug 2026), carrying two requirements. 1. The article's identity is a STABLE SLUG, never its URL or title, both of which change when an article is edited or renamed; the reference block carries the slug and resolves title and URL at assembly time, so a renamed article never strands a citation inside an artifact already sent. 2. The gate rule ships as a FIXTURE PAIR, not only as a rule: one passing example (cards ranked by rate, reference attached, no action named) and one failing example (the same list framed as 'here is where to start'). Recorded in CLAUDE.md prose since 15 Aug and tracked by nothing until now.",
     "owner": "Guy",
     "owed_to": "an M2 amendment plan",
-    "raised": "2026-08-15"
+    "raised": "2026-08-15",
+    "trigger_kind": "prose"
   },
   {
     "id": "cross-brain-attribution-fact-package-review",
     "item": "Consequence 5 of the single assistant ruling: any fact-package class existing ONLY to carry cross-brain attribution is reviewed and REPORTED, never silently deleted. Nothing has performed that review. It matters because the classes are the seam between the two brains, and deleting one quietly would remove the evidence of what the two-staff model needed.",
     "owner": "build",
     "owed_to": "M2, reported to Guy",
-    "raised": "2026-08-15"
+    "raised": "2026-08-15",
+    "trigger_kind": "prose"
   },
   {
     "id": "conversation-spec-describes-dead-platforms",
@@ -157,7 +178,8 @@
     "owner": "Guy",
     "owed_to": "TRIGGER: M9 completing, so it lands BEFORE M10 opens rather than during it.",
     "raised": "2026-08-18",
-    "trigger": "M9 completing"
+    "trigger": "M9 completing",
+    "trigger_kind": "prose"
   },
   {
     "id": "plaid-rate-limit-shape-uncaptured",
@@ -165,7 +187,8 @@
     "owner": "build",
     "trigger": "the first real 429 observed from Plaid, in any environment",
     "owed_to": "TRIGGER: the first real 429 observed from Plaid. Capture the body then; do not synthesise one before.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "account-overlap-recorded-not-acted-on",
@@ -173,7 +196,8 @@
     "owner": "build",
     "trigger": "when insight_ledger is first written, at 4.6",
     "owed_to": "TRIGGER: 4.6, when insight_ledger is first written and there is somewhere to put an internal item.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "ask-at-connect-when-overlap-ambiguous",
@@ -181,7 +205,8 @@
     "owner": "Guy (Design) and M8",
     "trigger": "M8's Link surface",
     "owed_to": "TRIGGER: M8's Link surface. Asked ONLY on an ambiguous overlap, never by default.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "capital-one-link-parameters",
@@ -189,7 +214,8 @@
     "owner": "build",
     "trigger": "M8's Link surface, where the parameters are actually passed",
     "owed_to": "TRIGGER: M8's Link surface, with the requirement re-derived rather than copied.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "exchange-idempotency-has-no-planted-failure",
@@ -197,7 +223,8 @@
     "owner": "build",
     "trigger": "when a database-backed sync test suite exists, likely 4.4",
     "owed_to": "TRIGGER: a database-backed sync suite, likely at 4.4. Registered when the mutation can be real.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "time-based-watcher-half-unbuilt",
@@ -205,7 +232,8 @@
     "owner": "build",
     "trigger": "M13, with the watcher itself",
     "owed_to": "TRIGGER: M13, with the watcher. M4 ships the signal only, and that is half the input.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "sms-dependent-work-blocked-until-a2p",
@@ -213,7 +241,8 @@
     "owner": "Guy",
     "trigger": "A2P 10DLC clearance",
     "owed_to": "TRIGGER: A2P 10DLC clearance. Read any SMS assumption against this rather than against a module number.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "soc2-posture",
@@ -221,7 +250,8 @@
     "owner": "Guy",
     "trigger": "the first customer, partner or investor who requires it",
     "owed_to": "TRIGGER: the first customer, partner or investor who REQUIRES it. Not a module and not a date: per the trigger rule, this is gated on someone outside the project.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "cross-household-upsert-overwrites-another-household",
@@ -229,7 +259,8 @@
     "owner": "build, gated on Guy's approval of the plan",
     "trigger": "BEFORE A SECOND HOUSEHOLD CONNECTS ANYTHING, IN ANY ENVIRONMENT. Not a module number: 4.5b is when real Items first exist, but the condition that produces this is a second household linking an account, which can happen in dev or staging or twice on Guy's own logins, and a module completing says nothing about whether that has occurred. The trigger is the condition, not the milestone.",
     "owed_to": "TRIGGER: the condition above. Confirmed 19 Aug 2026 by the harness with the GUC read back inside the transaction, which is what separated a genuine cross-household write from an unrestored planted mutation. THE PLAN IS THE BUILD'S TO DRAFT AND GUY'S TO APPROVE, same as every other task; it was first recorded as owned by Guy, which would have left him owning a plan he was never going to write. Evidence lives on branch finding/cross-household-upsert and PR #113.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "sync-writes-keyed-on-internal-ids",
@@ -237,7 +268,8 @@
     "owner": "build",
     "trigger": "when persistInFlight is wired to a real statement, which is the sync scheduling work after 4.5",
     "owed_to": "TRIGGER: 4c. Audited during 4e on 19 Aug 2026 and deliberately left, with the reasoning recorded so the omission is a decision rather than an oversight.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "sensitive-action-cancellation-unbuilt",
@@ -245,7 +277,8 @@
     "owner": "build",
     "trigger": "M7, when the action is built; the flag flips in the same change or the enumeration test fails",
     "owed_to": "TRIGGER: M7. Split out on 19 Aug 2026 so one party owes one thing.",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sensitive-action-member-removal-unbuilt",
@@ -253,7 +286,8 @@
     "owner": "build",
     "trigger": "3.5, when the action is built; the flag flips in the same change or the enumeration test fails",
     "owed_to": "TRIGGER: 3.5. Split out on 19 Aug 2026 so one party owes one thing.",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "sensitive-action-export-unbuilt",
@@ -261,7 +295,8 @@
     "owner": "build",
     "trigger": "M8, when the action is built; the flag flips in the same change or the enumeration test fails",
     "owed_to": "TRIGGER: M8. Split out on 19 Aug 2026 so one party owes one thing.",
-    "raised": "2026-08-17"
+    "raised": "2026-08-17",
+    "trigger_kind": "prose"
   },
   {
     "id": "competitive-line-trips-ai-rule",
@@ -269,7 +304,8 @@
     "owner": "Guy",
     "trigger": "the first marketing surface that carries the competitive line",
     "owed_to": "TRIGGER: the first marketing surface carrying the line. Not before: an exemption written now cannot be scoped.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "margin-integrity-conditions-unbuilt",
@@ -277,7 +313,8 @@
     "owner": "build",
     "trigger": "M6a for detection, M6b for the Margin surface's behaviour",
     "owed_to": "TRIGGER: M6a and M6b. Engine work, not language work.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "bnpl-shape-lookup",
@@ -285,7 +322,8 @@
     "owner": "build",
     "trigger": "4.5b, when real institutions connect and real BNPL rows are visible",
     "owed_to": "TRIGGER: M4 task 4.5b. An empirical lookup, not a ruling.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "amendments-11-13-and-exchange-7-await-approval",
@@ -293,7 +331,8 @@
     "owner": "Guy",
     "trigger": "approval of the amendments 11 to 13 draft",
     "owed_to": "TRIGGER: Guy's approval of the drafted amendments. Until then the canon's behaviour half lives in a draft rather than in a spec.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "exchange-7-owed-to-the-spec",
@@ -301,7 +340,8 @@
     "owner": "Guy",
     "trigger": "exchange #7 landing in the conversational spec",
     "owed_to": "TRIGGER: exchange #7 in the spec. Then the fixture moves from owed to full and the golden tests become writable.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "scenario-answer-owed-tender-and-term-fields",
@@ -309,7 +349,8 @@
     "owner": "Guy and M2",
     "trigger": "an M2 ruling on the ScenarioAnswer contract",
     "owed_to": "TRIGGER: an M2 ruling. Blocks the financing verdict and the tender beat entirely.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "m11-adversarial-set-recorded",
@@ -317,7 +358,8 @@
     "owner": "build",
     "trigger": "M11, when the advice-gate judge exists",
     "owed_to": "TRIGGER: M11's judge. The strings are recorded now so the set is inherited rather than re-derived.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "two-ledger-contract-invariant-unbuilt",
@@ -325,7 +367,8 @@
     "owner": "build",
     "trigger": "on request, or with exchange #7 landing",
     "owed_to": "TRIGGER: on request. Independent of exchange #7, since it asserts the contract rather than composed text.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "car-decision-fixture-assumes-a-tender",
@@ -333,7 +376,8 @@
     "owner": "build",
     "trigger": "the tender field landing on ScenarioAnswer",
     "owed_to": "TRIGGER: the tender field. Then the fixture declares a tender and divergence is derived rather than assumed.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "completeness-layer-for-omission-failures",
@@ -341,7 +385,8 @@
     "owner": "build",
     "trigger": "M11, and the forcing-field checks are buildable before it",
     "owed_to": "TRIGGER: M11 for the gate's shape. The forcing-field assertions need no judge and can land any time.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "banned-word-inflection-audit-done-keep-the-rule",
@@ -349,7 +394,8 @@
     "owner": "build",
     "trigger": "standing constraint, applied whenever a banned-word rule is added",
     "owed_to": "TRIGGER: standing. Every new banned-word rule gets the inflection audit and doctrine's own sentence as its fixture.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "mechanism-claim-random-sample",
@@ -357,7 +403,8 @@
     "owner": "build",
     "trigger": "next session, before any further cleanup",
     "owed_to": "TRIGGER: next session. Until it is drawn, no statement about the rate is supported.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "mistake-doctrine-acceptance-criteria",
@@ -365,7 +412,8 @@
     "owner": "build",
     "trigger": "M13 for the correction pair, M10 for the alert register selection",
     "owed_to": "TRIGGER: M13 and M10. Acceptance criteria, not a backlog item: they cannot be built before a composer exists.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "security-page-mechanism-claims",
@@ -373,7 +421,8 @@
     "owner": "Guy",
     "trigger": "the marketing site session, using these repo-side facts",
     "owed_to": "TRIGGER: the marketing-site session. Small, and it crosses a session boundary, which is why it is written down.",
-    "raised": "2026-08-18"
+    "raised": "2026-08-18",
+    "trigger_kind": "prose"
   },
   {
     "id": "bound-the-work-not-the-lock",
@@ -381,7 +430,8 @@
     "owner": "build",
     "trigger": "BEFORE 4.5b, not before the re-dispatch wiring. Sandbox does not hang; production does, and production credentials are the moment the risk becomes real.",
     "owed_to": "TRIGGER: 4.5b, immediately before production Plaid credentials land. Guy corrected the original trigger, which was the sweep wiring and was too late.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "sweep-must-not-enqueue-behind-itself",
@@ -389,7 +439,8 @@
     "owner": "build",
     "trigger": "the change that wires sweepReason to a dispatcher",
     "owed_to": "TRIGGER: wiring the watchdog sweep to a re-dispatch. Independent of the deadline work by Guy's ruling.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "retract-workers-dev-staging-production",
@@ -397,7 +448,8 @@
     "owner": "Guy",
     "trigger": "immediately, and BEFORE 4.5b: production Plaid credentials must not land on a Worker that answers the public internet",
     "owed_to": "TRIGGER: now. Raised 19 Aug 2026 while probing for a Plaid webhook payload. The repo-side fix and both controls are on the branch; what remains is deploy and subdomain retraction.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "wrangler-inherited-settings-sweep",
@@ -405,7 +457,8 @@
     "owner": "build",
     "trigger": "after the workers.dev chain closes, before the next Worker or environment is added, because a fourth environment inherits everything the third one did",
     "owed_to": "TRIGGER: the next Worker or environment addition. Raised by Guy 19 Aug 2026 after the third inheritance surprise in one day.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "capital-one-annual-consent-refresh",
@@ -413,7 +466,8 @@
     "owner": "build",
     "trigger": "M8's reconnect surface, and no later than eleven months after the first Capital One Item is connected",
     "owed_to": "TRIGGER: M8's reconnect copy. Found 19 Aug 2026 while confirming Plaid's OAuth prerequisites before building 4.5b prime.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "pending-institution-coverage-is-not-discoverable",
@@ -421,7 +475,8 @@
     "owner": "build",
     "trigger": "4.5b prime, as an acceptance criterion rather than a follow-on: at least one connected institution must report pending, and a settle must be observed",
     "owed_to": "TRIGGER: 4.5b prime. Found while confirming Plaid prerequisites before building, on Guy's instruction to look it up rather than recall it.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "backfill-depth-is-per-institution",
@@ -429,7 +484,8 @@
     "owner": "build",
     "trigger": "4.5b prime, when real institutions connect and actual depths are observable rather than assumed; a ruling on the engine follows the numbers",
     "owed_to": "TRIGGER: 4.5b prime. Found while confirming Plaid prerequisites, from the Capital One 90-day limit, which Guy identified as bigger than Capital One.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "our-silence-is-indistinguishable-from-theirs",
@@ -437,7 +493,8 @@
     "owner": "build",
     "trigger": "4.5b prime's first real sync, when all four become observable against real data rather than hypothetical",
     "owed_to": "TRIGGER: the first real sync. Named by Guy 19 Aug 2026; the settle case is controlled, the other three are not.",
-    "raised": "2026-08-19"
+    "raised": "2026-08-19",
+    "trigger_kind": "prose"
   },
   {
     "id": "investment-accounts-are-visible-and-excluded-from-the-ledger",
@@ -445,7 +502,8 @@
     "owner": "build, gated on Guy's approval where it amends ledger-spec",
     "trigger": "M8's Balance Sheet, which must not render an investment balance until we hold a real one, and the Investments product decision, which is now a prerequisite for any investment figure rather than an enrichment of one",
     "owed_to": "TRIGGER: M5, and M8 for rendering. Ruled by Guy 20 Aug 2026 after SoFi's connection brought two investment accounts through by default.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
   },
   {
     "id": "sync-role-holds-twenty-two-transaction-columns-it-never-touches",
@@ -453,7 +511,8 @@
     "owner": "Guy",
     "trigger": "before any component other than the sync Worker writes to transactions. That is the condition rather than the milestone: the day a second writer exists, the sync role's reach over that writer's columns stops being theoretical, and it is the M5 filer today only because the M5 filer happens to be next. A module number would read as satisfied when the module ships whether or not the condition was met.",
     "owed_to": "TRIGGER: the first component other than the sync Worker writing to transactions. Raised 20 Aug 2026 out of the households column-grant ruling; needs Guy's ruling on whether the ten tables are narrowed by column the way households and household_state_signals now are.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
   },
   {
     "id": "pre-merge-migration-edit-was-investigated-and-is-not-open",
@@ -461,7 +520,15 @@
     "owner": "build",
     "trigger": "if scripts/neon-pr-branch.sh ever stops recreating the branch on every run, because branch reuse is the single property that makes the pre-merge window real",
     "owed_to": "TRIGGER: any change to neon-pr-branch.sh that reintroduces reuse. Raised and closed the same day, 20 Aug 2026.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "condition",
+    "condition": {
+      "kind": "file_contains",
+      "path": "scripts/neon-pr-branch.sh",
+      "text": "FRESH ON EVERY RUN",
+      "expect": true
+    },
+    "condition_why": "REGRESSION GUARD ON A CLOSED FINDING. The item is closed BECAUSE the branch is recreated every run. This fires if that sentence leaves scripts/neon-pr-branch.sh, which would mean branch reuse is back and the pre-merge migration window has reopened: the single property holding this shut."
   },
   {
     "id": "days-requested-was-never-sent-so-every-item-holds-ninety-days",
@@ -469,7 +536,8 @@
     "owner": "Guy",
     "trigger": "the ledger readout reporting the oldest transaction date. If it is roughly 90 days, SoFi is removed and reconnected BEFORE M5 or the census touch this Item. The link-token field is authorised already and blocks any further connection: no Chase, no Amex, until it ships.",
     "owed_to": "TRIGGER: the readout running. Raised 20 Aug 2026 after Guy said SoFi can give more than 90 days, which inverted the conclusion from an institution property to our own parameter.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
   },
   {
     "id": "rls-misconfiguration-presents-as-a-household-with-no-data",
@@ -477,7 +545,8 @@
     "owner": "Guy",
     "trigger": "before M8 renders any household-facing list from an RLS-scoped read, because that is the point at which an empty result stops being a developer reading JSON and becomes a household being told they have nothing",
     "owed_to": "TRIGGER: M8's first household-facing list. Raised 20 Aug 2026 out of the set_config sweep; Guy explicitly declined to rule on it in flight and asked for it to be noted as the class.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
   },
   {
     "id": "column-privileges-test-asks-the-grant-not-the-session",
@@ -485,7 +554,8 @@
     "owner": "build",
     "trigger": "closed 21 Aug 2026; kept as a record of what was changed and why one assertion deliberately did not change",
     "owed_to": "TRIGGER: PR 129 merging. Raised 20 Aug 2026 by Guy on reading that the harness probe and the test disagreed, and asking whether the 15 Aug test had the same shape. It does.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
   },
   {
     "id": "app-subdomain-cutover-waits-for-m9",
@@ -493,7 +563,8 @@
     "owner": "Guy",
     "trigger": "M9 completing, meaning the books are migrated AND reconciled, not M8 completing. The UI being ready is not the condition",
     "owed_to": "TRIGGER: M9 complete. Recorded 20 Aug 2026 at Guy's instruction, with the reasoning for the trigger rather than only the trigger.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
   },
   {
     "id": "balances-are-frozen-at-connection-time",
@@ -501,7 +572,8 @@
     "owner": "build",
     "trigger": "closed for the projection path 21 Aug 2026. What remains is the live-balance question, owed only if a household-facing 'will this clear now' surface is built",
     "owed_to": "TRIGGER: M6b Cash Flow. Raised 20 Aug 2026 by Guy asking whether the sync writes balances at all, and checked before the SoFi reconnect precisely because a reconnect would refresh them and hide whether anything else ever does.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
   },
   {
     "id": "sql-mutation-proof-sweep-is-closed",
@@ -509,7 +581,8 @@
     "owner": "build",
     "trigger": "the next sql mutation added to the register, which should be written against this rule rather than discovering it again",
     "owed_to": "TRIGGER: next sql mutation. Closed 21 Aug 2026; kept as a record of what was examined rather than deleted.",
-    "raised": "2026-08-20"
+    "raised": "2026-08-20",
+    "trigger_kind": "prose"
   },
   {
     "id": "only-the-plaid-calls-are-bounded",
@@ -517,7 +590,15 @@
     "owner": "Guy",
     "trigger": "the Durable Object and service-binding fetches remain unbounded; owed only if a lock is ever observed held by one, since neither sits inside the transaction",
     "owed_to": "TRIGGER: the webhook path. Raised 21 Aug 2026 while building the Plaid deadline, from Guy's instruction to state which operations are abortable rather than assert the property holds.",
-    "raised": "2026-08-21"
+    "raised": "2026-08-21",
+    "trigger_kind": "condition",
+    "condition": {
+      "kind": "file_contains",
+      "path": "packages/schema/migrations/0031_sync_statement_timeout.sql",
+      "text": "statement_timeout = '30s'",
+      "expect": true
+    },
+    "condition_why": "REGRESSION GUARD ON THE HALF ALREADY CLOSED, not a trigger for the half still open. The database half is closed by migration 0031. This fires if that migration stops declaring the bound, which would put the unbounded-query gap live again. THE ITEM REMAINS OPEN for a different reason: the Durable Object fetch and the service-binding fetches are still unbounded, and no condition watches those, because closing them is a ruling rather than a file."
   },
   {
     "id": "a-trigger-only-a-reader-can-notice",
@@ -525,6 +606,7 @@
     "owner": "Guy",
     "trigger": "before the next module boundary, because that is when the largest number of triggers become due at once and the current form is least likely to be re-read",
     "owed_to": "TRIGGER: next module boundary. Raised 21 Aug 2026 after the operation deadline's own trigger passed unremarked at 4.5b.",
-    "raised": "2026-08-21"
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
   }
 ]
