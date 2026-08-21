@@ -1,0 +1,16 @@
+{
+  "why": "A COMMENT ASSERTING SINGULARITY IS NOT CHECKABLE BY READING EITHER WRITER (Guy, 21 Aug 2026). Only enumerating them works, and nothing enumerated them. This file is that enumeration: for each column whose stored value is claimed to have one source of truth, the writers that ACTUALLY write it, checked against the source by test/unit/single-writer-columns.test.ts.",
+  "how_to_read": "declared_writers is what is TRUE. claim names where singularity is ASSERTED and which function it names. claim_holds says whether those two agree. A false claim_holds is legitimate and must carry a reason; what is not legitimate is a writer nobody declared.",
+  "columns": [
+    {
+      "table": "transactions",
+      "column": "direction",
+      "declared_writers": ["services/sync/src/apply-streams.ts"],
+      "claim": "migration 0004's COMMENT ON TYPE transaction_direction: 'resolveDirection IS THE SINGLE SOURCE OF TRUTH for the stored value'",
+      "claimed_writer": "resolveDirection",
+      "claim_holds": false,
+      "reason": "THE CLAIM HAS BEEN FALSE SINCE 0004 AND NOTHING COULD HAVE CAUGHT IT. resolveDirection exists in categorization-spec section 8 and in three migration comments and in NO CODE. apply-streams.ts writes the column with its own sign rule, so the named source is not a writer and the actual writer is not named. Migration 0034 added `undetermined` so that M4 records what it observed and M5 determines, which is what will make the claim true. Set claim_holds true when resolveDirection is the writer, and this control will check that rather than take it on trust.",
+      "owed_to": "M5 filing"
+    }
+  ]
+}
