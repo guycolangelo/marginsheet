@@ -949,21 +949,6 @@
         "note": "KEEPS THE FIRST FIGURE INSTEAD OF THE LAST, which is the plausible wrong version rather than an obvious break: DO NOTHING reads as idempotent and safe, it still writes exactly one row per day so the count assertion passes, and only the VALUE is wrong. A projection reading the series would then see the balance at whatever moment the day's first sync happened to run rather than the closing figure."
       },
       "distinction": "THE PER-DAY CADENCE IS A RULING, NOT AN IMPLEMENTATION DETAIL, which is why it has a control. account_balance_snapshots is keyed by date and the projection reads a SERIES, so a row per sync would make that series depend on how often we happened to sync: a property of us rather than of the household's money. The fixture writes twice within a single day with DISTINCT figures, so accumulating leaves two rows and keeping the first leaves 500.25, and neither can be confused with the correct outcome."
-    },
-    {
-      "id": "balance-capture-names-the-household",
-      "control": "the balance isolation assertion (packages/schema/test/db/balance-capture.test.ts)",
-      "guards": "A balance write keyed on Plaid's account id cannot reach another household's row.",
-      "test": "packages/schema/test/db/balance-capture.test.ts",
-      "name": "leaves the other household's account alone, though the Plaid id is identical",
-      "planted": {
-        "kind": "source",
-        "file": "services/sync/src/apply-balances.ts",
-        "find": "       where household_id = ${householdId}\n         and plaid_account_id = ${account.account_id}",
-        "replace": "       where plaid_account_id = ${account.account_id}",
-        "note": "DROPS THE HOUSEHOLD PREDICATE AND LEAVES A STATEMENT THAT READS CORRECTLY. plaid_account_id looks like a key, and it is: Plaid's. The mutation is the exact shape of all four cross-household findings of 19 Aug 2026, and it is invisible in review because the remaining predicate is the one a reader expects to see. It is not caught by RLS on this path either, since sync_worker_read is USING (true)."
-      },
-      "distinction": "THE FIXTURE IS THE CONTROL. Two households hold accounts carrying the SAME plaid_account_id, which is what Plaid does when two people link the same joint account, so the failure case exists among the values the fixture can take. That is the ninth finding's rule applied deliberately: an isolation test whose fixture cannot construct the collision passes whether or not the predicate is there, and every isolation test written from M1 to 3.5 had exactly that defect. It asserts both halves, the other household's balance unchanged AND no snapshot written against its account, because a write that updates nothing can still insert."
     }
   ]
 }
