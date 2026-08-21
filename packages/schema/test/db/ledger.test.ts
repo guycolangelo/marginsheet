@@ -86,14 +86,22 @@ describe("invariant 1: transaction, account, and item households all agree", () 
 });
 
 describe("direction drops unclassified (invariant 9)", () => {
-  it("has exactly three values, and unclassified is not one", async () => {
+  it("has exactly four values, and unclassified is not one of them", async () => {
     const rows = await sql<{ enumlabel: string }[]>`
       select enumlabel from pg_enum e join pg_type t on t.oid = e.enumtypid
       where t.typname = 'transaction_direction' order by e.enumsortorder
     `;
     const values = rows.map((r) => r.enumlabel);
-    expect(values).toEqual(["income", "expense", "transfer"]);
+    expect(values).toEqual(["income", "expense", "transfer", "undetermined"]);
+
+    // TWO NEAR-SYNONYMS, OPPOSITE IN STATUS, WHICH IS THE HAZARD 0034 NAMES.
+    // `unclassified` is the Base44 legacy value invariant 9 exists to remove.
+    // `undetermined` is deliberate: M4 stores facts and nothing derived, and a
+    // card credit's direction is a filing decision M4 cannot make. Asserting
+    // both in one place is the only thing stopping a future reader from
+    // treating them as the same idea and reinstating the banned one.
     expect(values).not.toContain("unclassified");
+    expect(values).toContain("undetermined");
   });
 
   it("rejects unclassified outright, rather than storing it", async () => {

@@ -56,6 +56,17 @@ export interface AccountRow {
   account_updated_at: string | null;
   snapshots: number; newest_snapshot: string | null; oldest_snapshot: string | null;
 }
+/** One (account type, sign) bucket: how many rows, what direction we stored for
+ *  them, and enough real descriptions to tell a payment from a refund. */
+export interface DirectionAuditRow {
+  type: string | null;
+  sign: string;
+  stored_direction: string | null;
+  rows: number;
+  min_amount: string | null;
+  max_amount: string | null;
+  examples: string[] | null;
+}
 export interface TypeRow { type: string | null; accounts: number; held: number; oldest: string | null }
 export interface ItemRow {
   item_id: string; sync_status: string | null; status: string | null;
@@ -86,6 +97,23 @@ export interface Readout {
    *  observe cannot be the thing that proves the task is done. */
   events: EventRow[];
   cursors: Array<{ itemId: string; equal: boolean; inFlightPresent: boolean; lastCompletedPresent: boolean }>;
+  /** WHICH SIGN IS A CARD CREDIT, ASKED OF OUR OWN ROWS BECAUSE SANDBOX COULD
+   *  NOT ANSWER IT. ins_109508 holds 9 credit rows, every one a positive
+   *  purchase and no payment, so the case under test is not representable in
+   *  its fixture, and injecting one through a custom user would be circular
+   *  because the sign would be ours. Chase is connected and a real card payment
+   *  either exists here or does not.
+   *
+   *  IT SETTLES WHICH ROWS TO REPAIR, NOT WHAT THEY BECOME (Guy, 21 Aug 2026).
+   *  The sign tells us what Plaid sends. It does not tell us whether a given
+   *  card credit is a payment or a refund, and that is the thing `direction`
+   *  would be claiming, so the repair writes `undetermined` whatever the sign
+   *  turns out to be.
+   *
+   *  NAMES ARE RETURNED DELIBERATELY. A count cannot separate a payment from a
+   *  refund and a description usually can, which is the same reason the Plaid
+   *  cross-check reports which row rather than how many. */
+  directionAudit: DirectionAuditRow[];
 }
 
 /** Reads everything the readout reports from OUR tables.
@@ -179,9 +207,34 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
   // THE CURSORS ARE REPORTED AS A COMPARISON, not as two opaque strings. Equal
   // after a clean run; unequal means the pagination stopped in flight. A reader
   // should not have to diff two base64 blobs by eye to learn which happened.
+  // GROUPED IN THE DATABASE RATHER THAN COUNTED PER SUBJECT. A diagnostic whose
+  // cost scales with the number of things examined refuses to answer about the
+  // subjects exactly when there are most of them, which is how the per-account
+  // cross-check came back silent rather than zero on 20 Aug.
+  const directionAudit = await tx<DirectionAuditRow[]>`
+    select fa.type,
+           case when t.amount > 0 then 'positive'
+                when t.amount < 0 then 'negative'
+                else 'zero' end as sign,
+           t.direction::text as stored_direction,
+           (count(*))::int as rows,
+           (min(t.amount))::text as min_amount,
+           (max(t.amount))::text as max_amount,
+           (array_agg(distinct coalesce(t.merchant_name, t.original_description))
+              filter (where coalesce(t.merchant_name, t.original_description) is not null)
+           )[1:6] as examples
+      from transactions t
+      join financial_accounts fa
+        on fa.id = t.account_id and fa.household_id = t.household_id
+     where t.household_id = ${householdId} and not t.removed
+     group by fa.type, 2, t.direction
+     order by fa.type, 2, t.direction
+  `;
+
   return {
     accounts,
     byType,
+    directionAudit,
     items,
     events,
     household: households[0] ?? null,

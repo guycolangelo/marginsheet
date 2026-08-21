@@ -148,6 +148,7 @@ describe("the two direction enums are distinguishable", () => {
       "income",
       "expense",
       "transfer",
+      "undetermined",
     ]);
   });
 
