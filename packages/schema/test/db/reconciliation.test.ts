@@ -25,6 +25,13 @@ const ITEM = "01998888-3001-7000-8000-00000000d1f7";
  *  Item and cannot tell a scoped query from an unscoped one. */
 const OTHER_ITEM = "01998888-3005-7000-8000-00000000d1f7";
 const OTHER_CARD = "01998888-3006-7000-8000-00000000d1f7";
+/** THE SETTLE-NOTE TESTS GET THEIR OWN ACCOUNT. They move a balance and delete
+ *  transactions, and doing that to BANK broke a later test that expects the
+ *  fixture it was given. A suite whose correctness depends on declaration order
+ *  fails as a defect in the code, which is the rule this file already carries
+ *  and which I broke again three tests later. Isolation beats restoration:
+ *  restoring a balance to a literal is one refactor from being wrong. */
+const NOTE_ACCT = "01998888-3007-7000-8000-00000000d1f7";
 const BANK = "01998888-3002-7000-8000-00000000d1f7";
 const CARD = "01998888-3003-7000-8000-00000000d1f7";
 
@@ -60,6 +67,9 @@ beforeAll(async () => {
             values (${OTHER_ITEM}, ${HOUSEHOLD}, 'item-recon-other', 'needs_reauth') on conflict (id) do nothing`;
   await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
             values (${OTHER_CARD}, ${HOUSEHOLD}, ${OTHER_ITEM}, 'acct-recon-other', 'Stale Card', 'credit', 'credit card', 4321.00)
+            on conflict (id) do nothing`;
+  await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
+            values (${NOTE_ACCT}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-note', 'Note Checking', 'depository', 'checking', 1000.00)
             on conflict (id) do nothing`;
   await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
             values (${BANK}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-bank', 'Fixture Checking', 'depository', 'checking', 1731.96),
@@ -162,6 +172,42 @@ describe("an account Plaid did not return is not reconciled at all", () => {
     await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
     const r = await run(ITEM, [CARD]);
     expect(r.observationsWritten).toBe(1);
+  });
+
+  it("does NOT claim a settle when nothing changed since the last observation", async () => {
+    // THE NOTE USED TO ASSERT THIS ON EVERY NON-ZERO DIFFERENCE. An explanation
+    // attached to a value nobody checked against it is a diagnosis with no
+    // evidence, and it told a household the first disagreement is usually a
+    // settle that clears within three observations. A settle clears in ONE.
+    await setBalance(NOTE_ACCT, "1000.00");
+    await run(ITEM, [NOTE_ACCT]);           // first observation, sets the baseline
+    await setBalance(NOTE_ACCT, "900.00");  // moves with nothing to explain it
+    const r = await run(ITEM, [NOTE_ACCT]);
+
+    const bank = of(r, NOTE_ACCT);
+    expect(bank.difference).toBe(-100);
+    expect(bank.note, "it offered the settle explanation with no evidence for it").not.toMatch(/changed since the last observation without being created/);
+    expect(bank.note).toMatch(/nothing this reconciler can see explains it/);
+  });
+
+  it("DOES claim it when a transaction changed since the last observation", async () => {
+    // The evidence is exact: a row created BEFORE the last observation and
+    // updated AFTER it moves the balance while leaving the created_at sum
+    // untouched, which is the settle shape precisely.
+    await addTxn(NOTE_ACCT, "50.00", "outflow", "settle-note-1");
+    await setBalance(NOTE_ACCT, "1000.00");
+    await run(ITEM, [NOTE_ACCT]);           // baseline, with the txn already counted
+
+    // The row is touched WITHOUT being recreated, which is what a settle does.
+    await sql`update transactions set amount = 75.00, updated_at = now()
+               where plaid_transaction_id = 'settle-note-1'`;
+    await setBalance(NOTE_ACCT, "975.00");
+    const r = await run(ITEM, [NOTE_ACCT]);
+
+    const bank = of(r, NOTE_ACCT);
+    expect(bank.difference).not.toBe(0);
+    expect(bank.note).toMatch(/changed since the last observation without being created/);
+    expect(bank.note, "it still claimed three observations").toMatch(/clears on the NEXT observation/);
   });
 
   it("REPORTS it with a reason, so silence and a clean verdict do not look alike", async () => {
