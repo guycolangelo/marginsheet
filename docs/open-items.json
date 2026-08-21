@@ -708,5 +708,14 @@
     "owed_to": "M4 4.6. Raised 21 Aug 2026 before the first reconciliation ran in production.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
+  },
+  {
+    "id": "recurring-transactions-billing-is-unverified",
+    "item": "WHETHER /transactions/recurring/get IS BILLED SEPARATELY HAS NOT BEEN ESTABLISHED, AND IT IS NOT ASSUMED. Recurring Transactions is commonly described as part of the Transactions product, so the likely answer is that it costs nothing extra on an Item already syncing transactions. THAT IS A MECHANISM CLAIM ABOUT A THIRD PARTY'S PRICING AND NOBODY HERE HAS OBSERVED IT. Twelve hours before this was written, the same question about Liabilities turned out to be billed per Item per month from first use, which is why /internal/enable-liabilities exists and why the sync does not start a charge on its own. SO import-recurring IS NOT WIRED INTO THE SYNC. It is reachable only by explicit call, and it will stay that way until the billing is confirmed from Plaid's own pricing rather than from an inference. IF IT IS FREE: wire it into the sync path with the transactions streams, where it belongs, since a commitments list on day one is what projection-spec section 6 asks for. IF IT IS BILLED: it needs the same deliberate gate as liabilities, a column, a route and a line in config/provider-costs.json. The importer is written and tested either way; only its trigger is undecided.",
+    "owner": "Guy",
+    "trigger": "before import-recurring is called against a production Item, because the first call is what would start a charge if there is one",
+    "owed_to": "M4 4.7. Raised 21 Aug 2026, the same day the Liabilities billing property was found.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
   }
 ]

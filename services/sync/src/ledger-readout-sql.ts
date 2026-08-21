@@ -54,6 +54,15 @@ export interface AccountRow {
    *  13 week path from this number. */
   current_balance: string | null; available_balance: string | null;
   account_updated_at: string | null;
+  /** WHETHER WE CAN SEE THIS CARD'S COMMITTED OUTFLOW, AND WHY NOT WHEN WE
+   *  CANNOT. Under 'reported' a null statement balance is a card with nothing
+   *  owed; under 'not_reported' and 'unsupported' it is a figure we do not
+   *  have, and those two must never render alike. */
+  liability_coverage: string | null;
+  last_statement_balance: string | null;
+  next_payment_due_date: string | null;
+  minimum_payment: string | null;
+  liabilities_fetched_at: string | null;
   snapshots: number; newest_snapshot: string | null; oldest_snapshot: string | null;
 }
 /** One (account type, sign) bucket: how many rows, what direction we stored for
@@ -155,6 +164,18 @@ export interface Readout {
    *
    *  `discharged` is the whole point: it is a sentence about a criterion, not a
    *  statistic, and it reads the same whether or not anybody was watching. */
+  /** Cash Flow's committed outflow, as a SENTENCE per state rather than a
+   *  count. The four coverage values are the point: a household with no
+   *  committed outflow and a household whose card we cannot see are different
+   *  things, and an empty liability_details row says both. */
+  committedOutflow: {
+    cardsReported: number;
+    cardsNotReported: number;
+    cardsUnsupported: number;
+    cardsUnknown: number;
+    totalDue: string | null;
+    note: string;
+  };
   settleCriterion: {
     discharged: boolean;
     firstObservedAt: string | null;
@@ -188,6 +209,11 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
            fa.current_balance::text as current_balance,
            fa.available_balance::text as available_balance,
            (fa.updated_at)::text as account_updated_at,
+           fa.liability_coverage::text as liability_coverage,
+           ld.last_statement_balance::text as last_statement_balance,
+           (ld.next_payment_due_date)::text as next_payment_due_date,
+           ld.minimum_payment::text as minimum_payment,
+           (ld.fetched_at)::text as liabilities_fetched_at,
            (select count(*)::int from account_balance_snapshots s
              where s.account_id = fa.id and s.household_id = fa.household_id) as snapshots,
            (select (max(s.date))::text from account_balance_snapshots s
@@ -203,10 +229,13 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
       from financial_accounts fa
       join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
       left join institutions i on i.id = pi.institution_id
+      left join liability_details ld on ld.account_id = fa.id and ld.household_id = fa.household_id
       left join transactions t on t.account_id = fa.id and t.household_id = fa.household_id
      where fa.household_id = ${householdId}
      group by fa.id, fa.household_id, fa.plaid_account_id, fa.name, fa.mask, fa.type,
-              fa.subtype, i.name, fa.current_balance, fa.available_balance, fa.updated_at
+              fa.subtype, i.name, fa.current_balance, fa.available_balance, fa.updated_at,
+              fa.liability_coverage, ld.last_statement_balance, ld.next_payment_due_date,
+              ld.minimum_payment, ld.fetched_at
      order by i.name nulls last, fa.type, fa.name
   `;
 
@@ -329,12 +358,40 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
      where household_id = ${householdId} and not removed
   `;
 
+  const [cov] = await tx<{ reported: number; not_reported: number; unsupported: number; unknown: number; total_due: string | null }[]>`
+    select
+      (count(*) filter (where fa.liability_coverage = 'reported'))::int as reported,
+      (count(*) filter (where fa.liability_coverage = 'not_reported'))::int as not_reported,
+      (count(*) filter (where fa.liability_coverage = 'unsupported'))::int as unsupported,
+      (count(*) filter (where fa.liability_coverage = 'unknown'))::int as unknown,
+      (sum(ld.last_statement_balance) filter (where fa.liability_coverage = 'reported'))::text as total_due
+    from financial_accounts fa
+    left join liability_details ld on ld.account_id = fa.id and ld.household_id = fa.household_id
+   where fa.household_id = ${householdId} and fa.type = 'credit' and fa.is_active
+  `;
+
   return {
     accounts,
     byType,
+    committedOutflow: {
+      cardsReported: cov?.reported ?? 0,
+      cardsNotReported: cov?.not_reported ?? 0,
+      cardsUnsupported: cov?.unsupported ?? 0,
+      cardsUnknown: cov?.unknown ?? 0,
+      // SUMMED OVER 'reported' ONLY, and that restriction is the whole design.
+      // Including a card we cannot see would state a total the data does not
+      // support, which is a figure worse than a blank.
+      totalDue: cov?.total_due ?? null,
+      note:
+        (cov?.unknown ?? 0) > 0 && (cov?.reported ?? 0) === 0
+          ? "liabilities has never been fetched for these cards, so no committed outflow is known and none is claimed"
+          : (cov?.not_reported ?? 0) + (cov?.unsupported ?? 0) > 0
+            ? `${cov.reported} card${cov.reported === 1 ? "" : "s"} reported. ${(cov.not_reported ?? 0) + (cov.unsupported ?? 0)} CANNOT BE SEEN, so totalDue is a partial figure and must not be presented as the household's committed outflow.`
+            : `all ${cov?.reported ?? 0} cards reported; totalDue is the household's committed outflow`,
+    },
     directionAudit,
     historyCompletion,
-    settleCriterion: {
+  settleCriterion: {
       discharged: (settle?.settles ?? 0) > 0,
       firstObservedAt: settle?.first_at ?? null,
       settlesObserved: settle?.settles ?? 0,
