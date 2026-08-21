@@ -634,6 +634,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   It is the same shape as **verify against the database, never against reports**, one level up: the mechanism is the report, and the log is the database. And it fails the standing question the same way, because **an explanation cannot go red.** No observation refutes "this could have happened", which is precisely why it is not a finding.
 
+- **THE ARGUMENT WAS EXPENSIVE BECAUSE IT WAS CHEAP TO HAVE, AND THE TEST WAS DECISIVE BECAUSE IT WAS CHEAP TO RUN.** (Guy, 21 Aug 2026.) The corollary to the rule below, about cost rather than about method.
+
+  Whether Plaid issues one `account_id` to two Items ran in **two directions across an evening**, with **three rulings resting on it**: whether the purge was necessary, whether Option A described a possible state, and whether a global unique index refuses a legitimate second connection. Both of us reasoned from the same documentation, reached opposite conclusions hours apart, and **neither noticed the contradiction.**
+
+  One Sandbox call ended it. **Five seconds, one test file, and the answer was disjoint.**
+
+  **The asymmetry is the point.** Reasoning is free at the moment you do it, which is exactly why it accumulates: nobody budgets for an argument, so arguments run long and spawn conclusions that get built on. A spike has a visible cost and therefore gets weighed, which makes it feel like the expensive option when it is almost always the opposite.
+
+  **So the question is not whether the reasoning is sound. It is whether the claim has ever been observed.** Soundness is a property of an argument and says nothing about the world; observation is the only thing that does. Where a claim has rulings resting on it, **that is the moment the answer stops being worth reasoning about and starts being worth measuring.**
+
+  It is the same instinct as **verify against the database, never against reports**, moved from data to belief: the argument is the report, and the spike is the database.
+
 - **When a failure message cannot distinguish its causes, build the diagnostic. Do not guess better.** A message that reads the same for several different problems is not evidence, and reasoning harder about which one it means produces confident wrong answers at speed. The fix is a probe that separates the cases and reports which one it is.
 
   Cloudflare returns `10000: Authentication error` identically for an invalid token, a token unscoped to the zone, and a token scoped to the zone but not the endpoint. Those are three different fixes and one of them is not a permission at all. Guessing cost two wrong permissions and forty minutes. Adding one probe, `user/tokens/verify` plus a zone read on any refusal, turned it into a finding in a single run: token valid, zone visible, rulesets refused.
