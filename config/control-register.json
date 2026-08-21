@@ -935,6 +935,21 @@
         "note": "RESTORES THE EXACT CODE THAT SHIPPED, which is the strongest available mutation: not a plausible invention but the real one. toJSON emits errorCode and this reads error_code, so the property is always undefined and the classifier can never say gone. IT TYPE-CHECKS, because a cast asserts a shape the compiler then stops verifying, which is why review passed it. Nothing errors at runtime either: every refusal simply reads as caution."
       },
       "distinction": "THE FIRST ASSERTION IS THE ONE THAT WAS MISSING, and its absence is the whole story. Every negative case here would pass against a classifier hard-wired to \"unknown\", which is precisely what shipped: a function whose refusals all look deliberate. A gate that can only refuse is indistinguishable from a careful gate until something needs it to permit. The consequences were two branches that could never be reached: the disconnect's repair path and the purge's permission to delete. FOUND BECAUSE THE INTERPRETATION TRAVELS WITH ITS EVIDENCE: the reply said liveness unknown while the detail beside it said ITEM_NOT_FOUND, and the contradiction was visible without reading the source."
+    },
+    {
+      "id": "balance-capture-is-per-day",
+      "control": "the balance capture test (packages/schema/test/db/balance-capture.test.ts)",
+      "guards": "Two balance writes on one day converge on the later figure in one snapshot rather than accumulating a row per sync.",
+      "test": "packages/schema/test/db/balance-capture.test.ts",
+      "name": "converges on the later figure within a day rather than accumulating",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/apply-balances.ts",
+        "find": "      on conflict (account_id, date) do update",
+        "replace": "      on conflict (account_id, date) do nothing",
+        "note": "KEEPS THE FIRST FIGURE INSTEAD OF THE LAST, which is the plausible wrong version rather than an obvious break: DO NOTHING reads as idempotent and safe, it still writes exactly one row per day so the count assertion passes, and only the VALUE is wrong. A projection reading the series would then see the balance at whatever moment the day's first sync happened to run rather than the closing figure."
+      },
+      "distinction": "THE PER-DAY CADENCE IS A RULING, NOT AN IMPLEMENTATION DETAIL, which is why it has a control. account_balance_snapshots is keyed by date and the projection reads a SERIES, so a row per sync would make that series depend on how often we happened to sync: a property of us rather than of the household's money. The fixture writes twice within a single day with DISTINCT figures, so accumulating leaves two rows and keeping the first leaves 500.25, and neither can be confused with the correct outcome."
     }
   ]
 }

@@ -13,6 +13,7 @@
 // on, and nothing about it is exceptional.
 
 import { callPlaid, PlaidError, type PlaidCredentials } from "./plaid-client.js";
+import type { PlaidAccountBalances } from "./apply-balances.js";
 import type { PlaidTransaction } from "./apply-streams.js";
 
 export const MUTATION_DURING_PAGINATION = "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION";
@@ -26,6 +27,12 @@ export interface SyncPage {
   removed: { transaction_id: string }[];
   next_cursor: string;
   has_more: boolean;
+  /** THE BALANCES, WHICH THIS TYPE USED TO OMIT. Plaid returns accounts with
+   *  every page. callPlaid returns the whole parsed body cast to this type, and
+   *  a cast is not a filter, so the field was present at runtime the entire
+   *  time and nothing read it: balances were frozen at connection for as long
+   *  as the pipeline existed. Declaring it is the whole of the fix. */
+  accounts?: PlaidAccountBalances[];
 }
 
 export interface Cursors {
