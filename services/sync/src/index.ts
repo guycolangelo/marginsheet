@@ -13,6 +13,7 @@
 // Presence is the empty-string incident with a better disguise.
 
 import { readSyncSchemaHealth } from "@marginsheet/shared/db";
+import { itemStatus } from "./item-status.js";
 import { readoutForHousehold } from "./ledger-readout.js";
 import { readLedger, type Sql as ReadoutSql } from "./ledger-readout-sql.js";
 import { encryptToken, decryptToken } from "./token-crypto.js";
@@ -245,6 +246,32 @@ export default {
     // api, which can read the tables; this route exists ONLY to obtain a number
     // that did not come from us, because a readout assembled from our tables
     // agrees with itself whatever went wrong.
+    // POST /internal/item-status: is this Item still live at Plaid?
+    //
+    // Asked before api deletes anything of ours. It lives here because the
+    // access token does; api never holds one.
+    if (url.pathname === "/internal/item-status" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const body = (await request.json().catch(() => ({}))) as { householdId?: string; itemId?: string };
+      if (!body.householdId || !body.itemId) {
+        return Response.json({ error: "householdId and itemId are required" }, { status: 400 });
+      }
+      return Response.json(
+        await itemStatus(
+          body.householdId,
+          body.itemId,
+          { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+          env.TOKEN_ENCRYPTION_KEY,
+          env.NEON_DATABASE_URL
+        )
+      );
+    }
+
     // POST /internal/ledger-readout: our tables beside Plaid's own count.
     //
     // IT RUNS HERE BECAUSE THE TABLES DO. api threw "permission denied for

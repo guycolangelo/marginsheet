@@ -97,6 +97,7 @@ const handler = {
       url.pathname === "/plaid/sync" ||
       url.pathname === "/plaid/accounts" ||
       url.pathname === "/plaid/ledger-readout" ||
+      url.pathname === "/plaid/purge-item" ||
       url.pathname === "/plaid/oauth-return" ||
       url.pathname === "/connect"
     ) {
@@ -224,6 +225,125 @@ const handler = {
             status: response.status,
             headers: { "content-type": "application/json" },
           });
+        }
+
+        if (url.pathname === "/plaid/purge-item" && request.method === "POST") {
+          // REMOVES OUR ROWS FOR ONE ITEM, so a relink does not duplicate the
+          // ledger (4.5b prime, throwaway with the rest of this surface).
+          //
+          // WHY IT IS NEEDED AT ALL. Plaid ids are ITEM-SCOPED: a relink issues
+          // new plaid_account_ids and new plaid_transaction_ids for the same
+          // real accounts and the same real transactions. Every uniqueness
+          // constraint we hold is keyed on those ids, so none of them collides
+          // and the overlapping history imports a second time. Kept and Margin
+          // would then be wrong by the value of the overlap.
+          //
+          // IT RUNS AS marginsheet_app, which already holds DELETE on all four
+          // tables. marginsheet_sync holds DELETE on none of them, so nothing
+          // is granted for this and the sync role's boundary is untouched. The
+          // Plaid question is asked over the binding because the token lives
+          // there.
+          //
+          // DRY RUN UNLESS TOLD OTHERWISE. A delete route that acts on the
+          // first click is the wrong shape for a surface someone is using at
+          // midnight (Guy, 20 Aug 2026): it reports what it WOULD remove, and
+          // only a second call carrying confirm actually removes it.
+          const body = (await request.json().catch(() => ({}))) as { itemId?: string; confirm?: boolean };
+          if (!body.itemId) return Response.json({ error: "itemId is required" }, { status: 400 });
+
+          // The Plaid status travels with the counts even on a dry run, so the
+          // reader sees both halves before deciding.
+          let status: { liveness?: string; detail?: unknown } = { liveness: "unknown", detail: { error: "no SYNC service binding" } };
+          if (env.SYNC) {
+            const response = await env.SYNC.fetch(
+              new Request("https://sync.internal/internal/item-status", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ householdId, itemId: body.itemId }),
+              })
+            );
+            status = (await response.json().catch(() => ({ liveness: "unknown", detail: { error: `sync returned ${response.status}` } }))) as typeof status;
+          }
+
+          const counts = await sql.begin(async (tx) => {
+            await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+            const [row] = await tx<
+              { item: number; accounts: number; transactions: number; snapshots: number }[]
+            >`
+              with it as (
+                select id from plaid_items
+                 where item_id = ${body.itemId!} and household_id = ${householdId}
+              ), acc as (
+                select fa.id from financial_accounts fa join it on fa.plaid_item_id = it.id
+                 where fa.household_id = ${householdId}
+              )
+              select (select count(*)::int from it) as item,
+                     (select count(*)::int from acc) as accounts,
+                     (select count(*)::int from transactions t
+                       where t.household_id = ${householdId} and t.account_id in (select id from acc)) as transactions,
+                     (select count(*)::int from account_balance_snapshots s
+                       where s.household_id = ${householdId} and s.account_id in (select id from acc)) as snapshots
+            `;
+            return row;
+          });
+
+          if (!counts.item) return Response.json({ error: "no such item for this household" }, { status: 404 });
+
+          if (!body.confirm) {
+            return Response.json({
+              dryRun: true,
+              itemId: body.itemId,
+              plaid: status,
+              wouldDelete: counts,
+              note: "call again with confirm true to delete. Refused unless Plaid reports the Item gone.",
+            });
+          }
+
+          // FAILS CLOSED. Only positive evidence that the Item is gone permits
+          // the delete: deleting our rows for a LIVE Item would leave the
+          // household connected at Plaid, billed, and invisible to us, which is
+          // worse than the duplicate this prevents because it is silent.
+          if (status.liveness !== "gone") {
+            return Response.json(
+              {
+                error: "refused: Plaid does not report this Item as gone",
+                plaid: status,
+                wouldDelete: counts,
+                remedy: "run /item/remove at Plaid first, then call this again",
+              },
+              { status: 409 }
+            );
+          }
+
+          // ONE TRANSACTION, ordered transactions then snapshots then accounts
+          // then the item. financial_accounts references plaid_items ON DELETE
+          // RESTRICT, so a wrong order refuses rather than half-applying, and
+          // the transaction means a failure anywhere leaves everything.
+          //
+          // RETURNS WHAT HAPPENED, NOT WHAT WAS ASKED FOR: every count below is
+          // rows actually deleted, read back from the statement.
+          const deleted = await sql.begin(async (tx) => {
+            await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+            const accounts = await tx<{ id: string }[]>`
+              select fa.id from financial_accounts fa
+                join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
+               where pi.item_id = ${body.itemId!} and fa.household_id = ${householdId}
+            `;
+            const ids = accounts.map((a) => a.id);
+            const t = ids.length
+              ? await tx`delete from transactions where household_id = ${householdId} and account_id = any(${ids}::uuid[]) returning id`
+              : [];
+            const s = ids.length
+              ? await tx`delete from account_balance_snapshots where household_id = ${householdId} and account_id = any(${ids}::uuid[]) returning id`
+              : [];
+            const a = ids.length
+              ? await tx`delete from financial_accounts where household_id = ${householdId} and id = any(${ids}::uuid[]) returning id`
+              : [];
+            const i = await tx`delete from plaid_items where household_id = ${householdId} and item_id = ${body.itemId!} returning id`;
+            return { transactions: t.length, snapshots: s.length, accounts: a.length, item: i.length };
+          });
+
+          return Response.json({ deleted, itemId: body.itemId, plaid: status });
         }
 
         return new Response("not found", { status: 404 });

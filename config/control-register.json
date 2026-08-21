@@ -874,6 +874,21 @@
         "note": "SETS THE DEFAULT EXPLICITLY, which is the plausible wrong value rather than an obvious break: 90 is what Plaid uses when the field is absent, it is a number somebody could reasonably type while copying an example, and nothing about the resulting Item reports a problem. Removing the line entirely would also redden the test, and this is the better mutation because a wrong VALUE survives review more easily than a missing key."
       },
       "distinction": "THE COST OF THIS FIELD BEING WRONG IS NOT A SMALLER BACKFILL, IT IS A RE-CONSENT. Plaid's reference says the value cannot be updated once Transactions has been added to an Item, so repairing it means /item/remove and a new Item, which every affected household has to walk through Link again. The field was absent from this repository until 20 Aug 2026 and the resulting 90 day window was very nearly written up as an institution limit; SoFi's Item was confirmed from OUTSIDE our pipeline, with /transactions/get asked for 24 months returning 202. Direction 2 asserts reconnect.ts still contains a link token request at all, because a file that stopped creating one would satisfy a regex looking only for the field's absence."
+    },
+    {
+      "id": "purge-refuses-a-live-item",
+      "control": "the purge liveness gate (services/api/test/purge-refuses-a-live-item.test.ts)",
+      "guards": "The Item purge deletes only on positive evidence that Plaid no longer holds the Item, so an unknown answer refuses rather than proceeds.",
+      "test": "services/api/test/purge-refuses-a-live-item.test.ts",
+      "name": "gates the delete on liveness being gone, not on it not being live",
+      "planted": {
+        "kind": "source",
+        "file": "services/api/src/index.ts",
+        "find": "          if (status.liveness !== \"gone\") {",
+        "replace": "          if (status.liveness === \"live\") {",
+        "note": "FLIPS THE GATE FROM POSITIVE EVIDENCE TO ABSENCE OF CONTRARY EVIDENCE, which is the mistake somebody would actually make: it reads as the same rule, it refuses the case everyone pictures, and it PERMITS every case where Plaid could not be asked. A network failure, a rate limit, an unrecognised error code and a missing token all produce unknown, and under this mutation all four delete the household's rows for an Item that may still be live at Plaid. Nothing about the code looks wrong."
+      },
+      "distinction": "THE FAILURE THIS GUARDS IS SILENT AND THE ONE IT PREVENTS IS NOT. A duplicate ledger after a relink is visible: Kept and Margin move by the value of the overlap. Deleting rows for a LIVE Item leaves a household connected at Plaid, billed monthly, with no row, no sync and no way to find it except by reading Plaid's dashboard. So the gate is deliberately asymmetric: refusing a purge that should have proceeded costs one manual retry, and permitting one that should not costs an invisible connection. The third assertion checks the GONE set itself, because widening that list would undo the gate without touching the gate's own line."
     }
   ]
 }
