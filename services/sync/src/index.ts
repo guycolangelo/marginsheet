@@ -42,6 +42,7 @@ export interface Env {
   PLAID_SECRET?: string;
   PLAID_BASE_URL?: string;
   PLAID_REDIRECT_URI?: string;
+  PLAID_WEBHOOK_URL?: string;
   HOUSEHOLD_SYNC?: DurableObjectNamespace;
 }
 
@@ -562,6 +563,15 @@ export default {
         // missing configuration loud instead of latent.
         return Response.json({ error: "PLAID_REDIRECT_URI is not configured" }, { status: 503 });
       }
+      if (!env.PLAID_WEBHOOK_URL) {
+        // REQUIRED FOR THE SAME REASON AND WITH A WORSE FAILURE. An Item created
+        // without a webhook receives NOTHING from Plaid: no
+        // SYNC_UPDATES_AVAILABLE, no completion signal, no reauth notice. It
+        // syncs only when a person clicks, forever, and every check agrees with
+        // the stale ledger. Two of three production Items were in that state on
+        // 21 Aug 2026 because this key was absent from the link token.
+        return Response.json({ error: "PLAID_WEBHOOK_URL is not configured" }, { status: 503 });
+      }
       const { householdId } = (await request.json().catch(() => ({}))) as { householdId?: string };
       if (!householdId) {
         return Response.json({ error: "householdId is required" }, { status: 400 });
@@ -570,7 +580,8 @@ export default {
         const token = await createLinkToken(
           householdId,
           { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
-          env.PLAID_REDIRECT_URI
+          env.PLAID_REDIRECT_URI,
+          env.PLAID_WEBHOOK_URL
         );
         return Response.json(token);
       } catch (error) {

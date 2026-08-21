@@ -47,3 +47,53 @@ describe("the link token requests two years of history", () => {
     ).toBe(730);
   });
 });
+
+// AND IT REGISTERS A WEBHOOK, WHICH IS THE SAME OMISSION CLASS AND WORSE.
+//
+// Found 21 Aug 2026 by asking why Amex sent no backfill-completion signal. Two
+// candidates: Plaid does not send one for that institution, or we never gave it
+// anywhere to send. THE READOUT SEPARATED THEM. One Item had completion flags,
+// SoFi, whose webhook had been set BY HAND through /plaid/set-webhook. Chase and
+// Amex had none.
+//
+// AN ITEM WITHOUT A WEBHOOK RECEIVES NOTHING. Not just no completion signal: no
+// SYNC_UPDATES_AVAILABLE, no reauth notice, nothing. It syncs when a person
+// clicks and at no other time, and the ledger goes stale silently between
+// clicks while every check agrees with it. That is a worse failure than 90 days
+// of history, because it has no end state.
+//
+// IT LOOKED LIKE AN INSTITUTION DIFFERENCE AND IT WAS A FIELD WE NEVER SENT,
+// which is days_requested one file up, five days later, in the same function.
+// The tell both times was SEVERAL INSTITUTIONS AGREEING, and CLAUDE.md already
+// records that agreement is evidence about US whenever one of our parameters
+// reached all of them.
+describe("the link token registers a webhook", () => {
+  it("names webhook at all", () => {
+    expect(
+      SRC,
+      "the link token has no webhook key, so every Item created through it receives nothing from Plaid and syncs only when somebody clicks"
+    ).toMatch(/webhook:/);
+  });
+
+  it("passes the configured URL rather than a literal", () => {
+    // A hardcoded URL would work in production and point production's Items at
+    // production while dev's Items also point at production, which is the
+    // failure that is invisible until a dev webhook mutates real data.
+    const m = SRC.match(/webhook:\s*([A-Za-z_][\w.]*)/);
+    expect(m, "webhook is not passed a variable").not.toBeNull();
+    expect(
+      m?.[1],
+      "webhook is set from something other than the function's webhookUrl parameter"
+    ).toBe("webhookUrl");
+  });
+
+  it("takes the URL as a required parameter, so a caller cannot omit it", () => {
+    // The type carries the obligation. An optional parameter would let a caller
+    // forget, which is precisely how this arrived: set-webhook existed, worked,
+    // and was a manual route nobody was required to call.
+    expect(SRC, "webhookUrl is optional, so a caller can omit it silently").toMatch(
+      /webhookUrl:\s*string(?!\s*\|)/
+    );
+    expect(SRC).not.toMatch(/webhookUrl\?:/);
+  });
+});

@@ -113,6 +113,7 @@
     "ENVIRONMENT": "dev",
     "PLAID_BASE_URL": "https://sandbox.plaid.com",
     "PLAID_REDIRECT_URI": "https://api.marginsheet.com/plaid/oauth-return",
+    "PLAID_WEBHOOK_URL": "https://api.marginsheet.com/plaid/webhook",
     "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
   },
   "env": {
@@ -129,6 +130,7 @@
         "ENVIRONMENT": "staging",
         "PLAID_BASE_URL": "https://sandbox.plaid.com",
         "PLAID_REDIRECT_URI": "https://api.marginsheet.com/plaid/oauth-return",
+        "PLAID_WEBHOOK_URL": "https://api.marginsheet.com/plaid/webhook",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
       }
     },
@@ -163,6 +165,7 @@
         "ENVIRONMENT": "production",
         "PLAID_BASE_URL": "https://production.plaid.com",
         "PLAID_REDIRECT_URI": "https://api.marginsheet.com/plaid/oauth-return",
+        "PLAID_WEBHOOK_URL": "https://api.marginsheet.com/plaid/webhook",
         "SENTRY_DSN": "https://30ce4a490e0cad1da24789eee4c5471a@o4511912456617984.ingest.us.sentry.io/4511912470315008"
       }
     }
