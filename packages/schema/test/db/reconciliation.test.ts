@@ -28,10 +28,13 @@ const OTHER_CARD = "01998888-3006-7000-8000-00000000d1f7";
 const BANK = "01998888-3002-7000-8000-00000000d1f7";
 const CARD = "01998888-3003-7000-8000-00000000d1f7";
 
-async function run(itemRowId: string = ITEM) {
+/** `refreshed` defaults to both fixture accounts, because most tests here are
+ *  about the arithmetic and want the account to be judged. The tests that are
+ *  about NOT judging pass it explicitly. */
+async function run(itemRowId: string = ITEM, refreshed: string[] = [BANK, CARD]) {
   return sql.begin(async (tx) => {
     await tx`select set_config('marginsheet.household_id', ${HOUSEHOLD}, true)`;
-    return reconcileBalances(tx as never, HOUSEHOLD, itemRowId);
+    return reconcileBalances(tx as never, HOUSEHOLD, itemRowId, refreshed);
   }) as never as Promise<Awaited<ReturnType<typeof reconcileBalances>>>;
 }
 
@@ -111,8 +114,64 @@ describe("reconcileBalances is scoped to one Item", () => {
   it("still judges that account when ITS OWN Item syncs", async () => {
     // The scoping must not make an account unreachable. A needs_reauth Item
     // syncing is exactly when its accounts should be looked at.
-    const r = await run(OTHER_ITEM);
+    const r = await run(OTHER_ITEM, [OTHER_CARD]);
     expect(r.accounts.map((a) => a.accountId)).toEqual([OTHER_CARD]);
+  });
+});
+
+describe("an account Plaid did not return is not reconciled at all", () => {
+  afterAll(async () => {
+    await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+  });
+
+  it("WRITES NO ROW for an unrefreshed account, rather than a row saying zero", async () => {
+    // THE ASSERTION GUY SPECIFIED, AND THE DISTINCTION IS THE WHOLE POINT.
+    // /transactions/sync returns only accounts with transactions on a page, so
+    // a quiet account is never refreshed and its balance is from an earlier
+    // moment. A zero written for it is a PASSING OBSERVATION, and the window
+    // confirms across three CONSECUTIVE non-zero differences, so one zero
+    // breaks a real run. Asserting the row says zero would pass against the
+    // defect; asserting no row exists is the only thing that catches it.
+    await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+    const r = await run(ITEM, [CARD]);   // BANK was not refreshed
+
+    const [c] = await sql<{ n: number }[]>`
+      select count(*)::int as n from balance_reconciliations where account_id = ${BANK}`;
+    expect(c.n, "an unrefreshed account collected an observation").toBe(0);
+
+    const [d] = await sql<{ n: number }[]>`
+      select count(*)::int as n from balance_reconciliations where account_id = ${CARD}`;
+    expect(d.n, "the refreshed account should still be judged").toBe(1);
+  });
+
+  it("observationsWritten equals the rows that actually exist", async () => {
+    // A COUNTER THAT NAMES ITS OWN POPULATION, checked against the table rather
+    // than asserted. The reading this whole task began with compared
+    // balanceWritesIssued to reconciliation rows, which is a count and a
+    // population it was never counting. This one counts exactly what it says,
+    // and the test is what stops it becoming decorative.
+    await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+    const r = await run(ITEM, [BANK, CARD]);
+    const [c] = await sql<{ n: number }[]>`
+      select count(*)::int as n from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+    expect(r.observationsWritten).toBe(c.n);
+    expect(r.observationsWritten, "both fixture accounts were refreshed and reconcilable").toBe(2);
+  });
+
+  it("counts NO observation for an unrefreshed account", async () => {
+    await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+    const r = await run(ITEM, [CARD]);
+    expect(r.observationsWritten).toBe(1);
+  });
+
+  it("REPORTS it with a reason, so silence and a clean verdict do not look alike", async () => {
+    const r = await run(ITEM, [CARD]);
+    const bank = r.accounts.find((a) => a.accountId === BANK)!;
+    expect(bank, "the unrefreshed account vanished from the outcome entirely").toBeDefined();
+    expect(bank.comparable).toBe(false);
+    expect(bank.difference).toBeNull();
+    expect(bank.note).toMatch(/not refreshed on this sync/);
+    expect(r.driftingAccounts).not.toContain(BANK);
   });
 });
 
