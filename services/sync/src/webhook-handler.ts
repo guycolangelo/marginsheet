@@ -107,18 +107,39 @@ export async function handlePlaidWebhook(
     });
     const firstTime = inserted;
 
+    // processed_at MEANS "THE RECEIVER FINISHED WITH THIS EVENT", NOT "A SYNC
+    // RAN", and the difference was nearly a false alarm.
+    //
+    // The first version set it only after a successful dispatch. Most webhook
+    // codes do not ask for a sync, so every one of them would have sat with
+    // processed_at null forever, and the acceptance criterion for this whole
+    // task, WEBHOOK_UPDATE_ACKNOWLEDGED, is one of them: it would have appeared
+    // in the readout looking exactly like the failure the field exists to show.
+    //
+    // A FIELD WHOSE NORMAL CASE LOOKS LIKE ITS FAILURE CASE IS NOT A SIGNAL.
+    // It now marks completion on every path the handler reaches deliberately,
+    // and stays null only when the handler did not finish: a crash, a throw, a
+    // dispatch that failed. That is the state worth stopping for.
+    const finish = async (note: string, dispatched: unknown = null): Promise<WebhookResult> => {
+      if (eventRowId) {
+        await sql.begin(async (tx) => {
+          if (item) await tx`select set_config('marginsheet.household_id', ${item.household_id}, true)`;
+          await tx`update provider_events set processed_at = now(), updated_at = now() where id = ${eventRowId}`;
+        });
+      }
+      return { webhookType, webhookCode, itemId, firstTime, dispatched, note };
+    };
+
     if (!firstTime) {
+      // Not marked: the row belongs to the first delivery, which marked itself.
+      // Marking here would overwrite that timestamp with a retry's.
       return { webhookType, webhookCode, itemId, firstTime: false, dispatched: null, note: "already recorded, so no sync was dispatched" };
     }
-    if (!item) {
-      return { webhookType, webhookCode, itemId, firstTime, dispatched: null, note: "no Item of ours matches this item_id" };
-    }
+    if (!item) return finish("no Item of ours matches this item_id");
     if (!webhookCode || !SYNC_CODES.has(webhookCode)) {
-      return { webhookType, webhookCode, itemId, firstTime, dispatched: null, note: "recorded; this code does not ask for a sync" };
+      return finish("recorded and handled; this code does not ask for a sync");
     }
-    if (!lock) {
-      return { webhookType, webhookCode, itemId, firstTime, dispatched: null, note: "recorded; no HOUSEHOLD_SYNC binding to dispatch through" };
-    }
+    if (!lock) return finish("recorded; no HOUSEHOLD_SYNC binding to dispatch through");
 
     // THROUGH THE LOCK, NEVER AROUND IT. Two webhooks for one household meet
     // here and the second waits.
@@ -132,16 +153,7 @@ export async function handlePlaidWebhook(
     );
     const dispatched = await response.json().catch(() => ({ error: `the lock returned ${response.status}` }));
 
-    // KEYED ON OUR OWN ID, NOT ON THE PROVIDER-DERIVED ONE. event_id is a hash
-    // of Plaid's payload, so it lives in a namespace we do not own; the row's
-    // own uuid cannot collide across households, so the key IS the scope. The
-    // GUC is set again because this is a separate transaction and the setting
-    // is local to the one that declared it.
-    await sql.begin(async (tx) => {
-      await tx`select set_config('marginsheet.household_id', ${item.household_id}, true)`;
-      await tx`update provider_events set processed_at = now(), updated_at = now() where id = ${eventRowId}`;
-    });
-    return { webhookType, webhookCode, itemId, firstTime, dispatched };
+    return finish("dispatched through the household lock", dispatched);
   } finally {
     await sql.end();
   }

@@ -317,6 +317,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The general form, and it is the same instinct as **verify against the database, never against reports**: prefer the query that returns the rows over the query that returns a count, whenever you might need to ask a second question about the answer.
 
+- **A FIELD WHOSE NORMAL CASE LOOKS LIKE ITS FAILURE CASE IS NOT A SIGNAL.** 21 Aug 2026, caught in the pre-commitment rather than at 3am.
+
+  `provider_events.processed_at` was set only after a successful sync dispatch. **Most webhook codes do not ask for a sync**, so every one of them would have sat with `processed_at` null forever, indistinguishable from an event that was recorded and never handled.
+
+  **The acceptance criterion for the whole task was one of them.** `WEBHOOK_UPDATE_ACKNOWLEDGED` asks for no sync, so the single event chosen to prove the receiver worked would have appeared in the readout **wearing the exact shape of the failure the field exists to show** — and the stated response to that shape was *stop and diagnose*.
+
+  **It was caught because the reading was pre-committed.** Writing down what each outcome would mean, before the data arrived, put the criterion and the field's behaviour beside each other for the first time. Neither was wrong alone. **The pre-commitment is what made the pair visible**, which is the same reason it exists for every other reading in this file: it forces the question of what you will actually see.
+
+  `processed_at` now means **the receiver finished with this event**, marked on every path the handler reaches deliberately, and null only when it did not finish. **The rule generalises past this field: if the ordinary case and the broken case render identically, the field is decoration, and a reader who trusts it will act on noise.**
+
 - **A ZERO IS A CLAIM AND AN ABSENCE IS NOT.** (Guy, 21 Aug 2026.) The rendering half of the empty-result class, and it points the opposite way from the instinct.
 
   Plaid reports `0.00` for two investment accounts that hold real money. Whatever the cause, **we do not hold a trustworthy investment balance**, and the question is what a surface should then show. **Showing the zero is worse than showing nothing**, because a household reading `$0.00` has been told something, and a household seeing the account without a figure has been told nothing and knows it.
