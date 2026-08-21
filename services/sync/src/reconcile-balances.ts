@@ -108,6 +108,20 @@ export interface AccountReconciliation {
 export interface ReconciliationOutcome {
   accounts: AccountReconciliation[];
   driftingAccounts: string[];
+  /** ROWS ACTUALLY WRITTEN to balance_reconciliations, named because nothing
+   *  named it before and a reading was built on that absence.
+   *
+   *  IT IS NOT EQUAL TO accountsRefreshed AND THE DIFFERENCE IS EXACT: this is
+   *  the refreshed accounts MINUS the investment ones, which are refreshed and
+   *  deliberately never reconciled because Plaid reports 0.00 for them while
+   *  they hold real money. Any other gap between the two numbers is a defect.
+   *
+   *  WHY IT DID NOT EXIST BEFORE. balanceWritesIssued counts
+   *  account_balance_snapshots upserts and reconciliation rows live in
+   *  balance_reconciliations, so reading one against the other compared a count
+   *  to a population it was never counting. Naming this makes the comparison
+   *  possible instead of tempting. */
+  observationsWritten: number;
 }
 
 /** Reconciles the accounts OF ONE ITEM and records one row each.
@@ -154,8 +168,25 @@ export async function reconcileBalances(
   householdId: string,
   /** OUR row id for the Item, not Plaid's item_id. The caller already holds it:
    *  runSyncForItem takes it as a parameter and passed only the household. */
-  itemRowId: string
+  itemRowId: string,
+  /** The accounts applyBalances actually refreshed on this sync, accumulated
+   *  across pages.
+   *
+   *  SCOPING TO THE ITEM WAS NOT ENOUGH, AND THE REASON IS THE ONE THAT MADE
+   *  HOUSEHOLD SCOPE WRONG. /transactions/sync returns ONLY ACCOUNTS THAT HAVE
+   *  TRANSACTIONS on a page, so a quiet account on a syncing Item is never
+   *  refreshed and its balance is from some earlier moment. Reconciling it
+   *  compares that stale figure against no new transactions, produces a zero,
+   *  and writes a passing observation into the window.
+   *
+   *  IT IS NOT A RARE EDGE IN THIS HOUSEHOLD, IT IS MOST OF IT. Chase 7956 last
+   *  saw a transaction in October 2025. Xmas Gifts and both investment accounts
+   *  hold zero rows. Vacation holds one. Most of the eighteen accounts are quiet
+   *  most of the time, so the drift criterion was being fed almost entirely by
+   *  observations of accounts nobody looked at. */
+  refreshedAccountIds: readonly string[]
 ): Promise<ReconciliationOutcome> {
+  const refreshed = new Set(refreshedAccountIds);
   const accounts = (await tx`
     select fa.id, fa.type, fa.current_balance::text as current_balance
       from financial_accounts fa
@@ -166,8 +197,24 @@ export async function reconcileBalances(
   `) as { id: string; type: string | null; current_balance: string | null }[];
 
   const out: AccountReconciliation[] = [];
+  let written = 0;
 
   for (const row of accounts) {
+    // NOT REFRESHED MEANS NOT RECONCILED, AND NO ROW AT ALL. Not a row saying
+    // zero: a zero is a passing observation and the window confirms across
+    // three CONSECUTIVE non-zero differences, so one breaks a real run.
+    //
+    // IT IS STILL REPORTED, with a note saying why, because silence and a clean
+    // verdict must not look the same. That is the same treatment investment
+    // accounts already get and the same failure species this module keeps
+    // meeting: an absence that renders identically to an answer.
+    if (!refreshed.has(row.id)) {
+      out.push({ accountId: row.id, type: row.type, reported: null, expected: null, difference: null,
+        comparable: false, drift: false,
+        note: "not reconciled: this account's balance was not refreshed on this sync, so there is nothing new to compare. Plaid returns only accounts that have transactions on a page." });
+      continue;
+    }
+
     const account: BalanceBearingAccount = { type: row.type, currentBalance: row.current_balance };
     const reported = forReconciliation(account);
 
@@ -186,7 +233,7 @@ export async function reconcileBalances(
       out.push({ accountId: row.id, type: row.type, reported: null, expected: null, difference: null,
         comparable: false, drift: false,
         note: "no reported balance to compare, so this observation is not comparable" });
-      await record(tx, householdId, row.id, null, null, null, false);
+      await record(tx, householdId, row.id, null, null, null, false); written += 1;
       continue;
     }
 
@@ -206,7 +253,7 @@ export async function reconcileBalances(
       out.push({ accountId: row.id, type: row.type, reported, expected: null, difference: null,
         comparable: false, drift: false,
         note: "first observation for this account: nothing to compute a change from" });
-      await record(tx, householdId, row.id, reported, null, null, false);
+      await record(tx, householdId, row.id, reported, null, null, false); written += 1;
       continue;
     }
 
@@ -230,12 +277,12 @@ export async function reconcileBalances(
     if (expected === null) {
       out.push({ accountId: row.id, type: row.type, reported, expected: null, difference: null,
         comparable: false, drift: false, note: "no expected balance for this account type" });
-      await record(tx, householdId, row.id, reported, null, null, false);
+      await record(tx, householdId, row.id, reported, null, null, false); written += 1;
       continue;
     }
 
     const difference = round(reported - expected);
-    await record(tx, householdId, row.id, reported, expected, difference, true);
+    await record(tx, householdId, row.id, reported, expected, difference, true); written += 1;
 
     const drift = difference === 0 ? false : await windowConfirms(tx, householdId, row.id);
     out.push({
@@ -249,7 +296,11 @@ export async function reconcileBalances(
     });
   }
 
-  return { accounts: out, driftingAccounts: out.filter((a) => a.drift).map((a) => a.accountId) };
+  return {
+    accounts: out,
+    driftingAccounts: out.filter((a) => a.drift).map((a) => a.accountId),
+    observationsWritten: written,
+  };
 }
 
 /** Does the window confirm? Both halves required, and the span is why. */

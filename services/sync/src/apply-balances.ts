@@ -55,6 +55,9 @@ export interface BalanceResult {
    *  which is the case this needs to get right. */
   accounts: number;
   snapshots: number;
+  /** WHICH accounts, not how many. Reconciliation may only judge an account
+   *  whose balance was read on this sync, so it needs the set. */
+  accountIds: string[];
 }
 
 /** Writes current balances and today's snapshot for each account.
@@ -68,10 +71,15 @@ export async function applyBalances(
   householdId: string,
   accounts: PlaidAccountBalances[]
 ): Promise<BalanceResult> {
-  if (accounts.length === 0) return { accounts: 0, snapshots: 0 };
+  if (accounts.length === 0) return { accounts: 0, snapshots: 0, accountIds: [] };
 
   let updated = 0;
   let snapshots = 0;
+  // THE IDS, NOT JUST THE COUNT. The update already returns them and they were
+  // discarded. Reconciliation needs the SET rather than the size: an account
+  // whose balance was not read this sync has nothing to reconcile, and a count
+  // cannot say which ones those were.
+  const accountIds: string[] = [];
 
   for (const account of accounts) {
     const current = account.balances?.current ?? null;
@@ -89,6 +97,7 @@ export async function applyBalances(
       returning id
     `) as { id: string }[];
     updated += rows.length;
+    for (const r of rows) accountIds.push(r.id);
 
     // THE SNAPSHOT IS KEYED ON OUR ACCOUNT ID, so it can only be written for a
     // row the update above already found within this household. No account, no
@@ -107,5 +116,5 @@ export async function applyBalances(
     snapshots += written.length;
   }
 
-  return { accounts: updated, snapshots };
+  return { accounts: updated, snapshots, accountIds };
 }

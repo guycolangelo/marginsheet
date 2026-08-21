@@ -58,6 +58,11 @@ export interface RunResult {
    *  a different quantity than it carried. The behaviour was correct in every
    *  one of them; the name was the defect. */
   balanceWritesIssued: number;
+  /** DISTINCT accounts whose balance was read this sync. balanceWritesIssued
+   *  counts writes and this counts accounts, and they differ whenever an
+   *  account appears on more than one page. This is the set reconciliation
+   *  draws from, so a reader can check the two against each other. */
+  accountsRefreshed: number;
   snapshotUpsertsIssued: number;
   signalId: string | null;
 }
@@ -93,6 +98,11 @@ export async function runSyncForItem(
 
       let balanceWritesIssued = 0;
       let snapshotUpsertsIssued = 0;
+      // DISTINCT ACCOUNTS, WHICH IS A DIFFERENT NUMBER FROM THE WRITES ISSUED
+      // and is the set reconciliation is allowed to judge. applyBalances runs
+      // per page and Plaid resends balances on every page, so writes issued
+      // exceeds accounts refreshed whenever an account appears on more than one.
+      const refreshedAccountIds = new Set<string>();
 
       const accessToken = await decryptToken(item.access_token_ciphertext, encryptionKey);
 
@@ -123,6 +133,7 @@ export async function runSyncForItem(
           const balances = await applyBalances(tx as unknown as Tx, householdId, page.accounts ?? []);
           balanceWritesIssued += balances.accounts;
           snapshotUpsertsIssued += balances.snapshots;
+          for (const id of balances.accountIds) refreshedAccountIds.add(id);
           return { written, flagged };
         }
       );
@@ -134,7 +145,9 @@ export async function runSyncForItem(
       // THIS ITEM'S ACCOUNTS, not the household's. The balances just refreshed
       // belong to this Item, and an account whose balance was not read has no
       // new observation to make.
-      const reconciliation = await reconcileBalances(tx as unknown as Tx, householdId, itemRowId);
+      const reconciliation = await reconcileBalances(
+        tx as unknown as Tx, householdId, itemRowId, [...refreshedAccountIds]
+      );
 
       const firstSync = await markFirstSyncCompleted(tx as unknown as Tx, householdId);
 
@@ -182,6 +195,7 @@ export async function runSyncForItem(
         restarts: outcome.restarts,
         firstSync,
         balanceWritesIssued,
+        accountsRefreshed: refreshedAccountIds.size,
         reconciliation,
         snapshotUpsertsIssued,
         signalId,
