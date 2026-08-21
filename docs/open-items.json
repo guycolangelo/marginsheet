@@ -699,5 +699,14 @@
     "owed_to": "M5 filing and whatever owns insight surfacing. Raised 21 Aug 2026 while renumbering 0038.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
+  },
+  {
+    "id": "the-first-reconciliation-reading-is-pre-committed",
+    "item": "WHAT THE FIRST RECONCILIATION OUTPUT WILL MEAN, DECIDED BEFORE THE DATA ARRIVES (Guy, 21 Aug 2026). Webhooks are live on all three institutions, nine pending rows existed when this was written, and transactions.settled_at records the pending-to-posted transition, so the first settle and the first non-zero difference are plausibly the same event. THE HEALTHY CASE: settleCriterion reports discharged, and a non-zero difference appears on the same account IN ONE OBSERVATION AND IS ZERO ON THE NEXT. That is a settle moving the reported balance without moving the created_at sum, the baseline then absorbing it, and it requires no action: the acceptance criterion open since 17 Aug discharges and the reconciler is behaving as designed. THE CASE THE WINDOW EXISTS FOR: a non-zero difference that PERSISTS across intervals, meaning every interval brings a fresh disagreement rather than one event seen repeatedly. THAT IS NOT A SETTLE and the response is to stop and diagnose rather than to wait: candidates are transactions we never receive, a fee or interest the institution applies outside the transaction feed, a removed row mishandled, or a sign wrong for an account type. THE THIRD CASE, AND IT IS THE ONE THAT WOULD BE MISREAD: a non-zero difference on a CREDIT account that persists while depository accounts stay clean. That is the sign inversion, and it would look like an institution problem. Check expectedBalance before checking Plaid. WHY THIS IS WRITTEN DOWN NOW: a reading decided after the data exists is a reading the data helped choose, and the first alert will arrive unattended.",
+    "owner": "build, gated on Guy's approval of the plan",
+    "trigger": "the first non-zero difference in any readout, which is expected within days now that syncs run unattended",
+    "owed_to": "M4 4.6. Raised 21 Aug 2026 before the first reconciliation ran in production.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
   }
 ]
