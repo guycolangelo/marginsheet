@@ -1049,6 +1049,34 @@ That is the part that explains why it took a fifth encounter, and it is recorded
 
 **One scan defect worth keeping.** The first version excluded same-file references and flagged `plaidTotals`, which is called one function below where it is declared. **A helper used only inside its module is wired**, provided something calls into the module: the question is reachability, not cross-file citation.
 
+## A RULE IN A DOCUMENT IS A HOPE. A SUITE THAT REDDENS IS A CONTROL. (locked 21 August 2026)
+
+**The fixture-isolation rule was violated by its author within the hour**, three tests down the same file it was written into. Settle-note tests mutated a shared balance and broke a later test that expected the fixture it was given.
+
+**The rule did not prevent it. The suite did.**
+
+This file already says a control that has never been seen to fail is documentation. **The same is true of its own process guidance**, and that is the harder half to accept, because every entry here is written in the belief that writing it changes what happens next. **It changes what is noticed afterwards, which is not the same thing.**
+
+**So the rule earned its place by being broken by the person who wrote it**, and that is the strongest available argument for making a rule structural rather than written whenever it can be.
+
+**Where this one can be made structural, and where it cannot.** Cross-file contamination is cheaply checkable: every database test declares its own `HOUSEHOLD` constant, and asserting those are distinct across files is a static scan that would make cross-file interference impossible. **Within-file is the case that actually happened and it is not cheaply checkable.** Detecting it means either running each block in isolation and comparing, which doubles the suite, or shuffling order, which introduces nondeterminism into a repository whose rule about flaky tests is that they are worse than absent ones. **The mitigation is prevention rather than detection: a block that mutates fixture state owns the fixture it mutates.** Isolation beats restoration, because restoring a balance to a literal is one refactor from being wrong.
+
+**Not built. The cross-file half is worth its cost and the within-file half is not, and saying which is the point** rather than leaving "add a check" as an open aspiration.
+
+## BUILT AND NOT WIRED IS NOT THE SAME AS BUILT AHEAD (locked 21 August 2026)
+
+The orphan-export control's first version had one category and **that conflates two states which look identical to a scan and are opposite in meaning.**
+
+| | sync's seven | api's three |
+|---|---|---|
+| What | outbox, watchdog, reconnect completion | `mayReachMember`, the phone-verify pair |
+| Consumer exists? | **yes**: syncs run, signals are written, Items can need reauth | **no**: MyKeeper is M13, Twilio is deferred to M3 |
+| Verdict | **defect** | **correct** |
+
+**Both are "no production caller". Only one is wrong.** A gate built before the thing it gates exists is not unwired, it is early, and `channel-gate.ts` carries a static test that will bite the moment a send path checks the wrong thing.
+
+**So the allowlist needs two categories rather than one**, and the distinction is not cosmetic: an entry meaning *defect, owed* and an entry meaning *correct, waiting* send a reader to opposite actions, and a single list makes the second look like the first. **Owed, with the extension to api and conversation.**
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
