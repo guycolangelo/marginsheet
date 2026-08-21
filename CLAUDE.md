@@ -999,6 +999,20 @@ Filed with the omission rule, because the reader-side lesson is the smaller half
 
 **A stated inequality is worth more than an asserted equality.** The obvious move after adding the counter was to claim the sets had become the same. They have not: observations written is refreshed accounts **minus** the investment ones, deliberately excluded. **Naming the exact gap makes any other gap a defect**; claiming equality would have made the next discrepancy an argument.
 
+## WHICH BUILD IS RUNNING IS NOT A CREDENTIALLED QUESTION (recorded 21 August 2026)
+
+**Read the last successful production deploy's verify step.** It prints both Workers' SHAs, the environment, `database.ok`, the migration count, and that every declared secret is non-empty. No token, no probe, no rotation.
+
+```
+gh run view <deploy-run-id> --log | grep "ok: .*build="
+```
+
+**The probe token interrogates a Worker; it does not answer what version one is.** On 21 August a build SHA was carried as unknown for hours, a rotation was designed to make it readable, and it merged before anyone read the log that had been printing it on every deploy since the field existed. **The blocker was the search, not the access**, and the cost was two merged pull requests and a script that has nowhere to write.
+
+**The failure is symmetrical and both halves are on the record.** One party proposed the rotation; the other ruled it in, escalated it to blocking, sent it through a reorder and two merges, and quoted the 16 August incident to justify holding the SHA as unknown. **Neither asked where the value would land until the sink failed.** A plan that is agreed twice has been checked once.
+
+**And the detector it obscured is the point.** Both Workers are asserted against the expected SHA independently on every production deploy, so **a half-shipped production shows as two values or a failed step** - the exact 16 August shape, already caught, already reported, in a place nobody was reading. **Making a working detector legible is worth more than adding another one.**
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
