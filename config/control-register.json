@@ -919,6 +919,21 @@
         "note": "REMOVES THE ONLY DECLARATION FROM THE SYNC RUNNER, which is how disconnect.ts actually shipped: nobody writes a wrong GUC, the failure mode is that nobody writes one at all. The resulting code reads correctly and every statement still names the household in its own WHERE clause; the writes simply stop matching, because 0026's write policies read a SETTING rather than the statement. IT POINTS AT run-sync.ts RATHER THAN AT disconnect.ts, AND THAT IS THE CORRECTION. The first version removed one of TWO calls in disconnect.ts, leaving the other, so the file still contained a declaration and this file-level check stayed green: the harness reported broke-it yes, went-red NO, correctly. It had been verified locally against a strip of BOTH calls, which is a DIFFERENT MUTATION FROM THE ONE REGISTERED. A mutation is verified as written or it is not verified."
       },
       "distinction": "A SCAN THAT CHECKS THE FORM OF WHAT EXISTS CANNOT SEE WHAT IS ABSENT, and this is the second half of a control that had only the first. The receiver scan beside it reads every set_config call and requires a transaction handle, so a file with NO call contributes no rows and passes perfectly. disconnect.ts shipped with an UPDATE and no GUC, sat inside the scanned roots the entire time, and the scan was green. THE DISTINCTION IT DRAWS IS THE WHOLE RULE: a file that opens its own connection owes a GUC, and a helper that receives a tx does not, because the caller declared it. apply-streams.ts and outbox.ts write constantly and correctly set nothing. Direction 2 asserts more than two writing modules were found, because a regex that stopped matching would leave it filtering an empty list and passing."
+    },
+    {
+      "id": "liveness-can-say-gone",
+      "control": "the liveness classifier (services/sync/test/liveness-classification.test.ts)",
+      "guards": "A removed Item is classified as gone, so the disconnect's repair branch and the purge's gate can ever be reached.",
+      "test": "services/sync/test/liveness-classification.test.ts",
+      "name": "says gone for an Item Plaid no longer has",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/item-status.ts",
+        "find": "    return error.errorCode && GONE.has(error.errorCode) ? \"gone\" : \"unknown\";",
+        "replace": "    const shaped = error.toJSON() as { error_code?: string };\n    return shaped.error_code && GONE.has(shaped.error_code) ? \"gone\" : \"unknown\";",
+        "note": "RESTORES THE EXACT CODE THAT SHIPPED, which is the strongest available mutation: not a plausible invention but the real one. toJSON emits errorCode and this reads error_code, so the property is always undefined and the classifier can never say gone. IT TYPE-CHECKS, because a cast asserts a shape the compiler then stops verifying, which is why review passed it. Nothing errors at runtime either: every refusal simply reads as caution."
+      },
+      "distinction": "THE FIRST ASSERTION IS THE ONE THAT WAS MISSING, and its absence is the whole story. Every negative case here would pass against a classifier hard-wired to \"unknown\", which is precisely what shipped: a function whose refusals all look deliberate. A gate that can only refuse is indistinguishable from a careful gate until something needs it to permit. The consequences were two branches that could never be reached: the disconnect's repair path and the purge's permission to delete. FOUND BECAUSE THE INTERPRETATION TRAVELS WITH ITS EVIDENCE: the reply said liveness unknown while the detail beside it said ITEM_NOT_FOUND, and the contradiction was visible without reading the source."
     }
   ]
 }

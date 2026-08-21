@@ -34,6 +34,26 @@ export interface ItemStatus {
  *  positive evidence of absence; nothing else is treated as such. */
 const GONE = new Set(["ITEM_NOT_FOUND", "INVALID_ACCESS_TOKEN"]);
 
+/** Classifies a failed /item/get. PURE, so it can be tested without a database.
+ *
+ *  IT READS THE TYPED FIELD RATHER THAN A CAST OBJECT, and that is the fix
+ *  rather than the spelling. The first version did
+ *  `error.toJSON() as { error_code?: string }` and read `error_code`, while
+ *  toJSON emits `errorCode`. The property was always undefined, so this could
+ *  NEVER return "gone": the repair branch could not fire and the purge's gate
+ *  could not permit a purge. A CAST IS NOT A CHECK. It asserts a shape
+ *  TypeScript then stops verifying, which is the same lesson as a cast not
+ *  being a filter, one step further on.
+ *
+ *  Reading `error.errorCode` puts the obligation back in the type system, where
+ *  a wrong name fails to compile instead of failing at midnight. */
+export function livenessFromError(error: unknown): ItemLiveness {
+  if (error instanceof PlaidError) {
+    return error.errorCode && GONE.has(error.errorCode) ? "gone" : "unknown";
+  }
+  return "unknown";
+}
+
 export async function itemStatus(
   householdId: string,
   itemId: string,
@@ -64,13 +84,11 @@ export async function itemStatus(
       return { itemId, liveness: "live", detail: { item_id: body.item?.item_id } };
     } catch (error) {
       if (error instanceof PlaidError) {
-        const shaped = error.toJSON() as { error_code?: string };
-        const code = shaped?.error_code;
-        return {
-          itemId,
-          liveness: code && GONE.has(code) ? "gone" : "unknown",
-          detail: shaped,
-        };
+        // THE INTERPRETATION TRAVELS WITH ITS EVIDENCE, and that is what made
+        // the bug above findable in one look: the reply said "unknown" while
+        // the detail beside it said ITEM_NOT_FOUND, and a reader could see the
+        // contradiction without knowing anything about this file.
+        return { itemId, liveness: livenessFromError(error), detail: error.toJSON() };
       }
       const e = error as { message?: string };
       return { itemId, liveness: "unknown", detail: { message: e.message ?? "unknown" } };

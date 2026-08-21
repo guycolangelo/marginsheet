@@ -249,6 +249,26 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: `set role`, `set_config` at session scope, search_path, anything that outlives a statement gets restored in a `finally` that covers **every** statement executed under it, including the assertions.
 
+- **A CAST IS NOT A CHECK, AND A GATE THAT CAN ONLY REFUSE LOOKS EXACTLY LIKE A CAREFUL ONE.** 20 Aug 2026, and the two halves belong together because the first produced the second.
+
+  `item-status.ts` classified a failed `/item/get` by reading `error_code` off `error.toJSON() as { error_code?: string }`. **`toJSON` emits `errorCode`.** The property was always `undefined`, so the classifier **could never return "gone"** in any circumstance.
+
+  **Nothing failed. That is the point.** Every refusal read as caution: the disconnect's repair branch never fired, the purge's gate never permitted a delete, and both reported exactly what a correctly conservative gate reports. **A control that can only refuse is indistinguishable from a working one until something needs it to permit**, and the tests all covered the refusals.
+
+  **A CAST IS NOT A FILTER, AND A CAST IS NOT A CHECK. One lesson at two severities** (Guy, 20 Aug 2026), and both were paid for the same day. Telling the type system a shape exists and having it agree cost, first, **balances arriving on every sync page and never being read**, because `callPlaid` returns a whole body cast to a narrower type and the omitted field simply went unnoticed. It cost, second, **a gate structurally unable to permit**, because a cast named a property that was never there. The first loses data you were handed. The second disables a decision while leaving it looking careful. **A cast changes what the compiler will let you write, never what is there.**
+
+  The repair in both directions is the same and it is the ladder this file already states: read the typed field, `error.errorCode`, where a wrong name fails to compile at the moment it is written rather than at midnight.
+
+  **AND A TEST ALREADY PINNED THE PRODUCER'S SHAPE.** `token-never-escapes.test.ts` asserts the exact key set of `toJSON()`, `errorCode` included, and has done since M4. It did not help, because **a control over a producer does not protect a consumer that casts**: the test proved what `toJSON` emits, and the cast let a reader disagree with it in silence. Where two modules must agree about a shape, pinning one end is half a control.
+
+  **The sweep, run the same day, for the pattern rather than the incident.** Every site consuming a `PlaidError` was read. Two make a DECISION on the code: this one, and `transactions-sync.ts`, which was already correct and reads `error.errorCode` directly **with no cast at all**. The rest pass `toJSON()` into a response for reporting and never read a field, so the mismatch is unavailable to them. **One site had the defect and the site that did not is the argument for the rule**, since the only difference between them is the cast.
+
+  **The missing assertion names the class.** The classifier had tests, and every one of them checked a refusal. **A test suite made only of negative cases passes against a function hard-wired to refuse.** Where a decision has two outcomes, the suite must prove it can produce BOTH, and the positive case is the one that is easy to leave out precisely because refusing is the safe direction.
+
+  **It was found because the interpretation travels with its evidence**, which is this afternoon's rule from the diagnostic that could not distinguish its causes, **now catching something in a route written after it.** The reply said `liveness: "unknown"` while the `detail` beside it said `ITEM_NOT_FOUND`, in the same object, and the contradiction was legible to someone who had never read the file. **An interpretation presented without its evidence asks to be trusted; presented with it, it can be checked.** Here the checker was the person reading the output rather than a test.
+
+  That is the second time today a rule caught something in code written after the rule was recorded, and both times the code was written by someone holding the rule in mind. **The rules are not preventing these; they are shortening the distance between shipping one and seeing it.** Which is worth knowing, because it argues for controls and probes over care, and this file has now said that four separate ways.
+
 - **A ROUTE WHOSE GUARD REFUSES A REPEAT CANNOT REPAIR ITS OWN PARTIAL FAILURE, AND PARTIAL FAILURE IS EXACTLY WHEN A REPEAT IS WHAT YOU NEED.** (Guy, 20 Aug 2026.)
 
   The disconnect refuses unless Plaid reports the Item live. It removed the Item, failed to mark our row, and **re-running was then refused, correctly**, because Plaid now reported it gone. **The guard was right and the absence of a repair path was the defect.**
