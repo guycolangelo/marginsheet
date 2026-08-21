@@ -22,7 +22,7 @@ import { readoutForHousehold } from "./ledger-readout.js";
 import { readLedger, type Sql as ReadoutSql } from "./ledger-readout-sql.js";
 import { encryptToken, decryptToken } from "./token-crypto.js";
 import { exchangePublicToken } from "./exchange.js";
-import { createLinkToken } from "./reconnect.js";
+import { createLinkToken, itemProducts } from "./reconnect.js";
 import { runSyncForItem } from "./run-sync.js";
 import postgres from "postgres";
 import { secretPresence } from "@marginsheet/shared/required-secrets";
@@ -179,6 +179,56 @@ export default {
     // it is asserted by test, because a token here would break nothing: the
     // exchange would still work, the household would still connect, and every
     // other test would still pass.
+    // POST /internal/item-products: what products each Item actually carries.
+    //
+    // BEHIND THE /debug GATE IN SPIRIT AND BEHIND THE SESSION IN FACT: it is
+    // reachable only over the service binding from api, which requires a
+    // session and derives the household. It returns three string arrays and no
+    // credential, which is the same shape as /debug/crypto-selftest.
+    if (url.pathname === "/internal/item-products" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const { householdId } = (await request.json().catch(() => ({}))) as { householdId?: string };
+      if (!householdId) return Response.json({ error: "householdId is required" }, { status: 400 });
+
+      const sql = postgres(env.NEON_DATABASE_URL, { max: 1 });
+      let items: { id: string; item_id: string }[];
+      try {
+        items = await sql<{ id: string; item_id: string }[]>`
+          select id, item_id from plaid_items where household_id = ${householdId} order by created_at
+        `;
+      } finally {
+        await sql.end({ timeout: 5 });
+      }
+
+      const results: unknown[] = [];
+      for (const item of items) {
+        try {
+          const products = await itemProducts(
+            householdId,
+            item.id,
+            { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+            env.TOKEN_ENCRYPTION_KEY,
+            env.NEON_DATABASE_URL
+          );
+          results.push({ itemId: item.item_id, ...products });
+        } catch (error) {
+          // One Item failing does not hide the others, same as the sync run.
+          const shaped = error as { toJSON?: () => unknown; message?: string };
+          results.push({
+            itemId: item.item_id,
+            failed: true,
+            detail: shaped.toJSON ? shaped.toJSON() : { message: shaped.message ?? "unknown" },
+          });
+        }
+      }
+      return Response.json({ items: items.length, results });
+    }
+
     // POST /internal/sync-run: run a sync for every Item a household holds.
     //
     // THE HAND-RUN TRIGGER (4.5b prime, piece 6). Throwaway: scheduling is

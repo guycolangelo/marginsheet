@@ -10,6 +10,8 @@
 // logger or Sentry would receive.
 
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { callPlaid, PlaidError } from "../src/plaid-client.js";
 
 const TOKEN = "access-sandbox-de3ce8ef-33f8-452c-a685-8671031fc0f6";
@@ -91,5 +93,30 @@ describe("a failed Plaid call leaks neither the token nor the secret", () => {
     expect(Object.keys(error.toJSON()).sort()).toEqual([
       "endpoint", "errorCode", "errorType", "name", "requestId", "status",
     ]);
+  });
+});
+
+describe("the item-products route publishes products and no credential", () => {
+  it("returns the three arrays and nothing else", () => {
+    // ENUMERATED, not spread. /item/get also returns the institution id, the
+    // webhook, the error state and consent expiry, and none of that is what
+    // this route is for. Same discipline as PlaidError.toJSON: name what may
+    // be published so a field Plaid adds later is excluded by default.
+    const source = readFileSync(join(import.meta.dirname, "..", "src", "reconnect.ts"), "utf8");
+    const fn = source.slice(source.indexOf("export async function itemProducts"));
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    expect(body).toMatch(/products: item\.item\.products/);
+    expect(body).toMatch(/billedProducts: item\.item\.billed_products/);
+    expect(body).toMatch(/consentedProducts: item\.item\.consented_products/);
+    // The whole item object must never be returned.
+    expect(body, "the route spreads Plaid's item object").not.toMatch(/\.\.\.item\.item/);
+  });
+
+  it("scopes the lookup to the household", () => {
+    // The row id is ours and cannot collide, so this is defence in depth
+    // rather than a fix. It costs nothing to be correct without the policy.
+    const source = readFileSync(join(import.meta.dirname, "..", "src", "reconnect.ts"), "utf8");
+    const fn = source.slice(source.indexOf("export async function itemProducts"));
+    expect(fn.slice(0, 1400)).toMatch(/where id = \$\{itemRowId\} and household_id = \$\{householdId\}/);
   });
 });

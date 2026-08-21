@@ -997,6 +997,21 @@
         "note": "DROPS THE BODY HASH CHECK AND KEEPS THE SIGNATURE CHECK, which is the plausible version rather than an obvious break: the signature still verifies, the claim is still read and still required to be present, and every test of the happy path still passes. What is lost is the link between the token and THIS body, so a genuine correctly signed token can be replayed against any payload at all. A reviewer sees a signature being verified and stops there, which is exactly what happened when the claim was first written."
       },
       "distinction": "THE VERIFIER IS WATCHED REFUSING, NOT ONLY ACCEPTING (Guy, 21 Aug 2026). A signature verifier that accepts everything is indistinguishable from one that works, on a real event, forever: every webhook arrives, every one is processed, and nothing reports a fault. So the suite exercises the accept path AND five distinct tampering modes, each differing from the accepted token by exactly one thing, which is the minimal-mutation rule applied to a fixture. It signs its own webhooks against a local server standing in for the key endpoint, so both directions are proven offline rather than waiting on production. THE POSITIVE CASE IS ASSERTED FIRST AND IS NOT DECORATION: every refusal here would pass against a verifier hard-wired to reject, which is the same defect as a gate that can only refuse looking like a careful one, found earlier the same day in the liveness classifier."
+    },
+    {
+      "id": "item-products-publishes-three-arrays",
+      "control": "itemProducts' enumeration (services/sync/src/reconnect.ts)",
+      "guards": "The item-products route returns product arrays and never Plaid's whole item object.",
+      "test": "services/sync/test/token-never-escapes.test.ts",
+      "name": "returns the three arrays and nothing else",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/reconnect.ts",
+        "find": "    return {\n      products: item.item.products ?? [],\n      billedProducts: item.item.billed_products ?? [],\n      consentedProducts: item.item.consented_products ?? [],\n    };",
+        "replace": "    return { ...item.item } as never;",
+        "note": "The spread, which is what somebody writes when they want 'everything Plaid told us'. /item/get also returns institution id, webhook, error state and consent expiry. Verified red 20 Aug 2026."
+      },
+      "distinction": "THE ROUTE EXISTS BECAUSE A PROBE COULD NOT ANSWER THE QUESTION. additional_consented_products is documented as an UPDATE MODE field and we send it on an initial link token; Plaid accepts it either way, so a successful connection cannot distinguish HONORED from SILENTLY IGNORED. A link token probe was proposed and withdrawn for exactly that reason, and a failed Liabilities call afterwards is ambiguous between consent not taking, the institution not supporting the product, and something else. consented_products answers directly rather than by inference from a failure. The enumeration is the same discipline as PlaidError.toJSON, which was tightened the same week for the opposite reason: name what may be published, so a field added later is excluded by default."
     }
   ]
 }
