@@ -9,17 +9,44 @@
 // and three things rest on it: whether the stored ledger needs repair, whether
 // the writer may derive direction at all, and what 4.7 inherits.
 //
-// THE READING, FIXED BEFORE THE DATA ARRIVES.
+// THE READING WAS FIXED BEFORE THE DATA ARRIVED AND ONE HALF OF IT WAS WRONG.
+// Recorded rather than quietly replaced, because the error is this repository's
+// own ninth finding committed by someone who had cited it two commits earlier.
 //
-// IF A CREDIT ACCOUNT CARRIES ANY NEGATIVE AMOUNT: directionOf labels it
-// `income`. A card credit is a PAYMENT or a REFUND and is never income, so the
-// writer is wrong for every such row it has already written. The rule inverts
-// across account type and the sign alone cannot carry it.
+// AS WRITTEN: "if no credit account ever carries a negative amount, the sign
+// rule holds uniformly and the concern is theoretical."
 //
-// IF NO CREDIT ACCOUNT EVER CARRIES A NEGATIVE AMOUNT: the sign rule holds
-// uniformly, the comment is right, and the concern is theoretical. Payments to
-// a card would have to appear somewhere other than the card, which would itself
-// be worth knowing.
+// WHAT RAN: 9 credit rows, 0 negative, 2 negatives on depository. Under that
+// reading the concern was theoretical.
+//
+// WHY THAT READING IS WRONG. Zero negatives is equally consistent with Plaid
+// never signing a card credit negative AND with a dataset that contains no card
+// payment or refund. NINE PURCHASES CANNOT DISTINGUISH THOSE. The fixture check
+// asked whether credit rows EXIST; it never asked whether the FAILING CASE
+// could exist among them, which is the exact question CLAUDE.md's ninth finding
+// says to ask of a fixture.
+//
+// SO THE SPIKE DOES NOT ANSWER THE QUESTION, and it now says so rather than
+// reporting a vacuous pass or a red that reads as "Plaid does not do this".
+// A red meaning "the fixture cannot express the failing case" and a red meaning
+// "the claim is false" send a reader to different places.
+//
+// AND THE DEFECT DOES NOT DEPEND ON THE ANSWER, which is why the finding stood
+// while this file was being corrected. Take either branch:
+//
+//   Plaid signs a card payment NEGATIVE -> directionOf returns `income`
+//   Plaid signs a card payment POSITIVE -> directionOf returns `expense`,
+//                                          so the payment is counted as
+//                                          spending on the card AND on checking
+//
+// Both are wrong, because the right answer is `transfer` and THE FUNCTION
+// CANNOT RETURN IT. transaction_direction has had three values since 0003 and
+// directionOf can produce two. That is an argument from what the writer can
+// express rather than from what Plaid happens to send, and CLAUDE.md already
+// records why the boundary argument is the one a case cannot defeat.
+//
+// WHERE THE ANSWER LIVES: production. Chase is connected and a real card
+// payment either exists in our rows or does not. Owed in docs/open-items.json.
 //
 // THE HAZARD THIS EXISTS TO PRICE (Guy, 21 Aug 2026). A card payment appears
 // TWICE: a debit on checking and a credit on the card. Applied by sign alone
@@ -114,34 +141,37 @@ describe.skipIf(!configured)("the sign of amount, per account type", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("PLAID SIGNS A CARD CREDIT NEGATIVE, so the sign alone cannot carry direction", () => {
+  it("establishes what Sandbox can establish: both signs on a bank account, purchases on a card", () => {
     const negativesOnCard = credit.filter((o) => o.amount < 0);
+    const negativesOnBank = depository.filter((o) => o.amount < 0);
 
     // The report travels with the interpretation, so a reader can disagree
     // with it. CLAUDE.md, 17 Aug: an interpretation presented without its
     // evidence asks to be trusted.
     console.log(
-      `credit rows: ${credit.length}, of which negative: ${negativesOnCard.length}\n` +
-        negativesOnCard.slice(0, 8).map((o) => `  ${o.amount}  ${o.name}`).join("\n")
+      `credit: ${credit.length} rows, ${negativesOnCard.length} negative | ` +
+        `depository: ${depository.length} rows, ${negativesOnBank.length} negative`
     );
 
-    expect(
-      negativesOnCard.length,
-      "no negative amount on any credit account: the sign rule would hold uniformly and the reading above says so"
-    ).toBeGreaterThan(0);
+    expect(depository.some((o) => o.amount > 0), "no depository outflow").toBe(true);
+    expect(credit.some((o) => o.amount > 0), "no card purchase").toBe(true);
+    expect(negativesOnBank.length, "no depository inflow, so income has no example").toBeGreaterThan(0);
   });
 
-  it("so a positive amount does NOT mean the same thing on both types", () => {
-    // Positives agree: an outflow on checking and a purchase on a card are
-    // both spending. The disagreement is entirely on the negative side, which
-    // is why a sign-only rule looks correct until a card payment lands.
-    expect(depository.some((o) => o.amount > 0), "no depository outflow to compare").toBe(true);
-    expect(credit.some((o) => o.amount > 0), "no card purchase to compare").toBe(true);
-
-    const cardCredits = credit.filter((o) => o.amount < 0).length;
-    const bankCredits = depository.filter((o) => o.amount < 0).length;
-    console.log(`negative amounts -> card: ${cardCredits} (payment or refund), bank: ${bankCredits} (income)`);
-    expect(cardCredits, "the two types must both produce negatives for the inversion to bite").toBeGreaterThan(0);
-    expect(bankCredits).toBeGreaterThan(0);
+  it("PINS THE FIXTURE'S LIMIT: this dataset has no card credit, so it cannot answer the question", () => {
+    // AN ASSERTION THAT INVERTS USEFULLY. It is not decoration and it is not a
+    // vacuous pass: it states a property of the fixture as a fact, and IT GOES
+    // RED THE DAY PLAID ADDS A CARD PAYMENT TO THE DATASET, which is the day
+    // the question becomes answerable here instead of in production.
+    //
+    // A test that quietly tolerated either outcome would let the next reader
+    // believe the spike had settled something. This one tells them exactly
+    // what it did not settle.
+    const negativesOnCard = credit.filter((o) => o.amount < 0);
+    expect(
+      negativesOnCard.length,
+      "A CARD CREDIT APPEARED IN SANDBOX. The question is now answerable here: read the sign above, " +
+        "then close the open item that sends it to production."
+    ).toBe(0);
   });
 });

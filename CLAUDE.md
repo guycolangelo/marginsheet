@@ -900,6 +900,12 @@ The canon's operational rules amend named specs and **landed 19 August 2026 as a
 
 **Payment versus refund is M5's filing decision, not the pipeline's**, so there is no safe sign-only default for a card credit and the writer must know the account type.
 
+**The spike sent to settle Plaid's sign could not, and the finding does not depend on it.** `ins_109508` returned 9 credit rows, every one a positive purchase, and 2 negatives on depository: **the dataset holds card purchases and no card payment**, so the failing case is not representable in the fixture. Injecting one through a Sandbox custom user is circular, since the sign would be ours.
+
+**The spike's own pre-commitment read that absence as an answer**, saying the concern would be theoretical if no negative appeared. Zero negatives is equally consistent with Plaid never signing a card credit negative and with a dataset containing no card credits, and **nine purchases cannot distinguish those.** The fixture check asked whether credit rows exist and never whether the failing case could exist among them, **which is this file's ninth finding, committed by someone who had cited it two commits earlier.** The rule survives being known; only the control catches it.
+
+**Take either branch and the writer is wrong**, which is why the finding stood while its evidence was being retracted: a negative card payment becomes `income`, a positive one becomes `expense` and is counted as spending on the card and on checking both. **The right answer is `transfer` and the function cannot return it.** That is an argument from what the writer can express rather than from what Plaid sends, and this file already records why a boundary argument is the one a case cannot defeat.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
