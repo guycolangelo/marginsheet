@@ -36,8 +36,10 @@
  *  wider invites a caller to pass a row through and read a column off it. */
 export interface BalanceBearingAccount {
   type: string | null;
-  /** Raw. Means money HELD on a depository account and money OWED on a card,
-   *  which is the whole reason nothing may read it directly. */
+  /** Raw, and it means money HELD on a depository account and money OWED on a
+   *  card, which is why every consumer goes through an accessor below rather
+   *  than reading it. Enforced by balance-columns-have-one-reader.test.ts for
+   *  SQL sites and by the branded return types here for TypeScript callers. */
   currentBalance: string | null;
 }
 
