@@ -16,6 +16,7 @@ import { readSyncSchemaHealth } from "@marginsheet/shared/db";
 import { disconnectItem } from "./disconnect.js";
 import { handlePlaidWebhook } from "./webhook-handler.js";
 import { setItemWebhook } from "./set-webhook.js";
+import { clearFirstSyncMilestone } from "./clear-milestone.js";
 import { verifyPlaidWebhook } from "./webhook-verify.js";
 import { itemStatus } from "./item-status.js";
 import { readoutForHousehold } from "./ledger-readout.js";
@@ -409,6 +410,32 @@ export default {
     // THE FIRST PIECE OF M8's DISCONNECT FLOW. A household disconnecting a bank
     // and an operator removing an Item are the same call with a different
     // caller, so this is built as the real path rather than as scaffolding.
+    // POST /internal/clear-first-sync-milestone: correct a set-once field that
+    // was written under a definition 0036 replaced. Dry run by default.
+    if (url.pathname === "/internal/clear-first-sync-milestone" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      const b = (await request.json().catch(() => ({}))) as {
+        householdId?: string; confirm?: boolean;
+      };
+      if (!b.householdId) {
+        return Response.json({ error: "householdId is required" }, { status: 400 });
+      }
+      try {
+        const result = await clearFirstSyncMilestone(
+          env.NEON_DATABASE_URL, b.householdId, b.confirm === true
+        );
+        return Response.json(result, { status: result.refused ? 409 : 200 });
+      } catch (error) {
+        const e = error as { message?: string };
+        return Response.json(
+          { error: "clear-milestone failed", detail: { message: e.message ?? "unknown" } },
+          { status: 500 }
+        );
+      }
+    }
+
     if (url.pathname === "/internal/disconnect-item" && request.method === "POST") {
       if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
         return Response.json({ error: "sync is not configured" }, { status: 503 });

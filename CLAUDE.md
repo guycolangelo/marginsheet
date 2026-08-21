@@ -921,6 +921,30 @@ The canon's operational rules amend named specs and **landed 19 August 2026 as a
 
 **The type is the durable half.** `webhookUrl` is now a required parameter of `createLinkToken`, so a caller cannot forget it and the compiler says so at the moment the mistake is written. Optional is how this arrived.
 
+## REDEFINING A SET-ONCE FIELD HAS A MIGRATION OBLIGATION (locked 21 August 2026)
+
+**The guard that makes a field immutable is also what prevents a corrected definition from ever applying to rows that predate it.** `markFirstSyncCompleted` writes `where first_sync_completed_at is null`, so the moment a value exists the new logic stops evaluating and the old value stands, whatever the field now means.
+
+**Changing a normal field's definition leaves stale rows. Changing a set-once field's definition leaves PERMANENTLY stale rows** (Guy). The correction cannot arrive by itself, and the immutability is what stops it.
+
+**So a redefinition of a set-once field owes a migration** that decides what happens to the rows written under the old meaning: correct them, clear them so the new logic re-evaluates, or record explicitly that they keep the old meaning forever. Choosing nothing chooses the third silently.
+
+**The sweep, run when this was found, and it produced a sharper test than "is it set-once".** Five set-once fields exist. Only one was exposed.
+
+| Field | Records | Exposed |
+|---|---|---|
+| `households.first_sync_completed_at` | **a judgement**: we hold the history | **yes, and it was redefined within a day** |
+| `plaid_items.history_complete_at` | an event: Plaid sent both flags | no |
+| `transactions.settled_at` | an event: we saw pending become posted | no |
+| `recovery.spent_at` | an event: this grant was consumed | no |
+| `outbox.claimed_at` | an event: this signal was taken | no |
+
+**A set-once field recording an EVENT is safe, because events do not get redefined. A set-once field recording a JUDGEMENT is exposed, because judgements are exactly what gets redefined.** Spending a grant is spending a grant. *"We hold this household's history"* is a conclusion, and the conclusion moved.
+
+**That is the question to ask of the next one: is this field recording something that happened, or something we decided?** The second kind needs the migration obligation written down when the field is created, not when somebody needs it.
+
+**The correction itself is a route, not a hand-run statement**, because a correction to a set-once milestone should leave a record of who did it and when, and a psql session leaves nothing. Dry run by default, reporting the current value and what would still block a re-fire.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.

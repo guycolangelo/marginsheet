@@ -681,5 +681,14 @@
     "owed_to": "M13 intro and the census scheduling. Raised 21 Aug 2026 when 0036 changed what the field means.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
+  },
+  {
+    "id": "clear-milestone-route-is-temporary",
+    "item": "/internal/clear-first-sync-milestone EXISTS TO CORRECT ONE ROW ONCE AND SHOULD NOT OUTLIVE THAT. It clears households.first_sync_completed_at, which 0036 redefined from 'a sync succeeded' to 'we hold this household's history'. The immutability guard reads first_sync_completed_at IS NULL, so the corrected definition can never apply to a row written under the old one, and the only way to make the new logic evaluate is to clear the value. Dry run by default, reports the current value and which Items are still blocking, and writes only null so the milestone can still only be SET by markFirstSyncCompleted. WHY IT IS A ROUTE RATHER THAN A HAND-RUN STATEMENT (Guy, 21 Aug 2026): a correction to a set-once milestone is exactly the kind of thing that should leave a record of who did it and when, and a psql session leaves nothing. IT BECOMES DANGEROUS THE MOMENT M13 SHIPS, because clearing then re-arms an intro that already went out and the household meets MyKeeper twice, which is the failure the immutability exists to prevent. Remove it, or gate it on the intro not having fired.",
+    "owner": "build, gated on Guy's approval of the plan",
+    "trigger": "before M13 composes its first intro, because from that moment clearing the milestone causes the harm the field's immutability exists to prevent",
+    "owed_to": "M13 intro. Raised 21 Aug 2026 with the route.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
   }
 ]
