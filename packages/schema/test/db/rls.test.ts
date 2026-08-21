@@ -32,8 +32,8 @@ async function seedTwoHouseholds() {
       values (${household}, ${item.id}, ${"a_" + uuid()}) returning id
     `;
     const [txn] = await sql<{ id: string }[]>`
-      insert into transactions (household_id, account_id, date, amount, direction)
-      values (${household}, ${account.id}, '2026-08-15', 100.00, 'expense')
+      insert into transactions (household_id, account_id, date, amount, flow)
+      values (${household}, ${account.id}, '2026-08-15', 100.00, 'outflow')
       returning id
     `;
     return { household, accountId: account.id, transactionId: txn.id };
@@ -116,8 +116,8 @@ describe("household isolation bites", () => {
     await sql`set role marginsheet_app`;
     try {
       await expect(
-        sql`insert into transactions (household_id, account_id, date, amount, direction)
-            values (${b.household}, ${b.accountId}, '2026-08-16', 5.00, 'expense')`
+        sql`insert into transactions (household_id, account_id, date, amount, flow)
+            values (${b.household}, ${b.accountId}, '2026-08-16', 5.00, 'outflow')`
       ).rejects.toThrow(/row-level security/i);
     } finally {
       await sql`reset role`;

@@ -59,10 +59,10 @@ async function seed(): Promise<Fixture> {
   `;
   const [txn] = await sql<{ id: string }[]>`
     insert into transactions
-      (household_id, account_id, date, amount, direction, normalized_merchant_key,
+      (household_id, account_id, date, amount, flow, normalized_merchant_key,
        review_state, queue_reason)
     values
-      (${household}, ${account.id}, '2026-08-15', 200.00, 'income', ${merchantKey},
+      (${household}, ${account.id}, '2026-08-15', 200.00, 'inflow', ${merchantKey},
        'needs_review', 'unclassified_inflow')
     returning id
   `;

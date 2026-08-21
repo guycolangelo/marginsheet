@@ -157,17 +157,30 @@ describe("the transaction writer", () => {
     expect(issued.join(" ")).toMatch(/pending = excluded\.pending/i);
   });
 
-  it("signs direction from Plaid's convention rather than guessing", async () => {
-    // Plaid signs money LEAVING the account positive. Getting this backwards
-    // would invert every figure in the ledger while every test about counts
-    // stayed green.
+  it("writes FLOW from Plaid's convention, and no filing at all", async () => {
+    // Plaid signs money LEAVING the account positive, on depository and credit
+    // accounts alike. Getting this backwards would invert every figure in the
+    // ledger while every test about counts stayed green.
     const { tx, issued } = recorder();
     await applyAddedAndModified(tx, HOUSEHOLD, [
       { transaction_id: "out", account_id: "a", date: "2026-08-01", amount: 40 },
       { transaction_id: "in", account_id: "a", date: "2026-08-01", amount: -40 },
     ]);
-    expect(issued[0]).toMatch(/expense/);
-    expect(issued[1]).toMatch(/income/);
+    expect(issued[0]).toMatch(/outflow/);
+    expect(issued[1]).toMatch(/inflow/);
+
+    // THE HALF THAT MATTERS MORE, because it is the one that was wrong for 32
+    // migrations. This test previously asserted /expense/ and /income/ and
+    // passed, which is exactly what a correct test of a filing decision made in
+    // the wrong module looks like: the mapping was right and the module was not.
+    //
+    // A deposit from ADP and a deposit from Joint Savings are the SAME FACT and
+    // DIFFERENT FILINGS, so the pipeline naming either one is guessing. 520
+    // internal vault transfers were stored as income because it did.
+    for (const sql of issued) {
+      expect(sql, "the pipeline must not write a filing").not.toMatch(/\bdirection\b/);
+      expect(sql).not.toMatch(/\b(income|expense|transfer|undetermined)\b/);
+    }
   });
 
   it("returns rows WRITTEN, not rows offered", async () => {

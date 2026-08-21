@@ -5,12 +5,24 @@
     {
       "table": "transactions",
       "column": "direction",
-      "declared_writers": ["services/sync/src/apply-streams.ts"],
+      "declared_writers": [],
       "claim": "migration 0004's COMMENT ON TYPE transaction_direction: 'resolveDirection IS THE SINGLE SOURCE OF TRUTH for the stored value'",
       "claimed_writer": "resolveDirection",
       "claim_holds": false,
-      "reason": "THE CLAIM HAS BEEN FALSE SINCE 0004 AND NOTHING COULD HAVE CAUGHT IT. resolveDirection exists in categorization-spec section 8 and in three migration comments and in NO CODE. apply-streams.ts writes the column with its own sign rule, so the named source is not a writer and the actual writer is not named. Migration 0034 added `undetermined` so that M4 records what it observed and M5 determines, which is what will make the claim true. Set claim_holds true when resolveDirection is the writer, and this control will check that rather than take it on trust.",
-      "owed_to": "M5 filing"
+      "owed_to": "M5 filing",
+      "note": "ZERO WRITERS IS THE CORRECT STATE AS OF 0035 AND IS NOT A SCAN FAILURE. direction is M5's filing and M5 does not exist, so nothing writes it and every row is NULL. M4 wrote it from 0003 to 0035 using the sign alone, which stored 520 internal vault transfers as income. The fact moved to transactions.flow. When M5 lands, resolveDirection becomes the single declared writer.",
+      "reason": "NOT YET TRUE, WHICH IS DIFFERENT FROM CONTRADICTED, AND THE DISTINCTION IS THE POINT. Until 0035 the claim was actively false: M4 wrote this column with its own sign rule while 0004 named resolveDirection as the single source. Now NOTHING writes it, so nothing contradicts the claim and nothing satisfies it either. resolveDirection still exists only in categorization-spec section 8 and in migration comments. Set claim_holds true when M5 lands and resolveDirection is the one declared writer. The control refused an attempt to mark it true at 0035, correctly: zero writers means the named source is not the writer."
+    },
+    {
+      "table": "transactions",
+      "column": "flow",
+      "declared_writers": [
+        "services/sync/src/apply-streams.ts"
+      ],
+      "claim": "migration 0035: flow is a fact M4 writes, direction is a filing M5 writes",
+      "claimed_writer": "flowOf",
+      "claim_holds": true,
+      "note": "The fact half of what direction used to conflate. One writer, in the pipeline, where it belongs."
     }
   ]
 }
