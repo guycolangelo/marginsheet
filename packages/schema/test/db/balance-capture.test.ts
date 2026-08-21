@@ -72,7 +72,14 @@ describe("balance capture", () => {
       await tx`set local role marginsheet_sync`;
       return applyBalances(tx as unknown as Tx, A, page(500.25, 480.25));
     });
-    expect(result, "the account was not found or not writable").toEqual({ accounts: 1, snapshots: 1 });
+    expect(result.accounts, "the account was not found or not writable").toBe(1);
+    expect(result.snapshots).toBe(1);
+    // THE IDS ARE THE SET RECONCILIATION IS ALLOWED TO JUDGE, so asserting the
+    // count alone would let them come back empty while this still passed. An
+    // empty set means nothing gets reconciled and every account reports "not
+    // refreshed", which is a silent shutdown of the whole check rather than a
+    // failure of it.
+    expect(result.accountIds, "the refreshed ids came back empty or wrong").toEqual([A_ACCT]);
 
     const [row] = await sql<{ current_balance: string; available_balance: string }[]>`
       select current_balance::text, available_balance::text from financial_accounts where id = ${A_ACCT}
