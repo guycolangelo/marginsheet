@@ -27,9 +27,27 @@
 #      captured nowhere is worse than not rotating: the probe becomes
 #      permanently unreadable and that is the state this script exists to end.
 #   2. GitHub Actions, so CI has it before any Worker diverges.
-#   3. the Workers, derived from config/worker-secrets.json.
+#   3. the Workers, derived from config/worker-secrets.json, ALL DEV, THEN ALL
+#      STAGING, THEN ALL PRODUCTION.
+#
+# THE ENVIRONMENT ORDER IS THE 16 AUGUST INCIDENT AVOIDED RATHER THAN A
+# PREFERENCE. Written per Worker, marginsheet-api production is pair 3 of 9, so
+# a failure at pair 4 leaves PRODUCTION API ROTATED AND PRODUCTION SYNC NOT:
+# half of production shipped, which is the exact shape this repository has a
+# written incident about. Ordered by environment, a failure before pair 7 leaves
+# production untouched entirely and the loud window covers only dev and staging.
+#
 # A partial Worker pass leaves CI holding the new value and some Workers the
-# old, so verify-deploy fails on those with "no response". Loud, not silent.
+# old, so verify-deploy fails on those with "no response". Loud, not silent, and
+# after the reorder it is loud about an environment nobody is serving from.
+#
+# THE VALUE REACHES EVERY SINK ON STDIN AND IS NEVER INTERPOLATED INTO A COMMAND
+# STRING. `printf | eval "$PROBE_TOKEN_SINK"` passes the sink COMMAND to eval and
+# the VALUE down the pipe, so the value never appears in an argument list and
+# therefore never in the process listing. Same for `gh secret set` and for
+# `wrangler secret put`, both of which read stdin when given no value argument.
+# eval is used only because a sink command carries its own quoting, for example
+# an item name with a space, which word splitting would destroy.
 
 set -euo pipefail
 export PATH="/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
@@ -58,10 +76,20 @@ done
 pairs="$(python3 -c "
 import json
 d = json.load(open('config/worker-secrets.json'))['workers']
-for worker, envs in d.items():
-    for env, secrets in envs.items():
-        if 'DEBUG_PROBE_TOKEN' in secrets:
-            print(worker, env)
+# ORDERED BY ENVIRONMENT, NOT BY WORKER. Production last, so a failure part way
+# through cannot leave production half rotated.
+order = {'dev': 0, 'staging': 1, 'production': 2}
+rows = [
+    (order.get(env, 99), worker, env)
+    for worker, envs in d.items()
+    for env, secrets in envs.items()
+    if 'DEBUG_PROBE_TOKEN' in secrets
+]
+unknown = [r for r in rows if r[0] == 99]
+if unknown:
+    raise SystemExit('refusing: unrecognised environment %r, so its position in the order is undefined' % (unknown,))
+for _, worker, env in sorted(rows):
+    print(worker, env)
 ")"
 [ -n "$pairs" ] || { echo "no Worker declares DEBUG_PROBE_TOKEN; refusing" >&2; exit 1; }
 

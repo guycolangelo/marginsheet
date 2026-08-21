@@ -97,6 +97,38 @@ response". **Loud, not silent.**
 manager Guy uses, and a rotation that silently skips the capture step produces
 exactly the condition it was written to fix while looking like success.
 
+**The value reaches every sink on stdin and is never interpolated into a command
+string**, so it does not appear in an argument list and therefore not in the
+process listing. That holds for the password manager, for `gh secret set`, and
+for `wrangler secret put`. `eval` is applied to the sink COMMAND only, because a
+sink carries its own quoting that word splitting would destroy.
+
+**Written all dev, then all staging, then all production.** Ordered per Worker
+instead, `marginsheet-api` production is the third of nine writes, so a failure
+at the fourth leaves **production api rotated and production sync not**: half of
+production shipped, which is the shape of the 16 August 2026 incident. Ordered
+by environment, a failure before the seventh write leaves production untouched
+and the loud window covers only dev and staging.
+
+**A partial rotation breaks production deploys until the sequence completes**,
+and that is worth stating plainly rather than discovering. Every `/debug/` route
+on both Workers is gated on this value and `verify-deploy.sh` asserts against it
+on every production deploy, so between the GitHub write and the last Worker
+write, CI holds the new token while un-rotated Workers hold the old and answer
+CI with a 404. **The fix for any partial failure is to re-run the whole script**,
+which generates a fresh value and writes all nine again. Hand-patching individual
+pairs is how the copies drift.
+
+### One deliberate convenience, recorded so it is not read as an oversight
+
+The verification command reads the token through `$(...)` into curl's argument
+list, which **does** put it in the process listing for the life of that command.
+That is accepted for a one-shot manual read on Guy's own machine, and it is
+recorded here for the same reason the 404 is: **the next person to read this
+document should know it was decided rather than missed.** It would not be
+acceptable in a script, in CI, or on a shared host, where the value belongs in a
+header read from a file or piped through `--config`.
+
 ## Database roles (the other half of the token control)
 
 Created in migration `0002_banking_sync`, deliberately not in the later RLS migration: the Plaid token needs a **column** privilege, which is independent of row-level security, and waiting would leave the column readable in the meantime.
