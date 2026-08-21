@@ -1013,6 +1013,22 @@ gh run view <deploy-run-id> --log | grep "ok: .*build="
 
 **And the detector it obscured is the point.** Both Workers are asserted against the expected SHA independently on every production deploy, so **a half-shipped production shows as two values or a failed step** - the exact 16 August shape, already caught, already reported, in a place nobody was reading. **Making a working detector legible is worth more than adding another one.**
 
+## A FEATURE WHOSE ONLY CALLER IS ITS TEST (recorded 21 August 2026)
+
+**The eighth finding's shape, applied to features rather than controls**, and found the same way: by trying to use one.
+
+`fetch-liabilities.ts` shipped with its gate, its migration, four coverage states, its grant, its declared consent and five passing database tests. **Its only caller was its own test.** `/liabilities/get` had never been called, and every check around it was green **because every check around it was about a part that existed.**
+
+**The test being a caller is what made it look wired.** A module with imports, exercised against a real database, reads as connected. Nothing distinguished *"this runs in production"* from *"this runs in CI"* - and the second is a state a feature passes through on the way to the first and can remain in indefinitely.
+
+**Asking the question once found three more.** `outbox.ts` and `sync-state.ts` are imported by nothing at all: the announcer never announces, so `household_state_signals` accumulate with `enqueued_at` null forever, and **the watchdog has twelve test references, zero callers, and no cron on either Worker to trigger it.** `reconnectItem` and `markReconnected` have no caller while two other exports of the same file do, so an Item in `needs_reauth` cannot be recovered through the product.
+
+**The most-tested function in the sync Worker is the one that never runs.** That inverts the usual signal: heavy test coverage read as maturity, and it was the opposite - a function elaborated in CI because CI was the only place it executed.
+
+**`every-export-has-a-caller.test.ts` closes the class.** Its allowlist is not a suppression: **every entry must name an open item that exists and has an owner**, and every entry must still be an orphan, so the list cannot rot in either direction. An entry means *built and deliberately not wired*, which is a decision somebody makes rather than a state a module drifts into.
+
+**One scan defect worth keeping.** The first version excluded same-file references and flagged `plaidTotals`, which is called one function below where it is declared. **A helper used only inside its module is wired**, provided something calls into the module - so the question is reachability, not cross-file citation.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
