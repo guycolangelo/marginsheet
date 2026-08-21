@@ -26,6 +26,7 @@ export const CONNECT_PAGE = `<!doctype html>
 <button id="go">Connect an institution</button>
 <button id="sync">Run a sync</button>
 <button id="readout">Ledger readout</button>
+<button id="purge">Purge an Item (dry run)</button>
 <div id="out" hidden></div>
 <h2>Already connected</h2>
 <table id="accounts"><tbody></tbody></table>
@@ -101,6 +102,23 @@ document.getElementById("readout").onclick = async () => {
   // kept, so the two numbers are printed side by side and the reader compares.
   show("reading...");
   const res = await fetch("/plaid/ledger-readout");
+  const { ok, parsed } = await readBody(res);
+  show(parsed, !ok);
+};
+
+document.getElementById("purge").onclick = async () => {
+  // DRY RUN ONLY FROM THIS BUTTON. It reports what it would delete and what
+  // Plaid says about the Item; deleting requires a deliberate second call
+  // carrying confirm, which this page does not make. A destructive action one
+  // click from a diagnostic is the wrong shape for a throwaway surface.
+  const itemId = prompt("item_id to inspect for purge (dry run, nothing is deleted)");
+  if (!itemId) return;
+  show("checking...");
+  const res = await fetch("/plaid/purge-item", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemId }),
+  });
   const { ok, parsed } = await readBody(res);
   show(parsed, !ok);
 };

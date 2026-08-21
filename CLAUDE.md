@@ -594,6 +594,20 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: **when a number describes a set the repo defines, read it from the repo before acting on it**, and treat an agreed figure that nobody has re-derived as a quotation rather than a fact.
 
+- **PLAID IDS ARE ITEM-SCOPED, SO EVERY UNIQUENESS CONSTRAINT THAT PROTECTS US WITHIN AN ITEM IS SILENT ACROSS ONE.** (Guy, 20 Aug 2026.) Its own entry, because it is a property of the provider's namespace rather than a fact about any one task, and three separate pieces of work meet it.
+
+  A relink issues **new `plaid_account_id`s and new `plaid_transaction_id`s for the same real accounts and the same real transactions.** Our uniqueness is keyed on exactly those values: `financial_accounts_plaid_account_id_unique`, `transactions_plaid_transaction_id_unique`, `plaid_items.item_id`. **None of them collides**, so the same purchases import a second time under different ids and **Kept and Margin are wrong by the value of the overlap.** Nothing errors, nothing is refused, and the books look larger.
+
+  **Where it lands, and this is why it is an entry rather than a note:**
+
+  - **Every reconnect that creates a new Item**, which includes the `days_requested` repair, since extending history requires `/item/remove` and a fresh Item.
+  - **M9's migration**, which reconciles books that will already contain provider ids from another system.
+  - **The duplicate-account ruling of 19 Aug** was this same property seen from a different angle. Two Items showing the same real account was treated as an overlap question to be recorded, and the reason two Items CAN show the same account is that the ids differ. Neither of us named the underlying property at the time.
+
+  **It is the twin of the write-keyed-on-a-provider-value rule above, and the two are easy to conflate.** That rule says a provider id is shared ACROSS households, so a write keyed on one must name the household. This says a provider id is not stable ACROSS Items for one household, so a constraint keyed on one cannot detect a re-import. **Same namespace, two different failures: one lets another household's row be reached, the other lets our own row be duplicated.**
+
+  **The check is the same question asked twice:** whose namespace does this key belong to, and **is it stable across the boundary I am relying on it for?**
+
 - **A WRITE KEYED ON A PROVIDER-SUPPLIED VALUE MUST NAME THE HOUSEHOLD. A write keyed on our own primary key is scoped by the key itself.**
 
   **The provider's namespace is shared across every household and none of it is ours.** Plaid issues one `item_id` per Item, one `plaid_account_id` per account, one `plaid_transaction_id` per transaction, and two households linking the same bank login see **the same values**. Our own `uuidv7` primary keys cannot collide across households, because we mint them.
