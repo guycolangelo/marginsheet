@@ -583,6 +583,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **The general question, and it is one sentence long: what was demonstrated, and what is this claim about?** When those differ even slightly, the difference is the join, and the join is where both of today's retractions lived. A test demonstrates something about the fixture it ran; a mechanism demonstrates something about what is possible; a grant demonstrates something about one role on one table. Each is worth exactly what it demonstrates, and **the sentence built on top of it is a separate claim that has not been checked by anything.**
 
+- **A CLAIM ABOUT ONE CASE, PHRASED AS A CLASSIFICATION, IS THE ONE FORM NOBODY THINKS TO QUESTION.** (Guy, 20 Aug 2026.) Recorded because it is subtler than the retractions above and lives in DESCRIPTIONS rather than in diagnoses, which is the worse place for it.
+
+  The sentence was *"a proof that cannot see a defect rather than a known defect"*, written while sweeping the register. It reads as a **sorting**: the finding examined, weighed, and placed in a category. What it actually contained was **a claim about a particular case**, that those recreate statements happen to specify everything the proof does not check, smuggled in under the grammar of a category.
+
+  **The grammar of a sorted category carries no burden of evidence.** Nobody challenges a classification; they challenge *"I read the recreates and they look complete"*, which is the same assertion said plainly. **So the form is not decoration. It is what removed the question**, including from the person writing it.
+
+  It is the same unverified-step family as the rest, moved from a diagnosis into a description, and the difference in venue matters: **a diagnosis invites "how do you know" and a classification does not.** The remedy is to say the case-specific thing in the case-specific voice, and let it be argued with.
+
+  **What it cost here was nothing, because Guy declined to close the item on it.** That is worth stating: the correction did not come from noticing the form, it came from someone refusing to accept a mechanism argument as a category. **The form defends itself against the author; it is other readers who break it.**
+
 - **A CHECK WHOSE ANSWER IS CARRIED FORWARD IS A CHECK THAT HAPPENED, NOT A CHECK THAT HOLDS.** (Guy, 20 Aug 2026.) The join family's fourth instance, and **the first caught before it shipped rather than after.**
 
   Anywhere a decision is gated on a prior observation, the question is not whether the observation was correct. It is **whether it is still true at the moment of the act.** A dry run reporting an Item live is evidence about the instant it ran; an Item can be removed, expire, or lose its credential between that instant and the confirmation, and a gate reading the earlier answer is comparing against a memory.
