@@ -20,13 +20,18 @@ const sql = postgres(process.env.DATABASE_URL ?? "", { max: 1 });
 
 const HOUSEHOLD = "01998888-3000-7000-8000-00000000d1f7";
 const ITEM = "01998888-3001-7000-8000-00000000d1f7";
+/** A SECOND ITEM, in a needs_reauth state, holding the account that must never
+ *  be judged by the first Item's sync. Without it the whole file exercises one
+ *  Item and cannot tell a scoped query from an unscoped one. */
+const OTHER_ITEM = "01998888-3005-7000-8000-00000000d1f7";
+const OTHER_CARD = "01998888-3006-7000-8000-00000000d1f7";
 const BANK = "01998888-3002-7000-8000-00000000d1f7";
 const CARD = "01998888-3003-7000-8000-00000000d1f7";
 
-async function run() {
+async function run(itemRowId: string = ITEM) {
   return sql.begin(async (tx) => {
     await tx`select set_config('marginsheet.household_id', ${HOUSEHOLD}, true)`;
-    return reconcileBalances(tx as never, HOUSEHOLD);
+    return reconcileBalances(tx as never, HOUSEHOLD, itemRowId);
   }) as never as Promise<Awaited<ReturnType<typeof reconcileBalances>>>;
 }
 
@@ -48,6 +53,11 @@ function of(r: Awaited<ReturnType<typeof reconcileBalances>>, id: string) {
 beforeAll(async () => {
   await sql`insert into households (id, name) values (${HOUSEHOLD}, 'recon fixture') on conflict (id) do nothing`;
   await sql`insert into plaid_items (id, household_id, item_id) values (${ITEM}, ${HOUSEHOLD}, 'item-recon') on conflict (id) do nothing`;
+  await sql`insert into plaid_items (id, household_id, item_id, status)
+            values (${OTHER_ITEM}, ${HOUSEHOLD}, 'item-recon-other', 'needs_reauth') on conflict (id) do nothing`;
+  await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
+            values (${OTHER_CARD}, ${HOUSEHOLD}, ${OTHER_ITEM}, 'acct-recon-other', 'Stale Card', 'credit', 'credit card', 4321.00)
+            on conflict (id) do nothing`;
   await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
             values (${BANK}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-bank', 'Fixture Checking', 'depository', 'checking', 1731.96),
                    (${CARD}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-card', 'Fixture Card', 'credit', 'credit card', 3000.00)
@@ -61,6 +71,49 @@ afterAll(async () => {
   await sql`delete from plaid_items where household_id = ${HOUSEHOLD}`;
   await sql`delete from households where id = ${HOUSEHOLD}`;
   await sql.end();
+});
+
+describe("reconcileBalances is scoped to one Item", () => {
+  // IT CLEANS UP AFTER ITSELF RATHER THAN RELYING ON RUNNING LAST. These tests
+  // write real observations, so leaving them makes the "first observation" test
+  // below fail on a precondition this block silently removed. A suite whose
+  // correctness depends on declaration order is one refactor from being wrong,
+  // and the failure reads as a defect in the code rather than in the fixture.
+  afterAll(async () => {
+    await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+  });
+
+  it("judges only the Item it was given, and never another Item's accounts", async () => {
+    // THE ASSERTION THE FIX EXISTS FOR. The first version took only a household
+    // and reconciled everything it held, so a run over three Items produced
+    // three verdicts on all eighteen accounts.
+    const r = await run(ITEM);
+    const ids = r.accounts.map((a) => a.accountId);
+    expect(ids).toContain(BANK);
+    expect(ids).toContain(CARD);
+    expect(
+      ids,
+      "an account belonging to a DIFFERENT Item was judged by this Item's sync"
+    ).not.toContain(OTHER_CARD);
+  });
+
+  it("writes NO observation for the other Item's account, so nothing enters its window", async () => {
+    // MISATTRIBUTION IS THE SMALL HALF. A zero written by an Item that never
+    // read the account is a passing observation, and the window confirms drift
+    // across three CONSECUTIVE non-zero differences, so one zero BREAKS THE
+    // RUN. A healthy Item's sync could clear a real drift signal on an account
+    // it does not own.
+    const [c] = await sql<{ n: number }[]>`
+      select count(*)::int as n from balance_reconciliations where account_id = ${OTHER_CARD}`;
+    expect(c.n, "the other Item's account collected observations from this Item's sync").toBe(0);
+  });
+
+  it("still judges that account when ITS OWN Item syncs", async () => {
+    // The scoping must not make an account unreachable. A needs_reauth Item
+    // syncing is exactly when its accounts should be looked at.
+    const r = await run(OTHER_ITEM);
+    expect(r.accounts.map((a) => a.accountId)).toEqual([OTHER_CARD]);
+  });
 });
 
 describe("reconcileBalances", () => {
