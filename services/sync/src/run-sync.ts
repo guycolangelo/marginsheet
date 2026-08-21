@@ -27,6 +27,7 @@ import type { PlaidCredentials } from "./plaid-client.js";
 import { applyAddedAndModified, applyRemoved, markFirstSyncCompleted, didChange, type Tx } from "./apply-streams.js";
 import { applyBalances } from "./apply-balances.js";
 import { reconcileBalances } from "./reconcile-balances.js";
+import { fetchLiabilities, type LiabilitiesOutcome } from "./fetch-liabilities.js";
 import { onSyncComplete, type SyncStatus } from "./sync-state.js";
 
 export interface RunResult {
@@ -86,9 +87,10 @@ export async function runSyncForItem(
       // and cannot collide, so this is defence in depth rather than a fix, and
       // it costs nothing to be correct without relying on the policy.
       const [item] = await tx<
-        { item_id: string; access_token_ciphertext: string | null; sync_cursor: string | null; last_completed_cursor: string | null; sync_status: SyncStatus }[]
+        { item_id: string; access_token_ciphertext: string | null; sync_cursor: string | null; last_completed_cursor: string | null; sync_status: SyncStatus; liabilities_enabled_at: string | null }[]
       >`
-        select item_id, access_token_ciphertext, sync_cursor, last_completed_cursor, sync_status
+        select item_id, access_token_ciphertext, sync_cursor, last_completed_cursor, sync_status,
+               (liabilities_enabled_at)::text as liabilities_enabled_at
           from plaid_items
          where id = ${itemRowId}
            and household_id = ${householdId}
@@ -149,6 +151,28 @@ export async function runSyncForItem(
         tx as unknown as Tx, householdId, itemRowId, [...refreshedAccountIds]
       );
 
+      // CASH FLOW'S COMMITTED OUTFLOW, and NOTHING CALLED THIS UNTIL NOW.
+      //
+      // fetch-liabilities.ts shipped on 21 Aug with its gate, its migration,
+      // its coverage states, its grant, its declared consent and five passing
+      // database tests. ITS ONLY CALLER WAS ITS OWN TEST. Every check around it
+      // was green because every check around it was about the parts that
+      // existed.
+      //
+      // IT IS THE SHAPE THAT PR NAMED IN ITS OWN DESCRIPTION: a column with a
+      // consumer and no writer reads as finished. The writer was then written
+      // and never called, which is the same sentence one level out, and the
+      // test being a caller is what made it look wired.
+      //
+      // The gate is read here rather than inside, so a disabled Item costs one
+      // column on a query already being run rather than a function call that
+      // returns "not enabled".
+      const liabilities = await fetchLiabilities(
+        tx as unknown as Tx, householdId,
+        { id: itemRowId, itemId: item.item_id, accessToken, enabledAt: item.liabilities_enabled_at },
+        credentials
+      );
+
       const firstSync = await markFirstSyncCompleted(tx as unknown as Tx, householdId);
 
       await tx`
@@ -197,6 +221,7 @@ export async function runSyncForItem(
         balanceWritesIssued,
         accountsRefreshed: refreshedAccountIds.size,
         reconciliation,
+        liabilities,
         snapshotUpsertsIssued,
         signalId,
       };
