@@ -74,6 +74,15 @@ afterAll(async () => {
 });
 
 describe("reconcileBalances is scoped to one Item", () => {
+  // IT CLEANS UP AFTER ITSELF RATHER THAN RELYING ON RUNNING LAST. These tests
+  // write real observations, so leaving them makes the "first observation" test
+  // below fail on a precondition this block silently removed. A suite whose
+  // correctness depends on declaration order is one refactor from being wrong,
+  // and the failure reads as a defect in the code rather than in the fixture.
+  afterAll(async () => {
+    await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+  });
+
   it("judges only the Item it was given, and never another Item's accounts", async () => {
     // THE ASSERTION THE FIX EXISTS FOR. The first version took only a household
     // and reconciled everything it held, so a run over three Items produced
