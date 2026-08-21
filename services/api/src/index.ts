@@ -102,6 +102,7 @@ const handler = {
       url.pathname === "/plaid/disconnect-item" ||
       url.pathname === "/plaid/set-webhook" ||
       url.pathname === "/plaid/clear-first-sync-milestone" ||
+      url.pathname === "/plaid/enable-liabilities" ||
       url.pathname === "/plaid/oauth-return" ||
       url.pathname === "/plaid/webhook" ||
       url.pathname === "/connect"
@@ -278,6 +279,23 @@ const handler = {
           return new Response(await response.text(), {
             status: response.status,
             headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/enable-liabilities" && request.method === "POST") {
+          // Household from the session, as everywhere else here: a body-supplied
+          // household would let one household start another's billing.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const b = (await request.json().catch(() => ({}))) as { confirm?: boolean };
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/enable-liabilities", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId, confirm: b.confirm === true }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status, headers: { "content-type": "application/json" },
           });
         }
 

@@ -1,0 +1,23 @@
+{
+  "why": "WHERE THE MONEY MODEL CAN FIND IT (Guy, 21 Aug 2026). A per-Item recurring charge that begins on a first API call is invisible in code review and invisible in the code itself: nothing on the page says a fetch costs money every month afterwards. This file is the declaration, and enabling a billed product is a diff that changes it.",
+  "how_to_read": "billing_starts says what triggers the charge. enabled_for records where it has ACTUALLY been started, which is a fact about production rather than an intention, and it should match plaid_items.liabilities_enabled_at.",
+  "products": [
+    {
+      "provider": "plaid",
+      "product": "transactions",
+      "billing": "per Item per month, from the first sync",
+      "billing_starts": "the first /transactions/sync for an Item",
+      "deliberate_gate": "none: transactions is the product the platform exists for, and an Item is created in order to sync it",
+      "enabled_for": "every Item"
+    },
+    {
+      "provider": "plaid",
+      "product": "liabilities",
+      "billing": "per Item per month, from first use",
+      "billing_starts": "the first /liabilities/get for an Item",
+      "deliberate_gate": "plaid_items.liabilities_enabled_at, set only by /internal/enable-liabilities, dry run by default. THE SYNC WILL NOT START A CHARGE. Consent to a product and payment for it are different decisions and config/plaid-consent.json is about the first.",
+      "enabled_for": "none yet as of 21 Aug 2026. Guy's household holds 3 Items: SoFi, Chase (4 cards), American Express (6 accounts). Enabling all three starts three per-Item charges, not thirteen, because Plaid bills per Item.",
+      "what_it_buys": "last_statement_balance paired with next_payment_due_date, which is Cash Flow's only committed-outflow input and the reason the cards were connected"
+    }
+  ]
+}
