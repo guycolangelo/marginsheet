@@ -1,0 +1,9 @@
+COMMENT ON COLUMN "financial_accounts"."current_balance" IS NULL;
+COMMENT ON COLUMN "financial_accounts"."available_balance" IS NULL;
+COMMENT ON COLUMN "financial_accounts"."credit_limit" IS NULL;
+COMMENT ON COLUMN "liability_details"."last_statement_balance" IS NULL;
+COMMENT ON COLUMN "liability_details"."next_payment_due_date" IS NULL;
+COMMENT ON COLUMN "account_balance_snapshots"."current_balance" IS NULL;
+COMMENT ON COLUMN "account_balance_snapshots"."available_balance" IS NULL;
+COMMENT ON COLUMN "financial_accounts"."card_state" IS NULL;
+COMMENT ON COLUMN "financial_accounts"."carried_balance" IS NULL;

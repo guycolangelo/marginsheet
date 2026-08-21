@@ -848,6 +848,33 @@ The canon's operational rules amend named specs and **landed 19 August 2026 as a
 
 **Not in that draft and owed its own ruling:** Margin integrity, the requirement that Margin holds itself back while an unconnected spending account or material uncategorized inflow is open. It touches `app-ui-spec.md` and `projection-spec.md` and needs a rendering decision.
 
+## ONE CONSUMER PER BALANCE COLUMN (locked 21 August 2026)
+
+**Each balance column has exactly one consumer, and the hazard is a column being read by something that wants a different one.**
+
+| Column | Its one consumer |
+|---|---|
+| `current` (depository) | the cash position, and Cash Flow's starting point |
+| `current` (credit) | **reconciliation only** |
+| `last_statement_balance` + `next_payment_due_date` | Cash Flow's committed outflow |
+| `available` (credit) | **nothing** |
+
+**`current` on a card is the live running total**, statement plus everything charged since. It moves with every transaction, which makes it the right thing for reconciliation to check against and the wrong thing for anything else, because it is not what any payment will be.
+
+**`last_statement_balance` is what the payment will be, paired with its due date.** That is Cash Flow's input, a known amount on a known date, and it renders as **committed** rather than estimated. It comes from Plaid Liabilities, **which is why the cards were connected.**
+
+**`available` on a card is a limit and touches nothing:** not cash, not the P&L, not Cash Flow. How much more a household could borrow is not a fact about their money, and rendering it near a cash figure would imply otherwise.
+
+**This started as a vocabulary rule and the vocabulary was the weaker form.** The first draft banned combining figures and banned presenting cash as spendable. Both true, and both a rule a reader has to obey: **it named the failure instead of locating it.** The mechanical version says where each column may be read, which an accessor can enforce. Same ladder as everywhere else in this file: **type, then runtime check, then comment**, and "do not say this" is the bottom rung wearing doctrine's clothes.
+
+**The arithmetic is why a type-blind consumer computes wrongly rather than merely misleading.** Depository spending decreases `current`; credit spending increases it. A reconciliation that subtracts before knowing the type reports permanent drift on every card, **and the drift looks like a sync fault rather than a sign error.**
+
+**Written as column comments in migration 0032 rather than into a document**, because a reader meets the column and does not necessarily meet the document. `card_state` and `carried_balance` had sat two columns from the balance block since M6, unused: **somebody knew cards were different and the knowledge stopped there**, while the block itself carried no comments at all.
+
+**What the decomposition made visible, and the vocabulary framing had hidden.** Stating each column's one consumer immediately found a column with a consumer, a grant, a declared consent and **no writer**: nothing calls `/liabilities/get`, so Cash Flow's only committed-outflow input is empty. **A column with a writer and no consumer reads as dead and gets noticed. A column with a consumer and no writer reads as finished**, because every check around it passes. Recorded in `docs/open-items.json`.
+
+**Still owed a ruling:** depository `available_balance` is in no row of the table above, and it is the most tempting column in the schema, because `available` is the word every "budgeting app" puts on a balance and calls spendable.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.

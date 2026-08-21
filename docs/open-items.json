@@ -609,6 +609,23 @@
     "owed_to": "TRIGGER: next module boundary. Raised 21 Aug 2026 after the operation deadline's own trigger passed unremarked at 4.5b.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
-
+  },
+  {
+    "id": "cash-flows-committed-outflow-has-no-writer",
+    "item": "LIABILITY_DETAILS HAS A CONSUMER, A GRANT AND A CONSENT, AND NO WRITER. `last_statement_balance` paired with `next_payment_due_date` is Cash Flow's committed outflow: a known amount on a known date, which is why it renders as committed rather than estimated (Guy, 21 Aug 2026). IT IS THE REASON THE CARDS WERE CONNECTED. The table exists from 0002, `marginsheet_sync` has held grants on it since 0023, and `liabilities` is declared in config/plaid-consent.json as an additionally-consented product. NOTHING CALLS /liabilities/get. WHY THIS IS NOT VISIBLE AS A GAP: every other piece is present, so each individual check passes. The consent control confirms we asked for it, the role boundary confirms sync may write it, the schema confirms the columns are there, and the balance pipeline is green because it is not the thing that fills them. A column with a writer and no consumer reads as dead and gets noticed. A COLUMN WITH A CONSUMER AND NO WRITER READS AS FINISHED, and only stating each column's one consumer made it visible. Until the fetch exists, Cash Flow can state a cash position and cannot state a single committed card payment, which is the half that answers the household's question.",
+    "owner": "build",
+    "trigger": "before any Cash Flow surface renders a committed outflow, since the column it would read is empty. DELIBERATELY PROSE: the evaluable forms all point at a file nobody has created, so the condition would name a path the build may not choose and would never fire. A condition that cannot fire for the real case is worse than prose, because it reads as watched.",
+    "owed_to": "M6b projections and Cash Flow. Raised 21 Aug 2026 while commenting each balance column with its one consumer.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "depository-available-balance-has-no-ruled-consumer",
+    "item": "THE ONE-CONSUMER TABLE DOES NOT COVER DEPOSITORY available_balance, AND IT IS THE MOST TEMPTING COLUMN IN THE SCHEMA. The 21 Aug ruling names four consumers: current (depository) to the cash position, current (credit) to reconciliation only, last_statement_balance to Cash Flow's committed outflow, and available (credit) to nothing. Holds-adjusted depository available is not among them. IT NEEDS A RULING RATHER THAN A DEFAULT, because `available` is precisely the word every \"budgeting app\" puts on a balance and calls spendable, and the whole distinction is that a position is not spending power. Two defensible answers: it is the honest cash position, since a hold is money already gone; or it is a second number where the product has ruled there is one. 0032 comments it as NO CONSUMER DECLARED and directs readers to current_balance, which is the safe direction to be wrong in and is not a ruling.",
+    "owner": "Guy",
+    "trigger": "before any surface renders cash to a household, because that is the first moment the choice between the two columns becomes visible rather than theoretical. PROSE because it is a ruling by Guy, which is the class this file already records as genuinely unevaluable.",
+    "owed_to": "M8 app surfaces and M6b Cash Flow. Raised 21 Aug 2026.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
   }
 ]

@@ -71,5 +71,47 @@ MSG
   exit 1
 fi
 
+# A NUMBER IS CLAIMED BY EXACTLY ONE MIGRATION.
+#
+# The check above compares CONTENTS, so it has nothing to say about two
+# branches that each ADD a different file under the same number. Neither is an
+# edit and neither is a deletion, the filenames differ, so git reports no
+# conflict and BOTH merge. Both then apply, in filename order, and the number
+# stops meaning anything about when a migration ran relative to its neighbours.
+#
+# Same family as the union that resurrected deleted open items (CLAUDE.md, 19
+# Aug): the collision is real and its shape is invisible to the merge, because
+# an addition beside an addition is not a disagreement about any line.
+#
+# Found on 21 Aug 2026 with two live 0032s on two branches, one of which was
+# mine. Renaming the file would have fixed the instance and left the class.
+# Read the DIRECTORY, not the git tree. `git ls-tree HEAD` cannot see the file
+# being added, which is the only file that can introduce a collision, so the
+# first version of this check passed a planted duplicate cleanly.
+dupes="$(
+  ls "$DIR" \
+    | grep '\.sql$' \
+    | grep -v '\.down\.sql$' \
+    | sed -n 's/^\([0-9]\{4\}\)_.*/\1/p' \
+    | sort | uniq -d
+)"
+
+if [ -n "$dupes" ]; then
+  echo "TWO MIGRATIONS CLAIM ONE NUMBER:" >&2
+  for n in $dupes; do
+    ls "$DIR" | grep "^${n}_" | grep -v '\.down\.sql$' \
+      | sed 's/^/  /' >&2
+  done
+  cat >&2 <<'MSG'
+
+Neither file is an edit, so nothing above this line objects, and git will not
+conflict on two additions with different names. Both would apply.
+
+Renumber the one that has NOT merged. If both have merged, the numbers are
+frozen and the correction goes forward as a new migration that says so.
+MSG
+  exit 1
+fi
+
 count="$(git ls-tree -r --name-only "$base" -- "$DIR" | grep -c '\.sql$' || true)"
 echo "all $count merged migrations are byte-identical to $base"
