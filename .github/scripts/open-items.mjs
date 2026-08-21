@@ -70,7 +70,22 @@ const TRIGGER_KINDS = ["condition", "prose"];
  *  THE LIST. It was knowing which half is watching itself. */
 
 
-/** The conditions a trigger may express. Deliberately few.
+/** WHAT THE TWO CONDITIONS IN THIS LIST ACTUALLY ARE, said precisely, because
+ *  the next person writing one will otherwise copy the shape and mean something
+ *  else by it.
+ *
+ *  Both are REGRESSION GUARDS ON A PROPERTY THAT IS ALREADY TRUE, not triggers
+ *  for pending work. One item is a closed negative result and its condition
+ *  fires if the property that closed it goes away. The other is open for a
+ *  DIFFERENT half than its condition watches, and the condition guards the half
+ *  already closed.
+ *
+ *  A CONDITION CAN LEGITIMATELY MEAN EITHER, and both fail the check the same
+ *  way, so the distinction lives in condition_why rather than in a fourth
+ *  field. What matters is that the reason says which: "this reopened" and "the
+ *  thing you were waiting for has happened" send a reader to different actions.
+ *
+ *  The conditions a trigger may express. Deliberately few.
  *
  *  Each returns true when the trigger has FIRED, meaning the thing the item was
  *  waiting for has happened and the item should have been closed or acted on. */

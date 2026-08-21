@@ -528,7 +528,7 @@
       "text": "FRESH ON EVERY RUN",
       "expect": true
     },
-    "condition_why": "The item is closed BECAUSE the branch is recreated every run. If that sentence leaves the script, branch reuse is back and the pre-merge window reopens, which is the one property this item says is holding it shut."
+    "condition_why": "REGRESSION GUARD ON A CLOSED FINDING. The item is closed BECAUSE the branch is recreated every run. This fires if that sentence leaves scripts/neon-pr-branch.sh, which would mean branch reuse is back and the pre-merge migration window has reopened: the single property holding this shut."
   },
   {
     "id": "days-requested-was-never-sent-so-every-item-holds-ninety-days",
@@ -598,7 +598,7 @@
       "text": "statement_timeout = '30s'",
       "expect": true
     },
-    "condition_why": "The database half is closed by migration 0031. If that migration stops declaring the bound, the unbounded-query gap this item describes is live again."
+    "condition_why": "REGRESSION GUARD ON THE HALF ALREADY CLOSED, not a trigger for the half still open. The database half is closed by migration 0031. This fires if that migration stops declaring the bound, which would put the unbounded-query gap live again. THE ITEM REMAINS OPEN for a different reason: the Durable Object fetch and the service-binding fetches are still unbounded, and no condition watches those, because closing them is a ruling rather than a file."
   },
   {
     "id": "a-trigger-only-a-reader-can-notice",
