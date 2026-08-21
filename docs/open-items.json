@@ -636,5 +636,23 @@
     "owed_to": "the sync-role narrowing item. Raised 21 Aug 2026.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
+  },
+  {
+    "id": "first-sync-milestone-fires-before-history-is-complete",
+    "item": "markFirstSyncCompleted FIRES ON THE FIRST SUCCESSFUL SYNC OF THE FIRST ITEM, WHICH DOES NOT ESTABLISH THAT WE HOLD THE HOUSEHOLD'S HISTORY. Observed 21 Aug 2026: Amex's first sync returned 161 rows and its second, with NO CODE CHANGE, returned 5,241 across 11 pages. The institution BACKFILLS ASYNCHRONOUSLY and the first sync correctly reported what existed at that moment. This household was unaffected because the milestone was already set by SoFi and the WHERE-clause guard held. A NEW HOUSEHOLD WHOSE FIRST INSTITUTION BEHAVES THIS WAY WOULD HAVE THE MILESTONE SET AT ROUGHLY 3% OF ITS LEDGER. WHY THAT IS WORSE THAN A THIN LEDGER: the field feeds the M13 intro trigger and the day-3-to-5 census scheduling, it is SET ONCE BY DESIGN so that those do not re-arm, and therefore NOTHING CORRECTS IT. MyKeeper would introduce itself and the census would run against one month of data, permanently. THE OBSERVATION IS OF AMEX AND THE DEFECT IS OURS, which is the join worth stating: the institution behaviour is real and observed, and the consequence is readable in our own code, so neither half is a guess. WHAT THE MILESTONE SHOULD PROBABLY MEAN is that every Item's history is complete rather than that one sync returned, and Plaid's SYNC_UPDATES_AVAILABLE carries historical_update_complete for exactly this. Not built: it needs a ruling on what happens to a household whose institution never sends the signal, since a milestone that waits forever is worse than one that fires early.",
+    "owner": "build, gated on Guy's approval of the plan",
+    "trigger": "before any household other than Guy's connects a first institution, because the milestone is immutable and a wrong one cannot be repaired",
+    "owed_to": "M13 intro and the census scheduling. Raised 21 Aug 2026 from the Amex connection.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "accounts-touched-counts-writes-not-accounts",
+    "item": "THE SYNC'S accountsTouched AND snapshotsWritten COUNT WRITES, AND THEIR NAMES PROMISE ACCOUNTS. Amex reported accountsTouched 28 and snapshotsWritten 28 across SIX accounts, which reads as a defect and is not one. applyBalances runs PER PAGE, deliberately and with a comment saying why: Plaid sends the same current balances with every page so the last page wins, and a pagination that fails midway leaves balances fresher than it found them, which is right for a value describing NOW. Plaid also returns only accounts that HAVE TRANSACTIONS on a given page, so the per-page account count varies, and summing it over 11 pages gives 28 rather than 6 or 66. The behaviour is correct and the metric is misnamed: it is writes-issued, not accounts-touched, and the snapshot upsert collapses 28 writes onto 6 rows. FIFTH INSTANCE THIS WEEK of a field whose name promises a different quantity than it carries, after oldestInWindow reporting the newest date, the readout's `sign` field reporting a constant, a gate that could only refuse, and a withheld balance reading as zero. Rename to balanceWritesIssued and snapshotUpsertsIssued, or report distinct accounts, but not both under these names.",
+    "owner": "build, gated on Guy's approval of the plan",
+    "trigger": "with the next change to run-sync's counters; it is cosmetic until somebody reasons from the number, which already happened once",
+    "owed_to": "M4 observability. Raised 21 Aug 2026 from the Amex connection.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
   }
 ]

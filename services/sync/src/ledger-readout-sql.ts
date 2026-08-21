@@ -70,6 +70,15 @@ export interface DirectionAuditRow {
   max_amount: string | null;
   examples: string[] | null;
 }
+/** One webhook that carried a backfill-completion signal, or the absence of
+ *  any such webhook, which is itself the answer to a different question. */
+export interface HistoryCompletionRow {
+  item_id: string | null;
+  event_type: string | null;
+  created_at: string;
+  initial_update_complete: boolean | null;
+  historical_update_complete: boolean | null;
+}
 export interface TypeRow { type: string | null; accounts: number; held: number; oldest: string | null }
 export interface ItemRow {
   item_id: string; sync_status: string | null; status: string | null;
@@ -117,6 +126,24 @@ export interface Readout {
    *  refund and a description usually can, which is the same reason the Plaid
    *  cross-check reports which row rather than how many. */
   directionAudit: DirectionAuditRow[];
+  /** WHETHER PLAID HAS SAID THE BACKFILL IS DONE, read out of webhook payloads
+   *  we already store.
+   *
+   *  Amex's first sync returned 161 rows and its second, with no code change,
+   *  returned 5,241. The institution backfills ASYNCHRONOUSLY and the first
+   *  sync correctly reported what existed at that moment. Nothing told us more
+   *  was coming, and the second sync happened because a person clicked.
+   *
+   *  `SYNC_UPDATES_AVAILABLE` carries `initial_update_complete` and
+   *  `historical_update_complete`, and provider_events.payload is jsonb, so if
+   *  Plaid sent them WE ALREADY HAVE THEM AND NOTHING HAS EVER READ THEM. That
+   *  is a field with a writer and no consumer, which is the inverse of the
+   *  liabilities column and reads as harmless for the same reason.
+   *
+   *  THIS REPORTS RATHER THAN CONCLUDES. Plaid's documentation says those
+   *  fields exist on that code; whether Amex sent them is a question about a
+   *  particular run, and only these rows answer it. */
+  historyCompletion: HistoryCompletionRow[];
 }
 
 /** Reads everything the readout reports from OUR tables.
@@ -250,10 +277,32 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
      order by fa.type, 2, t.flow, t.direction
   `;
 
+  // READS THE PAYLOAD WE ALREADY STORE. No Plaid call, no cost per subject,
+  // and it distinguishes "Plaid said the backfill is incomplete" from "Plaid
+  // never said anything", which are different findings with different fixes:
+  // the first is a signal we ignored, the second means some institutions need
+  // a mechanism other than an event and we have none.
+  const historyCompletion = await tx<HistoryCompletionRow[]>`
+    select pe.payload->>'item_id' as item_id,
+           pe.event_type,
+           (pe.created_at)::text as created_at,
+           (pe.payload->>'initial_update_complete')::boolean as initial_update_complete,
+           (pe.payload->>'historical_update_complete')::boolean as historical_update_complete
+      from provider_events pe
+     where pe.household_id = ${householdId}
+       and pe.source = 'plaid'
+       and (pe.payload ? 'historical_update_complete'
+            or pe.payload ? 'initial_update_complete'
+            or pe.event_type in ('HISTORICAL_UPDATE', 'INITIAL_UPDATE'))
+     order by pe.created_at desc
+     limit 50
+  `;
+
   return {
     accounts,
     byType,
     directionAudit,
+    historyCompletion,
     items,
     events,
     household: households[0] ?? null,
