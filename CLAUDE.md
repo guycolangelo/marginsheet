@@ -1021,7 +1021,13 @@ gh run view <deploy-run-id> --log | grep "ok: .*build="
 
 **Nothing distinguished "runs in production" from "runs in CI"**, and the second is a state a feature passes through on the way to the first and can remain in indefinitely.
 
-**Asking the question once found three more.** `outbox.ts` and `sync-state.ts` are imported by nothing at all: signals accumulate with `enqueued_at` null forever, and the watchdog has no cron on either Worker to trigger it. `reconnectItem` and `markReconnected` have no caller while two exports of the same file do, so an Item in `needs_reauth` cannot be recovered through the product.
+**Asking the question once found three more.** `outbox.ts` is imported by nothing at all, so signals accumulate with `enqueued_at` null forever. `sweepReason` and `onWebhook` have no caller and there is no cron on either Worker to trigger a sweep. `reconnectItem` and `markReconnected` have no caller while two exports of the same file do, so an Item in `needs_reauth` cannot be recovered through the product.
+
+**A CORRECTION TO THIS ENTRY, 22 August 2026.** It first read *"`outbox.ts` and `sync-state.ts` are imported by nothing at all"*, and that is **false for `sync-state.ts`**: `run-sync.ts` imports `onSyncComplete` and the `SyncStatus` type from it. The orphan scan reported two FUNCTIONS with no caller and the entry generalised that to the MODULE, which is a different and larger claim. **The scan's output was correct and the sentence written from it was not**, which is the join family again: a true reading extended one step past what it demonstrated.
+
+**AND THE WATCHDOG IS WORSE THAN UNWIRED, WHICH THE CORRECTION EXPOSED.** `sweepReason` returns null unless `syncStatus === "syncing"`, and **nothing anywhere sets `sync_status` to `'syncing'`.** All three production Items read `idle`. So a cron added today would run on schedule, examine every Item, and **sweep nothing, forever, while reporting healthy.**
+
+**That is this repository's most-named failure, and wiring the trigger alone would have built it.** The task that reads as "add a cron" is really "build the state machine's write half": mark `syncing` at start, persist a start time, call `onWebhook` when one lands mid-sync so the queued follow-up happens, and only then sweep. **A watchdog over a state nothing enters is a control that cannot fail.**
 
 ### HIGH COVERAGE ON AN UNREACHED FUNCTION IS EVIDENCE OF ELABORATION IN CI, NOT OF MATURITY
 
