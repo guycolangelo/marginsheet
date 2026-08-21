@@ -873,7 +873,32 @@ The canon's operational rules amend named specs and **landed 19 August 2026 as a
 
 **What the decomposition made visible, and the vocabulary framing had hidden.** Stating each column's one consumer immediately found a column with a consumer, a grant, a declared consent and **no writer**: nothing calls `/liabilities/get`, so Cash Flow's only committed-outflow input is empty. **A column with a writer and no consumer reads as dead and gets noticed. A column with a consumer and no writer reads as finished**, because every check around it passes. Recorded in `docs/open-items.json`.
 
-**Still owed a ruling:** depository `available_balance` is in no row of the table above, and it is the most tempting column in the schema, because `available` is the word every "budgeting app" puts on a balance and calls spendable.
+**Depository `available_balance` has no consumer either, ruled 21 August 2026, and the reason is arithmetic rather than preference.** `available` subtracts holds. **A hold is a pending transaction, and pending transactions are already in the ledger**, under `transactions.pending`. So a projection reading `available` **and** counting the pending row subtracts the same money twice. `current_balance` plus the ledger's pending rows is the complete picture, and **`available_balance` is a summary of that same fact rather than an addition to it.**
+
+**That is the general form worth carrying past this column: a provider figure that summarises rows we already hold is not a second source, it is the same money counted again.** The tell is that both are correct and the pair is not.
+
+## THE DIRECTION RULE (locked 21 August 2026)
+
+**The instrument does not change what a transaction means. It changes WHEN the transaction is recognised**, which is already ruled: card purchases at transaction, installment loans as payments land.
+
+| Case | Direction |
+|---|---|
+| Card, not a payment or refund | spending |
+| Depository debit, not a payment | spending |
+| Depository credit | income, **unless** refund or reimbursement |
+| Card credit | **NEVER income.** Payment (transfer), or refund (nets against spending) |
+
+**The last line is the hazard.** A card payment appears **twice**: a debit on checking and a credit on the card, and **both are transfer**. Applied by sign alone, the same event registers as spending and income simultaneously, **inflating both sides of the P&L and leaving Kept unchanged**, which is the version that looks plausible, because the number the household reads does not move.
+
+**Same shape as the balance finding: a rule correct within one account type, inverting across another, with a column name that reads as uniform.** `amount` reads as uniform the way `current_balance` does, and both are two facts sharing one name.
+
+**It is not hypothetical, and the writer already does it.** `apply-streams.ts` derives `direction` from the sign, and states the premise as settled: *"Plaid signs outflows positive, so a positive amount is an expense."* True for a depository account, inverted for a card.
+
+**The file's own doctrine would have prevented it.** The same comment block says M4 *"stores FACTS AND NOTHING DERIVED"*, and that writing a guess into a filing field *"would be a filing decision made by the pipeline"*, and then carves out exactly one exception on the grounds that direction is *"arithmetic rather than interpretation."* **The exception is the defect.** A rule stated correctly and then exempted once is how this class arrives, and the exemption always has a reason or nobody would have written it.
+
+**`transaction_direction` has three values and the writer can only ever return two.** `transfer` exists, since 0003, and no code path produces it. That is the gate-that-can-only-refuse shape moved into a writer: a function structurally unable to emit one of its outcomes, which no test of the outcomes it does emit can see.
+
+**Payment versus refund is M5's filing decision, not the pipeline's**, so there is no safe sign-only default for a card credit and the writer must know the account type.
 
 ## Vocabulary and format (locked; lint-enforced)
 
