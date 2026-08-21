@@ -644,6 +644,19 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   It is the same shape as **verify against the database, never against reports**, one level up: the mechanism is the report, and the log is the database. And it fails the standing question the same way, because **an explanation cannot go red.** No observation refutes "this could have happened", which is precisely why it is not a finding.
 
+- **A CONTROL THAT ASKS THE SESSION IS ASKING SOMETHING ABOUT ITSELF. TWICE IN ONE DAY, IN TWO DIFFERENT CATALOGS.** (Guy, 21 Aug 2026, naming the pair.)
+
+  | Asked | Answers | Should have asked |
+  |---|---|---|
+  | `has_column_privilege(role, ...)` from an owner connection | what the ACL says | the three-argument form, as the role |
+  | `current_setting('statement_timeout')` | what this session was given | `pg_roles.rolconfig` |
+
+  **The second is the sharper illustration.** `ALTER ROLE ... SET` applies **at login**, so a session arriving by `SET ROLE` keeps the settings of the role it CONNECTED as. A control reading `current_setting` would **pass while the declaration was absent**, whenever the connecting role happened to carry a value, and **fail while it was present**, whenever the test connected as somebody else. Both directions wrong, neither visible in the assertion.
+
+  **THE TELL IS THE SAME AND IT IS NOT SUBTLE ONCE NAMED: the session is the easier thing to ask.** It is right there, it needs no join, it returns a clean scalar, and it is answering a question about **itself** rather than about the durable declaration behind it. The catalog is one query further away and is the only thing that knows what was actually declared.
+
+  So the question to ask of any control reading configuration or privilege: **am I asking what was DECLARED, or what this connection happens to have INHERITED?** Where those can differ, only the first is the control.
+
 - **A DEADLINE IS ONLY SAFE IF EVERY OPERATION UNDER IT IS GENUINELY ABORTABLE, AND THE HALF THAT IS NOT IS NAMED RATHER THAN ASSUMED.** (Guy, 21 Aug 2026.)
 
   `Promise.race` against a timer **stops waiting, not working.** The hung call keeps running, can still write, and still holds whatever it held, so a raced deadline is the release-the-lock horn in better clothes and **it reads as correct in review.**
@@ -652,7 +665,9 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **AND THE BOUNDARY IS STATED, BECAUSE A GUARANTEE DESCRIBED AS COVERING THE OPERATION WOULD BE FALSE.** Bounded: every outbound Plaid call. **Not bounded: every database operation.** The sync opens a connection with no `statement_timeout` and passes no signal, so a hung query inside the transaction holds the household's chain lock for as long as it hangs, which is the same failure the deadline exists to prevent, on the other half of the same critical section. Also unbounded and smaller: the Durable Object fetch and the service-binding fetches.
 
-  **The general rule the boundary implies:** an abort is a client-side request that the far side may or may not honour, so **"abortable" is a property of the specific operation and not of the deadline mechanism.** Where the operation cannot be cancelled, the bound has to come from the other side, which is why the database half wants `statement_timeout` rather than a signal. Recorded in `docs/open-items.json` rather than left to be discovered when a query hangs.
+  **The general rule the boundary implies** (Guy, 21 Aug 2026): an abort is a client-side request the far side may or may not honour, so **abortable is a property of the OPERATION rather than of the MECHANISM.** Which means **a deadline never establishes that work stopped. It establishes that we stopped waiting.** Only the operation's own cancellation semantics decide the rest, and even the correct abort version above is trustworthy solely because `fetch` honours the signal: **the guarantee is borrowed from the operation, not supplied by the deadline.**
+
+  Where the operation cannot be cancelled, the bound has to come from the other side. That is why the database half is `statement_timeout` on the role rather than a signal from the client, and why it was built immediately rather than deferred: **syncs already run against production, and the only thing preventing a held lock was a person clicking the button, which is a person watching rather than a control.**
 
 - **A REPORT ABOUT WORK THAT READS AS OBSERVATION AND IS ASSUMPTION ABOUT WHAT A COMMAND DID.** (Guy, 21 Aug 2026, on the second instance.) The reporting half of the join family, and the most dangerous version of it, because the artifact being described is one the reader cannot see.
 

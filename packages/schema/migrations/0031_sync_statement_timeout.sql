@@ -1,0 +1,42 @@
+-- A statement bound for the sync role, so a hung query cannot hold the lock.
+--
+-- WHY THIS EXISTS. The 30 second Plaid deadline bounds every outbound call a
+-- locked sync makes, and bounds nothing else. The sync opens its connection
+-- with no statement_timeout and passes no signal to Postgres, so A HUNG QUERY
+-- INSIDE THE TRANSACTION HOLDS THE HOUSEHOLD'S CHAIN LOCK FOR AS LONG AS IT
+-- HANGS: the same failure the deadline exists to prevent, on the other half of
+-- the same critical section.
+--
+-- IT IS NOT WAITING FOR THE WEBHOOK RECEIVER (Guy, 21 Aug 2026). Syncs already
+-- run against production against a network that can hang, and the only thing
+-- currently preventing a held lock is that a person is clicking the button. A
+-- person watching is not a control.
+--
+-- ALTER ROLE RATHER THAN A CONNECTION OPTION, and the reasoning generalises:
+-- PUT THE BOUNDARY WHERE THE OPERATION IS, NOT WHERE EACH CALLER IS, SO
+-- FORGETTING IS NOT AVAILABLE. A connection option is correct in the file that
+-- carries it and absent from the next one somebody writes. This is the same
+-- shape as the enumerated column grants, and as the rotation guard that moved
+-- out of four test files into one helper.
+--
+-- 30 SECONDS, AND THE OBSERVED FIGURES ARE HERE SO THE NEXT PERSON ARGUES
+-- AGAINST DATA RATHER THAN AGAINST A NUMBER. The sync writes ONE STATEMENT PER
+-- TRANSACTION, not a bulk insert, so the largest statement in this path is a
+-- single row insert joined against an indexed column. On 21 Aug 2026 a real
+-- production run wrote 1560 transactions across 4 pages: token exchange at
+-- 02:19:04, last cursor written at 02:19:51, so roughly 47 seconds END TO END
+-- for four Plaid round trips plus about 1600 individual statements, which is
+-- near 25 milliseconds per statement including the network hop to Neon. 30
+-- seconds is about three orders of magnitude above that.
+--
+-- WHAT IT BOUNDS AND WHAT IT DOES NOT. This bounds each STATEMENT. It does not
+-- bound a RUN: a sync issuing 1600 statements is not limited to 30 seconds, and
+-- it should not be, because a slow sync is not a stuck sync. The aggregate is
+-- the watchdog's job, and the two together are the whole claim: no single
+-- operation in a locked sync can hang indefinitely, and a run that stops making
+-- progress is swept.
+--
+-- ONLY marginsheet_sync. marginsheet_app serves household requests, where a
+-- hung query holds a request rather than a lock, and it wants its own value
+-- decided against its own figures rather than inheriting this one.
+ALTER ROLE marginsheet_sync SET statement_timeout = '30s';
