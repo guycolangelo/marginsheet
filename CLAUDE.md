@@ -638,6 +638,22 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
   **The family, for whoever meets the fifth.** A true mechanism extended to a claim about a particular run. A true statement about one role extended to another. Two correct statements with a value that did not survive between them. And now a correct observation extended past the moment it described. **Every one is an unverified step between two verified things**, and in every one the verified halves are what stop anybody looking at the step.
 
 
+- **ACTUAL REACH EXCEEDS STATED REACH BY DEFAULT, IN EVERY SYSTEM WHERE SOMETHING OTHER THAN THE CODE CAN GRANT IT.** Three instances, so it is a class rather than a coincidence (Guy, 21 Aug 2026).
+
+  | What | Stated | Actually held | Found by |
+  |---|---|---|---|
+  | `marginsheet_sync` | "the Plaid sync worker" | INSERT, SELECT, UPDATE on **39 tables** | reading the grant |
+  | `marginsheet_app` on `plaid_items` | a column control withholding the token | a **table** grant covering every column | a control that asked the catalog |
+  | Our Plaid Items | `transactions` plus `liabilities` | **six** products, including identity and signal | asking Plaid what an Item holds |
+
+  **The third is the one that establishes the class**, because the granting party is outside the repository entirely: the extra four came from the Plaid dashboard's enabled-products configuration, which no test could see and no reviewer could read. It is the same argument the network-identity doctrine already makes about edge rules, arriving on a surface nobody had applied it to.
+
+  **THE BILLING ARGUMENT IS IRRELEVANT AND WORTH REFUSING EXPLICITLY** (Guy). Nothing is billed until an endpoint is called, so the cost of unused consent is zero and the temptation is to leave it. **Consent is the household permitting reach**, and reach we do not use is reach we cannot justify if asked. *"We could have read your identity but did not"* is not a position to defend.
+
+  **The remedy is the same one, three times: declare what we intend, ask the provider what is true, fail on the difference.** `sync-worker-reach` compares statements against grants. `secret-inventory` compares the Worker's requirements against `worker-secrets.json`. `config/plaid-consent.json` now declares the products we request, and the item-products route reports **consented-but-not-declared** rather than three raw arrays that only a reader who already knew the answer could interpret.
+
+  **And the static half and the live half are different claims.** A test can prove the CODE asks for what we declare. Only the provider can say what was GRANTED, and CI holds no production Item, so that half is a route a person runs rather than a job that fails. Saying which is which is the difference between a control and a comfort.
+
 - **A role's documentation is a security claim, and the grant is what is true.** Two roles have now been found wider than the thing describing them, and **both were found by looking, not by anything failing.** That makes it a class rather than a coincidence, and the question belongs in every review that touches a role: **does the grant match the description?**
 
   `marginsheet_app` held table-level INSERT and UPDATE on `plaid_items`, which masked the column control withholding `access_token_ciphertext`: the control was correctly written and did nothing, because a table grant outranks a column revoke. `marginsheet_sync` is described in the custody doc as *"The Plaid sync worker. The only place TOKEN_ENCRYPTION_KEY is used to decrypt"*, and held INSERT, SELECT and UPDATE on **39 tables**, including `messages`, `threads`, `known_context`, `decision_journal` and every LLM log. A component with one job, and a role that can read every household's conversation history, are different things wearing the same sentence.

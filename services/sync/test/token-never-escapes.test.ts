@@ -97,17 +97,44 @@ describe("a failed Plaid call leaks neither the token nor the secret", () => {
 });
 
 describe("the item-products route publishes products and no credential", () => {
-  it("returns the three arrays and nothing else", () => {
+  it("publishes the products and the difference, and nothing else", () => {
     // ENUMERATED, not spread. /item/get also returns the institution id, the
     // webhook, the error state and consent expiry, and none of that is what
     // this route is for. Same discipline as PlaidError.toJSON: name what may
     // be published so a field Plaid adds later is excluded by default.
+    //
+    // AND IT REPORTS THE DIFFERENCE, since 21 Aug 2026. Three raw arrays made
+    // the finding visible only to a reader who already knew what we request:
+    // both real Items reported consent to assets, identity, identity_match and
+    // signal, and nothing in the output said those were unasked for. Declaring
+    // the request and reporting the difference is the same shape as edge-rules
+    // against the live Cloudflare zone, and it is what turns a dashboard
+    // setting into something code review can see.
     const source = readFileSync(join(import.meta.dirname, "..", "src", "reconnect.ts"), "utf8");
+    // BOUNDED BY THE NEXT DECLARATION, not by a brace. Two brace-based
+    // boundaries were tried and both read the wrong region: the first "\n}"
+    // landed inside a multi-line return TYPE once this function grew one, and
+    // so did the first "}" at column zero, because a type annotation closes
+    // with "}>" there. Both reported a missing field that was plainly present.
+    //
+    // FOURTH TIME A STRING-SLICED FIXTURE HAS READ THE WRONG REGION in two
+    // days, after the purge test anchoring on a route name that also appears
+    // in a condition list. THE LESSON IS THE BOUNDARY RATHER THAN THE BUG:
+    // syntax that a regex can be fooled by is exactly what a source file is
+    // made of, so the boundary has to be something structural that does not
+    // recur inside what it bounds.
     const fn = source.slice(source.indexOf("export async function itemProducts"));
-    const body = fn.slice(0, fn.indexOf("\n}"));
+    const next = fn.indexOf("\nexport ", 1);
+    const body = next > 0 ? fn.slice(0, next) : fn;
+    expect(body.length, "the function could not be bounded, so this asserts nothing").toBeGreaterThan(200);
     expect(body).toMatch(/products: item\.item\.products/);
     expect(body).toMatch(/billedProducts: item\.item\.billed_products/);
-    expect(body).toMatch(/consentedProducts: item\.item\.consented_products/);
+    expect(body).toMatch(/consentedProducts: consented/);
+    // BOTH DIRECTIONS. Consented-and-not-declared is reach nobody asked for;
+    // declared-and-not-consented is a product we intend to use and were not
+    // granted, which fails at the endpoint rather than here.
+    expect(body, "the route no longer reports consent it never asked for").toMatch(/consentedButNotDeclared/);
+    expect(body, "the route no longer reports a declared product that was refused").toMatch(/declaredButNotConsented/);
     // The whole item object must never be returned.
     expect(body, "the route spreads Plaid's item object").not.toMatch(/\.\.\.item\.item/);
   });

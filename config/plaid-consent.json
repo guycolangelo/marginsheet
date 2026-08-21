@@ -1,0 +1,42 @@
+{
+  "_doc": [
+    "WHAT WE ASK PLAID FOR, DECLARED HERE SO THE DASHBOARD IS VISIBLE TO CODE REVIEW.",
+    "",
+    "On 21 Aug 2026 the item-products route was run against two real Items and both",
+    "reported consent to assets, identity, identity_match, liabilities, signal and",
+    "transactions. We request two of those. The other four came from the Plaid",
+    "dashboard's enabled-products configuration, which lives outside this",
+    "repository and which nothing here could see.",
+    "",
+    "THAT IS THE THIRD INSTANCE OF ONE SHAPE. marginsheet_sync held 39 tables",
+    "against a description naming one job. marginsheet_app held plaid_items wider",
+    "than the column control that claimed to narrow it. Now our Items carry consent",
+    "wider than our request. ACTUAL REACH EXCEEDS STATED REACH BY DEFAULT, in every",
+    "system where something other than the code can grant it.",
+    "",
+    "THE BILLING ARGUMENT IS IRRELEVANT (Guy, 21 Aug 2026). Consent is the",
+    "household permitting reach, and reach we do not use is reach we cannot justify",
+    "if asked. 'We could have read your identity but did not' is not a position to",
+    "defend.",
+    "",
+    "SAME SHAPE AS edge-rules AND secret-inventory: declare what we intend, ask the",
+    "provider what is true, fail on the difference."
+  ],
+
+  "products": ["transactions"],
+
+  "additionalConsentedProducts": ["liabilities"],
+
+  "why": {
+    "transactions": "The ledger. Every figure in the product derives from it.",
+    "liabilities": "Consented at link time and billed on first use, because a product cannot be added to an Item after creation without taking the household back through Link. The four Chase cards are exactly the case it exists for."
+  },
+
+  "deliberatelyNotRequested": {
+    "assets": "Asset reports. Nothing calls /asset_report/*, and nothing in any spec plans to.",
+    "identity": "Plaid identity. Our identity work is Better Auth plus Twilio Verify; the household's name and address come from them, not from the bank.",
+    "identity_match": "Identity comparison. Same reasoning, and it would mean sending a household's details to a third party to be scored.",
+    "signal": "ACH risk scoring. We move no money, so there is nothing to score.",
+    "investments": "Would be required for ANY investment figure, since balances read 0.00 without it. It is a real decision rather than an omission and is tracked in docs/open-items.json."
+  }
+}

@@ -609,6 +609,14 @@
     "owed_to": "TRIGGER: next module boundary. Raised 21 Aug 2026 after the operation deadline's own trigger passed unremarked at 4.5b.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
-
+  },
+  {
+    "id": "plaid-dashboard-grants-four-products-we-never-asked-for",
+    "item": "OBSERVED 21 AUG 2026 ON BOTH REAL ITEMS. We request products transactions and additional_consented_products liabilities. Plaid reports consent to assets, identity, identity_match, liabilities, signal and transactions. FOUR PRODUCTS WE NEVER ASKED FOR, on every Item, agreed to by a household who was told what we said we wanted. They come from the Plaid dashboard's enabled-products configuration, which lives outside this repository and which nothing here could see. WHAT BREAKS IF THEY ARE TURNED OFF: nothing. Every Plaid endpoint this system calls is /accounts/get, /item/get, /item/remove, /item/webhook/update, /link/token/create, /transactions/get, /transactions/sync and /webhook_verification_key/get. All are Item management or Transactions, and no spec plans to use assets, identity, identity_match or signal. liabilities stays: it is consented at link time and billed on first use, and Chase's four credit cards are the case it exists for. THE CHANGE IS FORWARD ONLY, WHICH IS THE PART TO KNOW BEFORE ACTING. Dashboard settings apply to Items AT CREATION, so SoFi and Chase keep the wider consent until they are relinked. Narrowing fixes every future household and leaves the two existing Items as they are. Not worth a relink in build's view, since nothing reaches that data and the control now makes the difference visible rather than silent, but that is Guy's call rather than a decision to take by default. GUY OWNS THE DASHBOARD HALF: turn off assets, identity, identity_match and signal, leaving transactions and liabilities.",
+    "owner": "Guy",
+    "trigger": "before the beta cohort connects anything, because every Item created under the current dashboard configuration carries consent nobody asked for and the change cannot be applied retroactively",
+    "trigger_kind": "prose",
+    "owed_to": "TRIGGER: before the beta cohort. Raised 21 Aug 2026 when the item-products route was run against two real Items on its first day.",
+    "raised": "2026-08-21"
   }
 ]

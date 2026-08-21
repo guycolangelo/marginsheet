@@ -13,6 +13,7 @@
 // NOT touched.
 
 import postgres from "postgres";
+import CONSENT from "../../../config/plaid-consent.json";
 import { callPlaid, type PlaidCredentials } from "./plaid-client.js";
 import { decryptToken } from "./token-crypto.js";
 
@@ -50,6 +51,7 @@ export async function reconnectItem(
     if (!row.access_token_ciphertext) throw new Error(`plaid_item ${itemRowId} holds no token`);
 
     const accessToken = await decryptToken(row.access_token_ciphertext, encryptionKey);
+    const declared = new Set([...CONSENT.products, ...CONSENT.additionalConsentedProducts]);
     const link = await callPlaid<{ link_token: string }>("/link/token/create", credentials, {
       user: { client_user_id: householdId },
       client_name: "MarginSheet",
@@ -91,7 +93,21 @@ export async function itemProducts(
   credentials: PlaidCredentials,
   encryptionKey: string,
   databaseUrl: string
-): Promise<{ products: string[]; billedProducts: string[]; consentedProducts: string[] }> {
+): Promise<{
+  products: string[];
+  billedProducts: string[];
+  consentedProducts: string[];
+  /** Consented and not declared. THE FIELD THIS ROUTE EXISTS FOR, after
+   *  21 Aug 2026: both real Items reported consent to assets, identity,
+   *  identity_match and signal, none of which we request. Reporting three raw
+   *  arrays made that visible only to somebody who already knew what we ask
+   *  for; reporting the DIFFERENCE makes it visible to anybody who runs it. */
+  consentedButNotDeclared: string[];
+  /** Declared and not consented, which is the direction that BREAKS things: a
+   *  product we intend to use and were not granted fails at the endpoint rather
+   *  than here. */
+  declaredButNotConsented: string[];
+}> {
   const sql = postgres(databaseUrl, { max: 1 });
   try {
     const [row] = await sql<{ access_token_ciphertext: string | null }[]>`
@@ -102,14 +118,22 @@ export async function itemProducts(
     if (!row.access_token_ciphertext) throw new Error(`plaid_item ${itemRowId} holds no token`);
 
     const accessToken = await decryptToken(row.access_token_ciphertext, encryptionKey);
+    const declared = new Set([...CONSENT.products, ...CONSENT.additionalConsentedProducts]);
     const item = await callPlaid<{
       item: { products?: string[]; billed_products?: string[]; consented_products?: string[] };
     }>("/item/get", credentials, { access_token: accessToken });
 
+    const consented = item.item.consented_products ?? [];
+
     return {
       products: item.item.products ?? [],
       billedProducts: item.item.billed_products ?? [],
-      consentedProducts: item.item.consented_products ?? [],
+      consentedProducts: consented,
+      // DECLARE, ASK THE PROVIDER, REPORT THE DIFFERENCE. Same shape as
+      // edge-rules against the live Cloudflare zone: a dashboard setting is
+      // invisible to code review until something compares the two.
+      consentedButNotDeclared: consented.filter((p) => !declared.has(p)),
+      declaredButNotConsented: [...declared].filter((p) => !consented.includes(p)),
     };
   } finally {
     await sql.end({ timeout: 5 });

@@ -999,19 +999,19 @@
       "distinction": "THE VERIFIER IS WATCHED REFUSING, NOT ONLY ACCEPTING (Guy, 21 Aug 2026). A signature verifier that accepts everything is indistinguishable from one that works, on a real event, forever: every webhook arrives, every one is processed, and nothing reports a fault. So the suite exercises the accept path AND five distinct tampering modes, each differing from the accepted token by exactly one thing, which is the minimal-mutation rule applied to a fixture. It signs its own webhooks against a local server standing in for the key endpoint, so both directions are proven offline rather than waiting on production. THE POSITIVE CASE IS ASSERTED FIRST AND IS NOT DECORATION: every refusal here would pass against a verifier hard-wired to reject, which is the same defect as a gate that can only refuse looking like a careful one, found earlier the same day in the liveness classifier."
     },
     {
-      "id": "item-products-publishes-three-arrays",
+      "id": "item-products-reports-the-difference",
       "control": "itemProducts' enumeration (services/sync/src/reconnect.ts)",
-      "guards": "The item-products route returns product arrays and never Plaid's whole item object.",
+      "guards": "The item-products route reports consent we did not ask for, and never publishes Plaid's whole item object.",
       "test": "services/sync/test/token-never-escapes.test.ts",
-      "name": "returns the three arrays and nothing else",
+      "name": "publishes the products and the difference, and nothing else",
       "planted": {
         "kind": "source",
         "file": "services/sync/src/reconnect.ts",
-        "find": "    return {\n      products: item.item.products ?? [],\n      billedProducts: item.item.billed_products ?? [],\n      consentedProducts: item.item.consented_products ?? [],\n    };",
-        "replace": "    return { ...item.item } as never;",
-        "note": "The spread, which is what somebody writes when they want 'everything Plaid told us'. /item/get also returns institution id, webhook, error state and consent expiry. Verified red 20 Aug 2026."
+        "find": "      consentedButNotDeclared: consented.filter((p) => !declared.has(p)),",
+        "replace": "      consentedButNotDeclared: [],",
+        "note": "REPORTS AN EMPTY DIFFERENCE RATHER THAN REMOVING THE FIELD, which is the plausible wrong version: the field is still there, the route still answers, and every consumer still gets the shape it expects. What is lost is the only thing that made the 21 Aug finding visible. A route that always reports no difference is indistinguishable from a dashboard that matches the declaration, which is the failure this control exists to prevent."
       },
-      "distinction": "THE ROUTE EXISTS BECAUSE A PROBE COULD NOT ANSWER THE QUESTION. additional_consented_products is documented as an UPDATE MODE field and we send it on an initial link token; Plaid accepts it either way, so a successful connection cannot distinguish HONORED from SILENTLY IGNORED. A link token probe was proposed and withdrawn for exactly that reason, and a failed Liabilities call afterwards is ambiguous between consent not taking, the institution not supporting the product, and something else. consented_products answers directly rather than by inference from a failure. The enumeration is the same discipline as PlaidError.toJSON, which was tightened the same week for the opposite reason: name what may be published, so a field added later is excluded by default."
+      "distinction": "DECLARE WHAT WE INTEND, ASK THE PROVIDER WHAT IS TRUE, FAIL ON THE DIFFERENCE. The third instance of that pattern in this repository, after the sync role's grants against its statements and worker-secrets.json against REQUIRED_SECRETS, which is why it is built the same way rather than invented again. THE STATIC HALF AND THE LIVE HALF ARE DIFFERENT CLAIMS AND ARE SEPARATED: consent-matches-the-declaration.test.ts proves the CODE asks for what config/plaid-consent.json declares, and this route proves what PLAID GRANTED, which no test can know because CI holds no production Item. Reporting three raw arrays made the finding visible only to a reader who already knew what we request; on 21 Aug both real Items carried consent to assets, identity, identity_match and signal and the output said nothing about it."
     }
   ]
 }
