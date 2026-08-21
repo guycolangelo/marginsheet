@@ -985,6 +985,20 @@ Here the cost is concrete. **SoFi holds zero credit accounts, so enabling it buy
 
 **And a route should be honest about what it cannot undo, which is rarer than a route that warns.** The flag does not call Plaid, so clearing it beforehand starts nothing; after the first call the billing is Plaid's and our column is irrelevant. Saying the second half is the part that matters, because a reader who sees a reversible-looking flag will assume the whole thing is reversible.
 
+## AN ABSENT COUNTER DOES NOT ANNOUNCE ITSELF (recorded 21 August 2026)
+
+Filed with the omission rule, because the reader-side lesson is the smaller half and filing it only as a reader's error would leave the instrument unchanged.
+
+**The reading.** `snapshots: 1` on eighteen accounts, against `snapshotUpsertsIssued: 1`, read as a counter counting statements while its name promised rows. **Two different tables.** `balanceWritesIssued` counts `account_balance_snapshots` upserts; reconciliation rows live in `balance_reconciliations`, **which no counter had ever claimed.**
+
+**The comparison was available because the third number did not exist.** A wrong number announces itself eventually: it is in the wrong units, or the wrong magnitude, or it disagrees with something. **An absent one leaves a gap that the nearest number slides into**, and the result is a figure in exactly the right units, of exactly the right kind, sitting where the right number would have sat. That is this file's own description of the most dangerous wrong number, arrived at by a different route: not a field that lies, but **a field that is missing while a neighbour looks like it.**
+
+**So it is the omission rule, not the convergence rule.** Every other class here is something written wrongly, which a careful reader eventually catches. **This is something not written**, and no amount of reading the output finds it, because nothing on the page is false.
+
+**The fix is a counter that names its own population, asserted against the table rather than declared.** Three numbers over three populations: writes issued, distinct accounts refreshed, observations written. The third exists now because nothing named it before, and each is checked against what it claims to count, **which is what stops it decaying into decoration.**
+
+**A stated inequality is worth more than an asserted equality.** The obvious move after adding the counter was to claim the sets had become the same. They have not: observations written is refreshed accounts **minus** the investment ones, deliberately excluded. **Naming the exact gap makes any other gap a defect**; claiming equality would have made the next discrepancy an argument.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.

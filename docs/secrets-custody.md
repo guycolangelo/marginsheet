@@ -24,6 +24,7 @@ Deferral ruling (Guy, 15 Aug 2026): production/live credentials land with the mo
 | `ANTHROPIC_API_KEY` | conversation | non-production key, set 0.3 (0.5's smoke call needs it) | **deferred to the first production deploy that calls a model** |
 | `ANTHROPIC_API_KEY` | api | **deferred to M5** (escalation calls: Haiku to Sonnet parsing chain) | **deferred to M5** |
 | `TOKEN_ENCRYPTION_KEY` | **sync** (currently held by api) | set 0.3, distinct per environment | set 0.3, distinct |
+| `DEBUG_PROBE_TOKEN` | api + conversation + sync | set 0.3, distinct per environment | set 0.3, distinct |
 
 GitHub Actions store: `CLOUDFLARE_API_TOKEN` (scoped API token, not a personal OAuth token), `NEON_API_KEY`, `ANTHROPIC_API_KEY` (non-production), and `DEV_` / `STAGING_` prefixed sets for the isolation suite (Plaid sandbox pair, Stripe test key; Twilio pair joins at M3; DB URLs derived from `NEON_API_KEY` at run time).
 
@@ -41,6 +42,60 @@ GitHub Actions store: `CLOUDFLARE_API_TOKEN` (scoped API token, not a personal O
 
   The old values are unrecoverable and that is the design. They protected zero Plaid Items, which is exactly why this was done now.
 - **The key is currently on `api`, and the third-Worker ruling says it should not be** (M4 §2a, 17 Aug 2026). The whole argument for a separate `marginsheet-sync` deployable is that the token-reading surface has no public routes, and a key sitting on the deployable that serves household requests makes the role split cosmetic. **4.2 moves it and removes it from `api`**, and removing it is the half that is easy to skip: a key that is merely also present somewhere else is not a boundary.
+
+## DEBUG_PROBE_TOKEN custody
+
+**ADDED 21 AUG 2026, AND ITS ABSENCE FROM THIS DOCUMENT WAS THE DEFECT.** This
+file opens by saying it lists what exists and where it lives. The token was
+declared in `config/worker-secrets.json` for all nine Worker/environment pairs
+and reached CI as `${{ secrets.DEBUG_PROBE_TOKEN }}`, and it was in no row here.
+**An inventory that omits an entry is worse than no inventory**, because the
+omission reads as "no such secret" rather than "not written down".
+
+### What it gates
+
+**Every `/debug/` route on both Workers, not just `sync-health`.** The gate is a
+prefix match: `url.pathname.startsWith("/debug/")` on api, and the sync Worker
+gates its own `/debug` routes independently, because defence does not rest on a
+private Worker being unreachable. A second door has been found once already.
+
+So this one value stands between an unauthenticated caller and: the deployed
+build SHA of both Workers, environment, database role and reachability,
+migration and table counts, and **which secrets exist by name**, which names our
+vendors. **No values.** Reconnaissance rather than credentials, and that is the
+whole reason a 404 is preferred to a 403.
+
+### The 404, and why an operator meets it here rather than only in a comment
+
+**A missing token, a wrong token, and a route that does not exist all return
+`404 "Not found"`.** That is deliberate: a 403 confirms the route exists.
+
+**The first person to hit that 404 by hand will conclude the route is missing
+and go looking for a deploy failure that did not happen.** That happened on 21
+Aug 2026 and cost a diagnosis. The reasoning was already correct in a code
+comment, where nobody refused by the probe is reading.
+
+The cost of the design is real and is accepted: **an unauthenticated 404 and a
+nonexistent route are the same response, so the probe cannot tell you it is
+missing.** What it can tell you is that a correct token returns a body.
+
+### Retrieval is a rotation
+
+The value cannot be read back from GitHub or from Cloudflare, so there is no
+retrieval path, only a replacement one. `scripts/rotate-probe-token.sh`
+generates a fresh value, pipes it to the password manager **first**, then to
+GitHub Actions, then to every pair the declaration names. **The value is
+displayed nowhere**, same rule as `TOKEN_ENCRYPTION_KEY`.
+
+**Sink first, deliberately.** A value rotated everywhere and captured nowhere is
+worse than not rotating: it makes the probe permanently unreadable, which is the
+condition the script exists to end. A partial Worker pass leaves CI holding the
+new value and some Workers the old, so `verify-deploy` fails on those with "no
+response". **Loud, not silent.**
+
+**The sink command is required and not hardcoded.** Nobody here knows which
+manager Guy uses, and a rotation that silently skips the capture step produces
+exactly the condition it was written to fix while looking like success.
 
 ## Database roles (the other half of the token control)
 
