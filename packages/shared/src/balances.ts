@@ -107,19 +107,60 @@ export function creditBalanceHeld(accounts: readonly BalanceBearingAccount[]): F
   return round(total) as For<"credit-balance-held">;
 }
 
-/** ONE card's live running total, for RECONCILIATION AND NOTHING ELSE.
+/** The raw `current` of ANY account, for RECONCILIATION AND NOTHING ELSE.
  *
- *  Statement plus everything charged since. It moves with every transaction,
- *  which makes it the right thing to check a running total against and the
- *  wrong thing for anything else, BECAUSE IT IS NOT WHAT ANY PAYMENT WILL BE.
- *  Cash Flow wants committedOutflow.
+ *  ITS FIRST CONSUMER FOUND A GAP IN THE ONE-CONSUMER TABLE, and the fix is a
+ *  word rather than an exception. The table reads "current (credit) ->
+ *  reconciliation only" and "current (depository) -> the cash position", which
+ *  is right about what each figure MEANS. 4.6 reconciles depository accounts
+ *  too: the observation the whole design rests on is SoFi Checking moving
+ *  1731.96 to 1579.96 against one transaction of 152.00.
  *
- *  Returns null for a non-credit account rather than a number, so a caller that
- *  reaches for the wrong type gets nothing rather than a depository figure
- *  wearing a reconciliation brand. */
+ *  SO RECONCILIATION IS NOT A SECOND CONSUMER OF THE MEANING. It reads the
+ *  column to VERIFY it and never to interpret it, which is a different act from
+ *  reading depository current AS CASH. The brand is what keeps them apart: a
+ *  reconciliation figure cannot be passed anywhere a cash figure is expected,
+ *  so this function cannot become a back door to the column.
+ *
+ *  On a card this is the live running total, statement plus everything charged
+ *  since, which is the right thing to check a running total against and the
+ *  wrong thing for anything else BECAUSE IT IS NOT WHAT ANY PAYMENT WILL BE.
+ *  Cash Flow wants committedOutflow. */
 export function forReconciliation(account: BalanceBearingAccount): For<"reconciliation"> | null {
-  if (account.type !== "credit") return null;
-  return round(Number(account.currentBalance ?? 0)) as For<"reconciliation">;
+  if (account.currentBalance == null) return null;
+  const v = Number(account.currentBalance);
+  if (!Number.isFinite(v)) return null;
+  return round(v) as For<"reconciliation">;
+}
+
+/** What `current` SHOULD read, given where it was and what moved since.
+ *
+ *  THE SIGN INVERTS ACROSS ACCOUNT TYPE AND THAT IS WHY THIS IS HERE RATHER
+ *  THAN IN A TERNARY AT THE CALL SITE. Depository spending DECREASES current;
+ *  credit spending INCREASES it, because the card's balance is a debt. A
+ *  reconciliation that subtracts before knowing the type reports permanent
+ *  drift on every card, AND THE DRIFT LOOKS LIKE A SYNC FAULT RATHER THAN A
+ *  SIGN ERROR, which is what makes it expensive rather than merely wrong.
+ *
+ *  `outflow` and `inflow` are sums of transactions.amount, which is stored
+ *  absolute, grouped by transactions.flow. Both are positive magnitudes here
+ *  and the direction is supplied entirely by the account type. */
+export function expectedBalance(
+  account: BalanceBearingAccount,
+  previous: For<"reconciliation">,
+  outflow: number,
+  inflow: number
+): For<"reconciliation"> | null {
+  if (account.type === "depository") {
+    return round(previous + inflow - outflow) as For<"reconciliation">;
+  }
+  if (account.type === "credit") {
+    return round(previous + outflow - inflow) as For<"reconciliation">;
+  }
+  // Investment and anything else: no reconciliation. Plaid reports 0.00 for
+  // investment accounts holding real money, so an expected figure computed from
+  // it would be arithmetic on a number we already know is not the balance.
+  return null;
 }
 
 /** Cash Flow's COMMITTED OUTFLOW: a known amount on a known date.

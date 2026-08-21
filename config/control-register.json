@@ -245,10 +245,10 @@
     },
     {
       "id": "sync-grant-enumeration",
-      "control": "marginsheet_sync holds exactly ten tables (migrations 0023, 0024)",
-      "guards": "An eleventh table granted to the sync role is noticed, even when nobody named it.",
+      "control": "marginsheet_sync holds exactly eleven tables (migrations 0023, 0024, 0038)",
+      "guards": "A twelfth table granted to the sync role is noticed, even when nobody named it.",
       "test": "services/api/test/sync-role-boundary.test.ts",
-      "name": "holds grants on exactly the 10 tables",
+      "name": "holds grants on exactly the 11 tables",
       "planted": {
         "kind": "sql",
         "apply": "GRANT SELECT ON receivables TO marginsheet_sync",
@@ -258,7 +258,7 @@
         "restoredValue": 0,
         "note": "A table NOBODY NAMED, deliberately. sync-role-boundary attempts messages, known_context and decision_journal and requires three refusals, and all three still pass when a fourth table is granted. receivables is in none of those lists, so only the count notices. That is why this entry exists separately from sync-role-boundary. THE PROOF ASSERTS THE STATE IT FOUND RATHER THAN THE ABSENCE OF WHAT IT DID, after 20 Aug 2026. REVOKE ALL is deliberately broader than the plant, which is safe only while 0023 leaves this role nothing on this table, and the old proof asked about SELECT alone so it could not have noticed the restore removing a privilege the plant never granted. It now sums SELECT, INSERT, UPDATE and DELETE into one number, so restored must read 0: not 'the thing I did is gone' but 'the table is as I found it'."
       },
-      "distinction": "A COUNT CATCHES A WIDENING A NAMED-ITEM CHECK CANNOT. sync-role-boundary proves three specific tables are refused; this proves the set is exactly nine. Grant a fourth table nobody thought to name and the three refusals still pass while the count goes to ten. The deployed Worker reports the same number independently: sync/health returns tables:9 from information_schema, which only shows tables the connecting role holds privilege on, against api's 46. WIDENED DELIBERATELY 18 Aug 2026, nine to ten, for the household-state-changed outbox. A control firing on a legitimate widening is the control working, and the declaration moved BEFORE the grant so the red was a proof rather than a description. The reasoning that admits the tenth is narrow ON PURPOSE, because it is what stops an eleventh being argued in by analogy: the sync worker must write the signal inside the same transaction as the change it describes, so a write by anything else loses the atomicity the outbox exists for. Not 'the pipeline touches it'."
+      "distinction": "A COUNT CATCHES A WIDENING A NAMED-ITEM CHECK CANNOT. sync-role-boundary proves three specific tables are refused; this proves the set is exactly nine. Grant a fourth table nobody thought to name and the three refusals still pass while the count goes to ten. The deployed Worker reports the same number independently: sync/health returns tables:9 from information_schema, which only shows tables the connecting role holds privilege on, against api's 46. WIDENED DELIBERATELY TWICE. Nine to ten on 18 Aug 2026 for the household-state-changed outbox. Ten to eleven on 21 Aug 2026 for balance_reconciliations, which 4.6 writes inside the sync transaction so the reported balance and the transactions it is checked against come from one sync. THE SAME MIGRATION'S FIRST DRAFT WOULD HAVE TAKEN A TWELFTH, insight_ledger, to record the finding where somebody would see it. That is the conversation table 0023 names as its own example of what this role must not reach, and it was refused: the drift stays in a table the pipeline owns and whatever surfaces insights reads it with a role entitled to both. A LEGITIMATE WIDENING AND A REFUSED ONE IN ONE MIGRATION IS THE CLEAREST STATEMENT OF WHERE THE LINE IS. A control firing on a legitimate widening is the control working, and the declaration moved BEFORE the grant so the red was a proof rather than a description. The reasoning that admits the tenth is narrow ON PURPOSE, because it is what stops an eleventh being argued in by analogy: the sync worker must write the signal inside the same transaction as the change it describes, so a write by anything else loses the atomicity the outbox exists for. Not 'the pipeline touches it'."
     },
     {
       "id": "token-crypto-tag",

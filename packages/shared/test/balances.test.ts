@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  cashPosition, owed, creditBalanceHeld, forReconciliation, committedOutflow,
+  cashPosition, owed, creditBalanceHeld, forReconciliation, committedOutflow, expectedBalance,
 } from "../src/balances.js";
 
 // The real shape, from production on 21 Aug 2026, including the two cases that
@@ -67,10 +67,65 @@ describe("forReconciliation", () => {
     expect(forReconciliation({ type: "credit", currentBalance: "3055.45" })).toBe(3055.45);
   });
 
-  it("returns null for a depository account rather than its balance", () => {
-    // A number here would be a cash figure wearing a reconciliation brand,
-    // which is the exact confusion the brand exists to prevent.
-    expect(forReconciliation({ type: "depository", currentBalance: "1539.96" })).toBeNull();
+  it("returns a depository balance TOO, because 4.6 reconciles both", () => {
+    // THIS ASSERTION WAS THE OPPOSITE YESTERDAY and the change is recorded
+    // rather than quietly made. The first version refused depository accounts
+    // on the grounds that depository current belongs to the cash position.
+    // 4.6's first consumer showed that reconciliation reads BOTH types: the
+    // observation the whole design rests on is SoFi Checking, a depository
+    // account, moving by exactly one transaction.
+    //
+    // Reconciliation is not a second consumer of the MEANING. It reads the
+    // column to VERIFY it, never to interpret it, and the brand is what keeps
+    // that from becoming a back door: the returned value still cannot be passed
+    // anywhere a cash figure is expected.
+    expect(forReconciliation({ type: "depository", currentBalance: "1539.96" })).toBe(1539.96);
+  });
+
+  it("returns null for a missing or unparseable balance rather than 0", () => {
+    // 0 would be a claim. A zero we cannot substantiate is worse than nothing,
+    // which is the investment-balance rule applied one column over.
+    expect(forReconciliation({ type: "credit", currentBalance: null })).toBeNull();
+    expect(forReconciliation({ type: "credit", currentBalance: "n/a" })).toBeNull();
+  });
+});
+
+describe("expectedBalance inverts with the account type", () => {
+  const brand = (n: number) => n as never;
+
+  it("DEPOSITORY: an outflow decreases it", () => {
+    // The production observation the design rests on: SoFi Checking 1731.96 to
+    // 1579.96 against one transaction of 152.00, reconciling to the cent.
+    expect(expectedBalance({ type: "depository", currentBalance: null }, brand(1731.96), 152, 0))
+      .toBe(1579.96);
+  });
+
+  it("CREDIT: an outflow INCREASES it, because the balance is a debt", () => {
+    expect(expectedBalance({ type: "credit", currentBalance: null }, brand(3000), 100, 0))
+      .toBe(3100);
+  });
+
+  it("CREDIT: an inflow decreases it, because a payment reduces the debt", () => {
+    expect(expectedBalance({ type: "credit", currentBalance: null }, brand(3100), 0, 500))
+      .toBe(2600);
+  });
+
+  it("the two types produce OPPOSITE results from identical inputs", () => {
+    // THE ASSERTION THAT MAKES THE OTHERS MEAN SOMETHING. Each case above would
+    // pass against a function that ignored type and happened to match one
+    // convention; only comparing the two proves the inversion exists.
+    const dep = expectedBalance({ type: "depository", currentBalance: null }, brand(1000), 200, 0);
+    const cred = expectedBalance({ type: "credit", currentBalance: null }, brand(1000), 200, 0);
+    expect(dep).toBe(800);
+    expect(cred).toBe(1200);
+    expect(dep).not.toBe(cred);
+  });
+
+  it("refuses an investment account rather than computing on a balance we distrust", () => {
+    // Plaid reports 0.00 for investment accounts holding real money, so an
+    // expected figure computed from it is arithmetic on a number already known
+    // not to be the balance.
+    expect(expectedBalance({ type: "investment", currentBalance: null }, brand(0), 10, 10)).toBeNull();
   });
 });
 

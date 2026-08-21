@@ -690,5 +690,14 @@
     "owed_to": "M13 intro. Raised 21 Aug 2026 with the route.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
+  },
+  {
+    "id": "reconciliation-drift-has-no-surfacing-path",
+    "item": "A CONFIRMED BALANCE DRIFT IS RECORDED IN balance_reconciliations AND NOTHING SURFACES IT. The first draft of 0038 said the investigation item would go into insight_ledger, 'which marginsheet_sync can already write'. THAT IS FALSE AND insight_ledger IS THE TABLE 0023 NAMES AS ITS OWN EXAMPLE: 0023 narrowed marginsheet_sync from 39 tables to 9 precisely because it held messages, threads, known_context, decision_journal, insight_ledger and every LLM log, and its stated reason is that a component with one job and a role that can read every household's conversation history are different things wearing the same sentence. Writing the finding from the sync Worker would have required an eleventh table and it would have been that exact one. SO THE DRIFT STAYS IN balance_reconciliations, which the sync role may write and marginsheet_app may read, and whatever surfaces insights reads it with a role entitled to both. THAT COMPONENT DOES NOT EXIST. Until it does, a confirmed drift is visible in the readout and in the table and reaches nobody automatically. insight_source carries the value 'reconciliation' from 0038 so the surfacing has one; a value nothing writes is inert and is not evidence that anything writes it.",
+    "owner": "build, gated on Guy's approval of the plan",
+    "trigger": "whenever insight surfacing is built, and before any household other than Guy's is syncing, because until then a drift reaching only a readout is a drift only somebody looking will find",
+    "owed_to": "M5 filing and whatever owns insight surfacing. Raised 21 Aug 2026 while renumbering 0038.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
   }
 ]
