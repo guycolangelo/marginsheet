@@ -164,6 +164,46 @@ describe("an account Plaid did not return is not reconciled at all", () => {
     expect(r.observationsWritten).toBe(1);
   });
 
+  it("does NOT claim a settle when nothing changed since the last observation", async () => {
+    // THE NOTE USED TO ASSERT THIS ON EVERY NON-ZERO DIFFERENCE. An explanation
+    // attached to a value nobody checked against it is a diagnosis with no
+    // evidence, and it told a household the first disagreement is usually a
+    // settle that clears within three observations. A settle clears in ONE.
+    await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+    await sql`delete from transactions where household_id = ${HOUSEHOLD}`;
+    await setBalance(BANK, "1000.00");
+    await run(ITEM, [BANK]);              // first observation, sets the baseline
+    await setBalance(BANK, "900.00");     // moves with nothing to explain it
+    const r = await run(ITEM, [BANK]);
+
+    const bank = of(r, BANK);
+    expect(bank.difference).toBe(-100);
+    expect(bank.note, "it offered the settle explanation with no evidence for it").not.toMatch(/changed since the last observation without being created/);
+    expect(bank.note).toMatch(/nothing this reconciler can see explains it/);
+  });
+
+  it("DOES claim it when a transaction changed since the last observation", async () => {
+    // The evidence is exact: a row created BEFORE the last observation and
+    // updated AFTER it moves the balance while leaving the created_at sum
+    // untouched, which is the settle shape precisely.
+    await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+    await sql`delete from transactions where household_id = ${HOUSEHOLD}`;
+    await addTxn(BANK, "50.00", "outflow", "settle-note-1");
+    await setBalance(BANK, "1000.00");
+    await run(ITEM, [BANK]);              // baseline, with the txn already counted
+
+    // The row is touched WITHOUT being recreated, which is what a settle does.
+    await sql`update transactions set amount = 75.00, updated_at = now()
+               where plaid_transaction_id = 'settle-note-1'`;
+    await setBalance(BANK, "975.00");
+    const r = await run(ITEM, [BANK]);
+
+    const bank = of(r, BANK);
+    expect(bank.difference).not.toBe(0);
+    expect(bank.note).toMatch(/changed since the last observation without being created/);
+    expect(bank.note, "it still claimed three observations").toMatch(/clears on the NEXT observation/);
+  });
+
   it("REPORTS it with a reason, so silence and a clean verdict do not look alike", async () => {
     const r = await run(ITEM, [CARD]);
     const bank = r.accounts.find((a) => a.accountId === BANK)!;

@@ -1013,21 +1013,41 @@ gh run view <deploy-run-id> --log | grep "ok: .*build="
 
 **And the detector it obscured is the point.** Both Workers are asserted against the expected SHA independently on every production deploy, so **a half-shipped production shows as two values or a failed step** - the exact 16 August shape, already caught, already reported, in a place nobody was reading. **Making a working detector legible is worth more than adding another one.**
 
-## A FEATURE WHOSE ONLY CALLER IS ITS TEST (recorded 21 August 2026)
+## PRODUCTION REACHABILITY IS NOT IMPORT REACHABILITY, AND CI IS A CALLER (locked 21 August 2026)
 
-**The eighth finding's shape, applied to features rather than controls**, and found the same way: by trying to use one.
+**The name is about what made it invisible, not about the symptom.** "Orphaned function" describes the state. What hid it is that **a test is a caller**, so every static signal a reviewer or a tool would use points the wrong way: imports resolve, the module is referenced, coverage is present, the suite is green.
 
 `fetch-liabilities.ts` shipped with its gate, its migration, four coverage states, its grant, its declared consent and five passing database tests. **Its only caller was its own test.** `/liabilities/get` had never been called, and every check around it was green **because every check around it was about a part that existed.**
 
-**The test being a caller is what made it look wired.** A module with imports, exercised against a real database, reads as connected. Nothing distinguished *"this runs in production"* from *"this runs in CI"* - and the second is a state a feature passes through on the way to the first and can remain in indefinitely.
+**Nothing distinguished "runs in production" from "runs in CI"**, and the second is a state a feature passes through on the way to the first and can remain in indefinitely.
 
-**Asking the question once found three more.** `outbox.ts` and `sync-state.ts` are imported by nothing at all: the announcer never announces, so `household_state_signals` accumulate with `enqueued_at` null forever, and **the watchdog has twelve test references, zero callers, and no cron on either Worker to trigger it.** `reconnectItem` and `markReconnected` have no caller while two other exports of the same file do, so an Item in `needs_reauth` cannot be recovered through the product.
+**Asking the question once found three more.** `outbox.ts` and `sync-state.ts` are imported by nothing at all: signals accumulate with `enqueued_at` null forever, and the watchdog has no cron on either Worker to trigger it. `reconnectItem` and `markReconnected` have no caller while two exports of the same file do, so an Item in `needs_reauth` cannot be recovered through the product.
 
-**The most-tested function in the sync Worker is the one that never runs.** That inverts the usual signal: heavy test coverage read as maturity, and it was the opposite - a function elaborated in CI because CI was the only place it executed.
+### HIGH COVERAGE ON AN UNREACHED FUNCTION IS EVIDENCE OF ELABORATION IN CI, NOT OF MATURITY
 
-**`every-export-has-a-caller.test.ts` closes the class.** Its allowlist is not a suppression: **every entry must name an open item that exists and has an owner**, and every entry must still be an orphan, so the list cannot rot in either direction. An entry means *built and deliberately not wired*, which is a decision somebody makes rather than a state a module drifts into.
+**`sweepReason` has twelve test references and zero callers.** It is the most-tested function in the sync Worker and the one that never runs.
 
-**One scan defect worth keeping.** The first version excluded same-file references and flagged `plaidTotals`, which is called one function below where it is declared. **A helper used only inside its module is wired**, provided something calls into the module - so the question is reachability, not cross-file citation.
+**This is the one place where more testing makes a defect harder to see rather than easier.** Everywhere else in this file, coverage is the thing that catches a fault. Here it is the thing that conceals one: a function elaborated across twelve cases reads as load-bearing, and the elaboration happened precisely because CI was the only place it executed. **The signal inverts, and it inverts silently.**
+
+So when a function's test count is high and its call count is unknown, **check the call count first.**
+
+### THE CLASS WAS MET FOUR TIMES BEFORE IT WAS NAMED
+
+That is the part that explains why it took a fifth encounter, and it is recorded so the next adjacent shape is recognised rather than filed as an instance.
+
+| When | Instance | How it was filed |
+|---|---|---|
+| 17 Aug | `mayChangePhone()` had no caller | an instance |
+| 17 Aug | three sensitive actions enumerated `built:false` **precisely so this could not happen** | a precaution |
+| 21 Aug | `liability_details` had a consumer and no writer | an instance |
+| 21 Aug | `insight_source` gained a value nothing writes | a note |
+| 21 Aug | four functions with no production caller | **the class** |
+
+**The third row is the uncomfortable one.** Somebody saw this shape clearly enough to build a guard against it for three specific actions, and the guard was scoped to those three. **A precaution taken against a named instance is not a control over the class**, and building one is how a class stays unnamed: the danger looks handled.
+
+`every-export-has-a-caller.test.ts` closes it going forward. **Its allowlist is not a suppression:** every entry must name an open item that exists and has an owner, and every entry must still be an orphan, so the list cannot rot in either direction.
+
+**One scan defect worth keeping.** The first version excluded same-file references and flagged `plaidTotals`, which is called one function below where it is declared. **A helper used only inside its module is wired**, provided something calls into the module: the question is reachability, not cross-file citation.
 
 ## Vocabulary and format (locked; lint-enforced)
 

@@ -303,6 +303,37 @@ export async function reconcileBalances(
     await record(tx, householdId, row.id, reported, expected, difference, true); written += 1;
 
     const drift = difference === 0 ? false : await windowConfirms(tx, householdId, row.id);
+
+    // THE SETTLE EXPLANATION IS NOW EVIDENCED OR NOT OFFERED.
+    //
+    // The note used to assert, on EVERY non-zero difference, that the first
+    // disagreement a household sees is usually a settle and clears within three
+    // observations. Both halves were wrong. It was emitted unconditionally, so
+    // it explained cases it had not looked at; and a settle clears in ONE
+    // observation, because the baseline moves with every reading.
+    //
+    // A NOTE THAT ASSERTS A DIAGNOSIS IS GATED ON EVIDENCE FOR THAT DIAGNOSIS
+    // (Guy, 21 Aug 2026). An explanation attached to a value nobody checked
+    // against it is a diagnosis with no evidence, which this file has a rule
+    // about and which I wrote anyway.
+    //
+    // THE EVIDENCE IS EXACT AND CHEAP. The claim is that a transaction changed
+    // after the last observation without being created after it, which moves
+    // the reported balance while leaving the created_at sum untouched. That is
+    // precisely a row with created_at <= since AND updated_at > since. Asked
+    // only when a difference exists, which is rare.
+    let settleEvidence = 0;
+    if (difference !== 0) {
+      const modified = (await tx`
+        select (count(*))::int as n
+          from transactions
+         where household_id = ${householdId} and account_id = ${row.id}
+           and not removed
+           and created_at <= ${since}::timestamptz
+           and updated_at > ${since}::timestamptz
+      `) as { n: number }[];
+      settleEvidence = modified[0]?.n ?? 0;
+    }
     out.push({
       accountId: row.id, type: row.type, reported, expected, difference, comparable: true, drift,
       note:
@@ -310,7 +341,9 @@ export async function reconcileBalances(
           ? "reconciled to the cent"
           : drift
             ? "CONFIRMED DRIFT: the ledger and the institution disagree about what happened in this account, across the whole window. We do not know which is wrong, so every figure derived from this account is under the same doubt rather than only the balance line."
-            : "disagrees, and the window has not confirmed it. THE FIRST DISAGREEMENT A HOUSEHOLD SEES IS USUALLY A SETTLE: a pending transaction whose amount changed moves the balance without moving the created_at sum, and clears within three observations.",
+            : settleEvidence > 0
+              ? `disagrees, and ${settleEvidence} transaction${settleEvidence === 1 ? " on this account changed" : "s on this account changed"} since the last observation without being created since it. That moves the reported balance while leaving the created_at sum untouched, which explains a disagreement of exactly this kind, and it clears on the NEXT observation because the baseline moves with every reading.`
+              : "disagrees, and nothing this reconciler can see explains it. No transaction on this account changed since the last observation, so the usual settle explanation does not apply here. The window has not confirmed it, which means this is the first or second such interval rather than that it is benign.",
     });
   }
 

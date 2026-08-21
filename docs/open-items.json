@@ -762,5 +762,14 @@
     "owed_to": "M4 4.8 and M8's account surfaces. Raised 21 Aug 2026.",
     "raised": "2026-08-21",
     "trigger_kind": "prose"
+  },
+  {
+    "id": "orphan-scan-covers-one-service-and-fails-one-way",
+    "item": "TWO QUESTIONS ABOUT every-export-has-a-caller.test.ts, RAISED BY GUY THE NIGHT IT WAS BUILT AND NOT YET ANSWERED. FIRST: WHICH SERVICES DOES IT COVER? It scans services/sync/src only. The seven orphans it found were all in one service, which is where the liabilities fetcher lived, and NOTHING HAS ASKED THE SAME QUESTION OF services/api/src OR services/conversation/src. api serves fourteen-plus routes and holds the auth path; conversation is largely unbuilt. Extending the scan is mostly mechanical, and the honest expectation is that api has orphans too, because nothing has ever checked. SECOND: DOES THE ALLOWLIST FAIL IN BOTH DIRECTIONS, PROVEN RATHER THAN ARGUED? It has two assertions, one requiring each entry to name an open item that exists and has an owner, one requiring each entry to still be an orphan. Neither has been planted against. A LIST THAT CAN ONLY ROT ONE WAY IS HALF A CONTROL, and this file's own rule is that a test whose mutation has never been run is not finished. Owed: an entry naming a closed or nonexistent item must redden, and an entry for a function that has since gained a caller must redden.",
+    "owner": "build",
+    "trigger": "tomorrow, before the watchdog is wired, because wiring it removes an allowlist entry and that is exactly the rot the second assertion exists to catch",
+    "owed_to": "M4. Raised 21 Aug 2026 by Guy when the control was built.",
+    "raised": "2026-08-21",
+    "trigger_kind": "prose"
   }
 ]
