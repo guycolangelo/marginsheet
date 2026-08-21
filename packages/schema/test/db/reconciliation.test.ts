@@ -144,21 +144,43 @@ describe("reconcileBalances", () => {
   });
 
   it("CONFIRMS once the window has both the count and the span", async () => {
-    // Backdated so the span is real. The observations are already there and
-    // already non-zero; only their spread was missing.
-    // Spread the three non-zero observations the previous test created, so the
-    // window has a real span. Only their spread was missing.
+    // THE WINDOW IS CONSTRUCTED EXPLICITLY RATHER THAN BY BACKDATING WHATEVER
+    // ROWS HAPPENED TO EXIST. The first version backdated the two most recent
+    // non-zero rows, which left an earlier ZERO-difference row inside the top
+    // three, and the window correctly refused. That failure was the control
+    // working; the fixture was the thing that could not express the case.
+    await sql`delete from balance_reconciliations where account_id = ${BANK} and household_id = ${HOUSEHOLD}`;
     await sql`
-      update balance_reconciliations
-         set observed_at = observed_at - interval '9 hours'
-       where household_id = ${HOUSEHOLD}
-         and id in (select id from balance_reconciliations
-                     where account_id = ${BANK} and comparable and difference <> 0
-                     order by observed_at desc limit 2)`;
-    await setBalance(BANK, "1100.00");
+      insert into balance_reconciliations
+        (household_id, account_id, observed_at, reported_balance, expected_balance, difference, comparable)
+      values
+        (${HOUSEHOLD}, ${BANK}, now() - interval '9 hours', 1400.00, 1500.00, -100.00, true),
+        (${HOUSEHOLD}, ${BANK}, now() - interval '8 hours', 1200.00, 1400.00, -200.00, true)`;
+
+    // The third observation is REAL, through the module, so the confirmation
+    // path is exercised rather than asserted about synthetic rows alone.
+    await setBalance(BANK, "1000.00");
     const r = await run();
-    expect(of(r, BANK).drift, "the window has 3 non-zero observations spanning 9 hours").toBe(true);
+    expect(of(r, BANK).difference, "expected 1200 from the newest prior row").toBe(-200);
+    expect(of(r, BANK).drift, "3 non-zero observations spanning 8 hours").toBe(true);
     expect(r.driftingAccounts).toContain(BANK);
+  });
+
+  it("REFUSES with three non-zero observations that do not span six hours", async () => {
+    // THE MINIMAL MUTATION OF THE CASE ABOVE: same count, same non-zero
+    // differences, only the span removed. Without this, the confirming test
+    // passes against a window that checks the count alone.
+    await sql`delete from balance_reconciliations where account_id = ${BANK} and household_id = ${HOUSEHOLD}`;
+    await sql`
+      insert into balance_reconciliations
+        (household_id, account_id, observed_at, reported_balance, expected_balance, difference, comparable)
+      values
+        (${HOUSEHOLD}, ${BANK}, now() - interval '20 minutes', 1400.00, 1500.00, -100.00, true),
+        (${HOUSEHOLD}, ${BANK}, now() - interval '10 minutes', 1200.00, 1400.00, -200.00, true)`;
+    await setBalance(BANK, "1000.00");
+    const r = await run();
+    expect(of(r, BANK).difference).toBe(-200);
+    expect(of(r, BANK).drift, "30 minutes is not 6 hours").toBe(false);
   });
 
   it("does not reconcile an investment account rather than drifting on a 0.00 it distrusts", async () => {
