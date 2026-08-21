@@ -149,7 +149,14 @@ describe("reconcileBalances", () => {
     // non-zero rows, which left an earlier ZERO-difference row inside the top
     // three, and the window correctly refused. That failure was the control
     // working; the fixture was the thing that could not express the case.
+    // THE TRANSACTIONS GO TOO, and forgetting them is what the previous run
+    // caught: the 152.00 outflow from an earlier test has created_at of NOW,
+    // which is after a row backdated eight hours, so it was counted and the
+    // difference came out -48 rather than -200. Backdating one side of a
+    // comparison and not the other is a fixture that describes a moment that
+    // never existed.
     await sql`delete from balance_reconciliations where account_id = ${BANK} and household_id = ${HOUSEHOLD}`;
+    await sql`delete from transactions where account_id = ${BANK} and household_id = ${HOUSEHOLD}`;
     await sql`
       insert into balance_reconciliations
         (household_id, account_id, observed_at, reported_balance, expected_balance, difference, comparable)
@@ -171,6 +178,7 @@ describe("reconcileBalances", () => {
     // differences, only the span removed. Without this, the confirming test
     // passes against a window that checks the count alone.
     await sql`delete from balance_reconciliations where account_id = ${BANK} and household_id = ${HOUSEHOLD}`;
+    await sql`delete from transactions where account_id = ${BANK} and household_id = ${HOUSEHOLD}`;
     await sql`
       insert into balance_reconciliations
         (household_id, account_id, observed_at, reported_balance, expected_balance, difference, comparable)
