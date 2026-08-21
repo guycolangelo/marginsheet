@@ -104,19 +104,41 @@ describe("reconcileBalances", () => {
     expect(of(r, CARD).difference).toBe(0);
   });
 
-  it("records a disagreement WITHOUT confirming it, because the window has not spanned", async () => {
-    // THE SETTLE CASE, AND IT IS THE ONE MOST HOUSEHOLDS WILL SEE FIRST. A
-    // pending transaction whose amount changed moves the reported balance
-    // without moving the created_at sum, so it registers here and clears within
-    // three observations. Three syncs in a second must NOT confirm it, which is
-    // exactly why the window has a span and not only a count.
+  it("A ONE-OFF DISCREPANCY SHOWS ONCE AND CLEARS, because the baseline moves with it", async () => {
+    // FOUND BY THIS TEST FAILING, AND THE CODE WAS RIGHT. The first version
+    // moved the balance once and expected the difference to stay non-zero
+    // across four observations. It does not: each observation RECORDS the
+    // reported balance, so the next comparison starts from it.
+    //
+    // THAT IS THE DESIGN AND IT IS A STRENGTH. The check compares the CHANGE
+    // over an interval, so an unexplained jump disagrees exactly once and the
+    // next interval is clean. A settle therefore clears after ONE observation
+    // rather than needing all three, and the window is there for the case where
+    // every interval disagrees, which is a systematic fault rather than a
+    // moment of skew.
     await setBalance(BANK, "1500.00");
-    for (let i = 0; i < 4; i += 1) {
+    const first = await run();
+    expect(first.accounts.find((a) => a.accountId === BANK)!.difference).toBe(-79.96);
+    expect(of(first, BANK).drift).toBe(false);
+
+    const second = await run();
+    expect(of(second, BANK).difference, "the baseline should have moved to 1500.00").toBe(0);
+  });
+
+  it("three observations inside one second do NOT confirm, however wrong each one is", async () => {
+    // A GENUINE PERSISTENT DRIFT: the balance moves every interval with no
+    // transactions to explain it, which is what a systematic fault looks like.
+    // Three of them in a second must still not confirm, which is exactly why
+    // the window has a SPAN and not only a count. Counting syncs alone would
+    // let three hand-run syncs in a minute confirm a drift a settle would have
+    // cleared.
+    for (const v of ["1400.00", "1300.00", "1200.00"]) {
+      await setBalance(BANK, v);
       const r = await run();
-      expect(of(r, BANK).difference, "the disagreement should be visible").not.toBe(0);
+      expect(of(r, BANK).difference, "each interval should disagree").not.toBe(0);
       expect(
         of(r, BANK).drift,
-        "four observations inside one second confirmed a drift; the 6 hour span is not being enforced"
+        "three observations inside one second confirmed a drift; the 6 hour span is not being enforced"
       ).toBe(false);
     }
   });
@@ -124,13 +146,16 @@ describe("reconcileBalances", () => {
   it("CONFIRMS once the window has both the count and the span", async () => {
     // Backdated so the span is real. The observations are already there and
     // already non-zero; only their spread was missing.
+    // Spread the three non-zero observations the previous test created, so the
+    // window has a real span. Only their spread was missing.
     await sql`
       update balance_reconciliations
          set observed_at = observed_at - interval '9 hours'
-       where account_id = ${BANK} and household_id = ${HOUSEHOLD}
-         and observed_at < now() - interval '0 seconds'
+       where household_id = ${HOUSEHOLD}
          and id in (select id from balance_reconciliations
-                     where account_id = ${BANK} order by observed_at asc limit 3)`;
+                     where account_id = ${BANK} and comparable and difference <> 0
+                     order by observed_at desc limit 2)`;
+    await setBalance(BANK, "1100.00");
     const r = await run();
     expect(of(r, BANK).drift, "the window has 3 non-zero observations spanning 9 hours").toBe(true);
     expect(r.driftingAccounts).toContain(BANK);

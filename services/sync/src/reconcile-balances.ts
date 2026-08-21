@@ -26,6 +26,22 @@
 // diagnose it. Chasing it would be tuning for the case the window already
 // covers, which is why the design stands and this paragraph exists instead.
 //
+// AND THE BASELINE MOVES WITH EACH OBSERVATION, WHICH MAKES THE SETTLE CHEAPER
+// THAN THE PARAGRAPH ABOVE IMPLIES. Every observation records the reported
+// balance, so the next comparison starts from it: an unexplained jump disagrees
+// EXACTLY ONCE and the following interval is clean. A settle therefore clears
+// after one observation rather than needing all three.
+//
+// The window is not there for the settle. It is there for the case where EVERY
+// interval disagrees, which is a systematic fault rather than a moment of skew,
+// and that distinction is what makes three consecutive non-zero differences
+// mean something rather than being three views of one event.
+//
+// THIS WAS FOUND BY A TEST FAILING AND THE CODE WAS RIGHT. The test moved a
+// balance once and expected the disagreement to persist. Recorded because the
+// first reading of a non-zero difference will otherwise be "it will keep
+// disagreeing until somebody fixes it", which is false.
+//
 // THAT IS NOW TESTABLE RATHER THAN THEORETICAL. transactions.settled_at exists
 // as of 0037, nine pending rows existed across three institutions when this was
 // written, and webhooks are live on all three so the settle fires unattended.
