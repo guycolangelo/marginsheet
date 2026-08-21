@@ -10,7 +10,8 @@
     "./models": "./src/models.ts",
     "./routing": "./src/routing.ts",
     "./sentry-scrub": "./src/sentry-scrub.ts",
-    "./required-secrets": "./src/required-secrets.ts"
+    "./required-secrets": "./src/required-secrets.ts",
+    "./balances": "./src/balances.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
