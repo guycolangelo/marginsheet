@@ -286,12 +286,15 @@ const handler = {
           // Household from the session, as everywhere else here: a body-supplied
           // household would let one household start another's billing.
           if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
-          const b = (await request.json().catch(() => ({}))) as { confirm?: boolean };
+          const b = (await request.json().catch(() => ({}))) as { confirm?: boolean; itemIds?: string[] };
           const response = await env.SYNC.fetch(
             new Request("https://sync.internal/internal/enable-liabilities", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ householdId, confirm: b.confirm === true }),
+              body: JSON.stringify({
+                householdId, confirm: b.confirm === true,
+                itemIds: Array.isArray(b.itemIds) ? b.itemIds : [],
+              }),
             })
           );
           return new Response(await response.text(), {

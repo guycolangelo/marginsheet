@@ -12,6 +12,19 @@
 // the important half missing, which is the same rule as the milestone clear
 // reporting what would still block a re-fire.
 //
+// AND IT NAMES ITS TARGET RATHER THAN ITS ACTION (Guy, 21 Aug 2026). The first
+// version took only `confirm` and enabled every Item on the household, which is
+// permission to enable that names no PLACE: the same hole as
+// AUTH_ADAPTER_TEST_MAY_ROTATE_ROLE, which was a permission to rotate a role
+// and destroyed shared dev because it never said which one.
+//
+// THE COST IS THE POINT HERE. SoFi holds zero credit accounts, so enabling it
+// buys nothing and starts a charge, and the dry run says so. A BILLING DECISION
+// THAT CANNOT BE SCOPED IS A ROUTE THAT MAKES THE WRONG CHOICE CHEAPER THAN THE
+// RIGHT ONE. So applying REQUIRES an explicit list of Item ids and refuses
+// without one, an unknown id is refused rather than skipped, and the dry run
+// still surveys everything so the list can be chosen from it.
+//
 // IT DOES NOT CALL PLAID. Setting the flag starts nothing; the next sync makes
 // the first call. That separation is deliberate, because it keeps this route
 // reversible: clearing the flag before a sync runs leaves no charge started.
@@ -31,6 +44,10 @@ export interface EnableLiabilitiesResult {
     institution: string | null;
     creditAccounts: number;
     alreadyEnabled: boolean;
+    /** Whether THIS call would touch it, which is not the same as whether it
+     *  could be enabled. A survey that does not distinguish the two invites
+     *  reading the whole list as the thing about to happen. */
+    targeted: boolean;
     billingNote: string;
   }>;
   itemsToEnable: number;
@@ -42,7 +59,11 @@ export interface EnableLiabilitiesResult {
 export async function enableLiabilities(
   databaseUrl: string,
   householdId: string,
-  apply: boolean
+  apply: boolean,
+  /** The Items to enable. Empty means "survey only" on a dry run and is
+   *  REFUSED on apply: enabling everything must not be the default action for a
+   *  decision that starts recurring money. */
+  itemIds: string[] = []
 ): Promise<EnableLiabilitiesResult> {
   const sql = postgres(databaseUrl, { max: 1 });
   try {
@@ -62,11 +83,13 @@ export async function enableLiabilities(
          order by i.name nulls last, pi.item_id
       `) as { item_id: string; institution: string | null; enabled: boolean; credit_accounts: number }[];
 
+      const wanted = new Set(itemIds);
       const items = rows.map((r) => ({
         itemId: r.item_id,
         institution: r.institution,
         creditAccounts: r.credit_accounts,
         alreadyEnabled: r.enabled,
+        targeted: wanted.has(r.item_id),
         billingNote: r.enabled
           ? "already enabled; the charge for this Item has started or will on its next sync"
           : r.credit_accounts === 0
@@ -74,7 +97,19 @@ export async function enableLiabilities(
             : `enabling starts ONE per-Item monthly charge covering ${r.credit_accounts} card${r.credit_accounts === 1 ? "" : "s"}`,
       }));
 
-      const pending = rows.filter((r) => !r.enabled);
+      const pending = rows.filter((r) => !r.enabled && (wanted.size === 0 || wanted.has(r.item_id)));
+
+      // AN UNKNOWN ID IS REFUSED, NEVER SKIPPED. A typo that enables nothing and
+      // reports success is how somebody concludes the billing started when it
+      // did not, and then concludes it a second time next month.
+      const unknown = itemIds.filter((id) => !rows.some((r) => r.item_id === id));
+      if (unknown.length > 0) {
+        return {
+          householdId, dryRun: !apply, items, itemsToEnable: 0, enabled: 0,
+          costNote: "nothing was evaluated",
+          refused: `these item ids are not connected Items of this household: ${unknown.join(", ")}`,
+        };
+      }
 
       if (rows.length === 0) {
         return {
@@ -85,12 +120,20 @@ export async function enableLiabilities(
 
       const costNote =
         `Plaid bills Liabilities PER ITEM PER MONTH from first use. ${pending.length} Item${pending.length === 1 ? "" : "s"} would begin billing, ` +
-        `not ${rows.reduce((t, r) => t + r.credit_accounts, 0)} cards. ` +
+        `not ${rows.reduce((t, r) => t + r.credit_accounts, 0)} cards: THE UNIT PLAID BILLS IN IS NOT THE UNIT THE ACCOUNTS ARE COUNTED IN. ` +
         "THE FLAG DOES NOT CALL PLAID: the next sync makes the first call, so clearing it before then starts nothing. " +
         "After that first call the billing is Plaid's and clearing this column does not stop it.";
 
       if (!apply) {
         return { householdId, dryRun: true, items, itemsToEnable: pending.length, enabled: 0, costNote };
+      }
+
+      if (itemIds.length === 0) {
+        return {
+          householdId, dryRun: false, items, itemsToEnable: pending.length, enabled: 0, costNote,
+          refused:
+            "applying requires an explicit itemIds list. Enabling every Item is not the default for a decision that starts recurring billing, and the dry run above is the survey to choose from.",
+        };
       }
 
       const updated = (await tx`
@@ -99,6 +142,7 @@ export async function enableLiabilities(
          where household_id = ${householdId}
            and status <> 'disconnected'
            and liabilities_enabled_at is null
+           and item_id = any(${itemIds})
         returning item_id
       `) as { item_id: string }[];
 
