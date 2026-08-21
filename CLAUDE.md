@@ -1077,6 +1077,25 @@ The orphan-export control's first version had one category and **that conflates 
 
 **So the allowlist needs two categories rather than one**, and the distinction is not cosmetic: an entry meaning *defect, owed* and an entry meaning *correct, waiting* send a reader to opposite actions, and a single list makes the second look like the first. **Owed, with the extension to api and conversation.**
 
+## ONE VALUE STANDING FOR TWO FACTS (locked 21 August 2026)
+
+**Met four times in four days before it was named.** The naming is what makes the fifth visible before it ships.
+
+| Value | Fact A | Fact B | Opposite actions |
+|---|---|---|---|
+| `liability_coverage: 'unknown'` | not applicable: this account is not a card | not yet asked: liabilities has never been fetched | ignore it / enable and sync |
+| `comparable: false` | not reconciled by design: an investment balance we distrust | not refreshed this sync: Plaid did not return it | never check it / check it next time it transacts |
+| HTTP `404` on `/debug/` | wrong or missing token | no such route | find the token / find the deploy |
+| orphan allowlist entry | correct, waiting: the consumer is a future module | defect, owed: the consumer exists now | leave it / wire it |
+
+**The test to apply when a state is introduced: what ELSE could produce this value?** If the answer is a different fact with a different remedy, **the state needs splitting rather than annotating.**
+
+**ANNOTATING IS WHAT WE REACH FOR FIRST, AND IT IS THE WEAKER MOVE.** The note on `comparable: false` is good, and it is still **a string a reader has to interpret.** Splitting the value is structural; adding a note is a report. Same ladder this file states everywhere else: type, then runtime check, then comment - and a note is the bottom rung wearing diligence's clothes.
+
+**The 404 is the one legitimate member and it is worth saying why**, so the class does not read as a blanket ban. There the conflation is the POINT: distinguishing the two would confirm a route exists to a caller who has not proven they may know. **When the ambiguity is the security property, it stays, and the remedy is that a human meets the explanation where they meet the refusal** - which is why it went into `secrets-custody.md` rather than staying a code comment.
+
+**One member is live and unfixed, in a migration that merged the night this was written.** Every write in `fetch-liabilities.ts` is scoped to `type = 'credit'`, so six depository and two investment accounts hold `unknown` permanently meaning *not applicable*, while a card holding `unknown` means *not yet fetched*. **Cash Flow reading that column cannot tell them apart**, and it was written by someone who had spent the evening naming this exact failure in three other places. Recorded in `docs/open-items.json` rather than patched in passing.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
