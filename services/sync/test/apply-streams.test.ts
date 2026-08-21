@@ -200,9 +200,21 @@ describe("the runner is reachable, which the previous version was not", () => {
     // assertion exists rather than a note. A function with no caller is not a
     // built piece, and nothing else in the suite would have noticed: every
     // test of the runner calls it directly.
+    // THE CALLER MOVED AT 4.5's SECOND HALF AND THE ASSERTION FOLLOWED IT
+    // RATHER THAN RELAXING. Both entry points now dispatch through the
+    // household's Durable Object, so the runner is called from there and the
+    // chain is route -> lock -> runner. Asserting only that SOMETHING calls it
+    // would have been the easy repair and would have stopped proving that a
+    // ROUTE can reach it, which is the whole property.
     const index = readFileSync(join(import.meta.dirname, "..", "src", "index.ts"), "utf8");
-    expect(index, "runSyncForItem has no route").toMatch(/runSyncForItem\(/);
-    expect(index).toMatch(/"\/internal\/sync-run"/);
+    const durableObject = readFileSync(join(import.meta.dirname, "..", "src", "household-sync-do.ts"), "utf8");
+
+    expect(durableObject, "the Durable Object does not call the runner").toMatch(/runSyncForItem\(/);
+    expect(index, "the hand-run route is gone").toMatch(/"\/internal\/sync-run"/);
+    expect(index, "the webhook receiver is gone").toMatch(/"\/internal\/plaid-webhook"/);
+    // Both paths reach the lock, which is the only thing that reaches the
+    // runner. A route that dispatched directly would run beside a webhook.
+    expect(index, "the hand-run route does not go through the lock").toMatch(/HOUSEHOLD_SYNC\.get/);
   });
 
   it("one failing Item does not hide the others", () => {

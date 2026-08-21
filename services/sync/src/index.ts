@@ -14,6 +14,9 @@
 
 import { readSyncSchemaHealth } from "@marginsheet/shared/db";
 import { disconnectItem } from "./disconnect.js";
+import { handlePlaidWebhook } from "./webhook-handler.js";
+import { setItemWebhook } from "./set-webhook.js";
+import { verifyPlaidWebhook } from "./webhook-verify.js";
 import { itemStatus } from "./item-status.js";
 import { readoutForHousehold } from "./ledger-readout.js";
 import { readLedger, type Sql as ReadoutSql } from "./ledger-readout-sql.js";
@@ -182,11 +185,23 @@ export default {
     // Cron and Queues, and the webhook path is 4.5's other half. This exists so
     // a ledger can be produced before either.
     //
-    // IT DOES NOT TAKE THE CHAIN LOCK, and that is a decision rather than an
-    // oversight. The lock exists so two WEBHOOKS for one household cannot sync
-    // concurrently, and there is no webhook receiver yet, so the only caller is
-    // a person clicking once. When the receiver lands, this route is replaced
-    // rather than extended, and the runner it calls is the part that survives.
+    // IT TAKES THE CHAIN LOCK, since 4.5's second half. The earlier comment
+    // said this route would be REPLACED when the receiver landed, and that was
+    // written on the assumption that only one caller would ever exist. The
+    // assumption ends with the receiver, so the route survives and takes the
+    // lock instead: a hand-run sync and a webhook-driven one are now two
+    // callers for one household, which is exactly what the lock is for.
+    //
+    // THE BUTTON IS KEPT DELIBERATELY, AND THE REASON IS WORTH THE LINES
+    // (Guy, 21 Aug 2026). It is now the ONLY place in this system where a real
+    // sync runs while a person reads the result. Everything else about to
+    // happen here happens unobserved. THE FIRST TIME A MACHINE DOES THIS
+    // UNOBSERVED SHOULD NOT ALSO BE THE FIRST TIME IT DOES IT, which is the
+    // argument for shadow mode arriving three modules early, and it is why
+    // this survives to M5 rather than because anyone is fond of it.
+    //
+    // A decision we remember is a decision that survives until the person who
+    // remembers it is busy, so it is written here rather than agreed.
     if (url.pathname === "/internal/sync-run" && request.method === "POST") {
       if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
         return Response.json({ error: "sync is not configured" }, { status: 503 });
@@ -214,15 +229,21 @@ export default {
       const results: unknown[] = [];
       for (const item of items) {
         try {
-          results.push(
-            await runSyncForItem(
-              householdId,
-              item.id,
-              { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
-              env.TOKEN_ENCRYPTION_KEY,
-              env.NEON_DATABASE_URL
-            )
+          // THROUGH THE LOCK, exactly as the receiver does. Two paths, one
+          // critical section: a button pressed while a webhook is mid-sync
+          // waits rather than running beside it.
+          if (!env.HOUSEHOLD_SYNC) throw new Error("HOUSEHOLD_SYNC binding is absent");
+          const stub = env.HOUSEHOLD_SYNC.get(env.HOUSEHOLD_SYNC.idFromName(householdId));
+          const locked = await stub.fetch(
+            new Request("https://sync.internal/sync", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId, itemRowId: item.id }),
+            })
           );
+          const outcome = (await locked.json()) as { ran?: boolean; result?: unknown; error?: string };
+          if (outcome.error) throw new Error(outcome.error);
+          results.push(outcome.result);
         } catch (error) {
           // ONE ITEM FAILING DOES NOT HIDE THE OTHERS. A household with four
           // banks should learn which one broke, not that "the sync failed".
@@ -247,6 +268,91 @@ export default {
     // api, which can read the tables; this route exists ONLY to obtain a number
     // that did not come from us, because a readout assembled from our tables
     // agrees with itself whatever went wrong.
+    // POST /internal/set-webhook: point an existing Item at the receiver.
+    //
+    // NO RELINK REQUIRED. /item/webhook/update sets the URL on an Item that was
+    // created without one, with no Link update mode, confirmed against Plaid's
+    // documentation on 21 Aug 2026 rather than recalled. It also fires
+    // WEBHOOK_UPDATE_ACKNOWLEDGED at the new URL, which is why it is the
+    // acceptance criterion for this task: a real Item, a real signature, a real
+    // provider_events write, and no consequence if mishandled.
+    //
+    // IT REQUIRES confirm, LIKE THE OTHER TWO DELIBERATE ACTIONS ON THIS
+    // SURFACE. This is the switch that turns on unattended operation: after it,
+    // syncs fire without anybody watching. That is worth a second call rather
+    // than a button.
+    if (url.pathname === "/internal/set-webhook" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const b = (await request.json().catch(() => ({}))) as {
+        householdId?: string; itemId?: string; webhookUrl?: string; confirm?: boolean;
+      };
+      if (!b.householdId || !b.itemId || !b.webhookUrl) {
+        return Response.json({ error: "householdId, itemId and webhookUrl are required" }, { status: 400 });
+      }
+      try {
+        return Response.json(
+          await setItemWebhook(
+            b.householdId,
+            b.itemId,
+            b.webhookUrl,
+            { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+            env.TOKEN_ENCRYPTION_KEY,
+            env.NEON_DATABASE_URL,
+            b.confirm === true
+          )
+        );
+      } catch (error) {
+        const e = error as { toJSON?: () => unknown; message?: string };
+        return Response.json(
+          { error: "set-webhook failed", detail: e.toJSON ? e.toJSON() : { message: e.message ?? "unknown" } },
+          { status: 500 }
+        );
+      }
+    }
+
+    // POST /internal/plaid-webhook: the receiver, and 4.5's remaining half.
+    //
+    // api forwards the RAW body because the signature covers its bytes. A JSON
+    // round trip anywhere between Plaid and this line destroys the proof, so
+    // nothing between them parses it.
+    //
+    // THE ORDER IS DELIBERATE: verify, then record, then dispatch. Recording an
+    // unverified event would let anyone who can reach the public URL write rows
+    // into provider_events, and dispatching before recording would let a retry
+    // storm run several syncs for one event.
+    if (url.pathname === "/internal/plaid-webhook" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const rawBody = await request.text();
+      const credentials = {
+        clientId: env.PLAID_CLIENT_ID,
+        secret: env.PLAID_SECRET,
+        baseUrl: env.PLAID_BASE_URL,
+      };
+
+      const outcome = await verifyPlaidWebhook(rawBody, request.headers.get("plaid-verification"), credentials);
+      if (!outcome.verified) {
+        // 401 AND THE REASON. A verifier that answers only true or false turns
+        // four different failures into one support conversation, and this is
+        // the half that must be watched refusing before the other half is
+        // trusted to permit.
+        return Response.json({ error: "webhook not verified", reason: outcome.reason }, { status: 401 });
+      }
+
+      return Response.json(
+        await handlePlaidWebhook(rawBody, credentials, env.TOKEN_ENCRYPTION_KEY, env.NEON_DATABASE_URL, env.HOUSEHOLD_SYNC)
+      );
+    }
+
     // POST /internal/disconnect-item: remove one Item at Plaid.
     //
     // THE FIRST PIECE OF M8's DISCONNECT FLOW. A household disconnecting a bank

@@ -99,7 +99,9 @@ const handler = {
       url.pathname === "/plaid/ledger-readout" ||
       url.pathname === "/plaid/purge-item" ||
       url.pathname === "/plaid/disconnect-item" ||
+      url.pathname === "/plaid/set-webhook" ||
       url.pathname === "/plaid/oauth-return" ||
+      url.pathname === "/plaid/webhook" ||
       url.pathname === "/connect"
     ) {
       // The OAuth return is the URL registered with Plaid. It carries no
@@ -108,6 +110,35 @@ const handler = {
       // unauthenticated route here: an OAuth redirect arrives from the bank,
       // not from our own fetch, and refusing it would break the flow it exists
       // to complete. It reads nothing and writes nothing.
+      // POST /plaid/webhook: PUBLIC, AND IT HAS TO BE. Plaid calls it from
+      // Plaid, so there is no session and never will be. What stands in for
+      // one is the signature, verified in the sync Worker where the Plaid
+      // credentials live.
+      //
+      // api IS A DUMB PIPE HERE AND THAT IS LOAD-BEARING. The signature covers
+      // a SHA-256 of the body AS SENT, so anything between Plaid and the
+      // verifier that parses and re-serialises destroys the proof. The raw text
+      // is forwarded unread: this Worker does not know or care what is in it.
+      if (url.pathname === "/plaid/webhook") {
+        if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
+        if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+        const response = await env.SYNC.fetch(
+          new Request("https://sync.internal/internal/plaid-webhook", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              // The header travels with the body or the body cannot be proven.
+              "plaid-verification": request.headers.get("plaid-verification") ?? "",
+            },
+            body: await request.text(),
+          })
+        );
+        return new Response(await response.text(), {
+          status: response.status,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
       if (url.pathname === "/plaid/oauth-return") {
         return new Response(OAUTH_RETURN_PAGE, {
           headers: { "content-type": "text/html; charset=utf-8" },
@@ -220,6 +251,27 @@ const handler = {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ householdId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/set-webhook" && request.method === "POST") {
+          // Session-gated, household from the session, and the sync Worker does
+          // the work because the access token lives there.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const b = (await request.json().catch(() => ({}))) as { itemId?: string; webhookUrl?: string; confirm?: boolean };
+          if (!b.itemId || !b.webhookUrl) {
+            return Response.json({ error: "itemId and webhookUrl are required" }, { status: 400 });
+          }
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/set-webhook", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId, itemId: b.itemId, webhookUrl: b.webhookUrl, confirm: b.confirm === true }),
             })
           );
           return new Response(await response.text(), {

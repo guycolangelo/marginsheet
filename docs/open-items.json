@@ -26,11 +26,12 @@
   },
   {
     "id": "provider-events-handler-half",
-    "item": "Invariant 5's handler half is unbuilt. It now covers four providers rather than three, since Postmark bounce and complaint webhooks joined Plaid, Stripe and Twilio in provider_events (amendment 7).",
+    "item": "Invariant 5's handler half is unbuilt. It now covers four providers rather than three, since Postmark bounce and complaint webhooks joined Plaid, Stripe and Twilio in provider_events (amendment 7). SCOPED AND BUILT FOR PLAID ONLY, 21 Aug 2026, as 4.5's remaining half (Guy). THE OTHER THREE ARE NOT BUILT AND THAT IS THE DECISION RATHER THAN AN OMISSION: Stripe belongs to M7 and billing does not exist, Twilio is blocked on A2P 10DLC which is Guy's desk rather than a module boundary, and Postmark cannot fire a real bounce while amendment 8's test mode limits production sends to @marginsheet.com. Building all four would be three receivers nothing calls, which is the UNCALLED_runSyncForItem shape with a longer fuse. WHAT PLAID'S RECEIVER LANDED: verification in the sync Worker where the credentials live, api forwarding the RAW body because the signature covers its bytes, check-and-insert on provider_events keyed on a hash of the body, and dispatch through the household's Durable Object. Both entry points now take the lock: the earlier comment said the hand-run route would be REPLACED, which was written when only one caller could exist, and that assumption ended with the receiver. WHAT REMAINS FOR THE OTHER THREE is a receiver each, and the shape is now established rather than speculative, so each is a task rather than a design.",
     "owner": "build",
     "owed_to": "M4 and M7",
     "raised": "2026-08-16",
-    "trigger_kind": "prose"
+    "trigger_kind": "prose",
+    "trigger": "Stripe when M7 has billing that fires one, Twilio when A2P 10DLC clears, Postmark when a send to a non-marginsheet.com address is possible. Each is a task now that Plaid's receiver established the shape"
   },
   {
     "id": "canon-fixtures",
