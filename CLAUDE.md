@@ -317,6 +317,16 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   The general form, and it is the same instinct as **verify against the database, never against reports**: prefer the query that returns the rows over the query that returns a count, whenever you might need to ask a second question about the answer.
 
+- **AN ABSENCE CAN BE THE DISCRIMINATING EVIDENCE, AND IT IS THE HALF NOBODY THINKS TO REPORT.** 21 Aug 2026, from the readout's id-level diff.
+
+  Plaid held 1561 transactions and we held 1560. **The count says something is missing and cannot say what**, which is the state a whole evening was once spent arguing about. The id says which row. **But neither says whether it is a NEW transaction or a pending one that posted**, and those want different responses.
+
+  `oursOnly` being **empty** is what settles it. A pending transaction that posts has its pending id **removed** by Plaid, which would place that id in `oursOnly`. It is not there, so nothing of ours was withdrawn, so the difference is an addition rather than a substitution.
+
+  **The presence half and the absence half answer different questions, and only the pair is a diagnosis.** `plaidOnly` says what we are missing. `oursOnly` says whether we are holding something that no longer exists. A tool reporting only the first would have been right about the row and silent about its meaning.
+
+  The general form, and it applies well past this readout: **when comparing two sets, report both differences even when one is expected to be empty.** The empty one is not noise. It is the control on the other one, and its emptiness is a claim.
+
 - **A FIELD WHOSE NORMAL CASE LOOKS LIKE ITS FAILURE CASE IS NOT A SIGNAL.** 21 Aug 2026, caught in the pre-commitment rather than at 3am.
 
   `provider_events.processed_at` was set only after a successful sync dispatch. **Most webhook codes do not ask for a sync**, so every one of them would have sat with `processed_at` null forever, indistinguishable from an event that was recorded and never handled.
