@@ -889,6 +889,21 @@
         "note": "FLIPS THE GATE FROM POSITIVE EVIDENCE TO ABSENCE OF CONTRARY EVIDENCE, which is the mistake somebody would actually make: it reads as the same rule, it refuses the case everyone pictures, and it PERMITS every case where Plaid could not be asked. A network failure, a rate limit, an unrecognised error code and a missing token all produce unknown, and under this mutation all four delete the household's rows for an Item that may still be live at Plaid. Nothing about the code looks wrong."
       },
       "distinction": "THE FAILURE THIS GUARDS IS SILENT AND THE ONE IT PREVENTS IS NOT. A duplicate ledger after a relink is visible: Kept and Margin move by the value of the overlap. Deleting rows for a LIVE Item leaves a household connected at Plaid, billed monthly, with no row, no sync and no way to find it except by reading Plaid's dashboard. So the gate is deliberately asymmetric: refusing a purge that should have proceeded costs one manual retry, and permitting one that should not costs an invisible connection. The third assertion checks the GONE set itself, because widening that list would undo the gate without touching the gate's own line."
+    },
+    {
+      "id": "disconnect-rechecks-liveness",
+      "control": "the disconnect freshness gate (services/api/test/disconnect-refuses-unless-live.test.ts)",
+      "guards": "A confirmed disconnect reads the Item's liveness itself, at the moment of removal, rather than trusting a value read earlier.",
+      "test": "services/api/test/disconnect-refuses-unless-live.test.ts",
+      "name": "reads liveness itself rather than accepting it as a parameter",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/disconnect.ts",
+        "find": "  const status = await itemStatus(householdId, itemId, credentials, encryptionKey, databaseUrl);",
+        "replace": "  const status = { liveness: \"live\" as ItemLiveness, detail: { assumed: true } };",
+        "note": "REPLACES THE FRESH READ WITH AN ASSUMPTION, which is the optimisation somebody would actually reach for: the caller just ran a dry run, the answer was live, and asking again looks like a wasted Plaid call. It type-checks, it reads as a reasonable simplification, and it turns the gate below into a tautology that always passes. Nothing about the resulting code looks wrong."
+      },
+      "distinction": "THE GATE AND THE FRESHNESS OF WHAT IT GATES ARE TWO DIFFERENT PROPERTIES, and only one of them is visible in the gate's own line. 'refuses a confirmed call unless liveness is live' checks the comparison; this checks that the value being compared was obtained NOW. A dry run minutes earlier is not evidence about the present: an Item can be removed, expire or lose its credential in between. It is the same shape as the household GUC that did not survive between statements, recorded 20 Aug 2026: two individually correct reads with nothing establishing that the first still describes the second. Direction 2 asserts the module still calls /item/remove at all, because a file that stopped removing anything would satisfy a scan looking only for the absence of a parameter."
     }
   ]
 }

@@ -26,6 +26,7 @@ export const CONNECT_PAGE = `<!doctype html>
 <button id="go">Connect an institution</button>
 <button id="sync">Run a sync</button>
 <button id="readout">Ledger readout</button>
+<button id="disconnect">Disconnect an institution (dry run)</button>
 <button id="purge">Purge an Item (dry run)</button>
 <div id="out" hidden></div>
 <h2>Already connected</h2>
@@ -102,6 +103,24 @@ document.getElementById("readout").onclick = async () => {
   // kept, so the two numbers are printed side by side and the reader compares.
   show("reading...");
   const res = await fetch("/plaid/ledger-readout");
+  const { ok, parsed } = await readBody(res);
+  show(parsed, !ok);
+};
+
+document.getElementById("disconnect").onclick = async () => {
+  // DRY RUN ONLY FROM THIS BUTTON, like the purge. It reports what a confirmed
+  // call would do and what Plaid currently says; removing requires a separate
+  // deliberate call carrying confirm, which this page does not make. The two
+  // destructive actions on this surface behave identically on purpose: a
+  // household should not have to learn which buttons are safe.
+  const itemId = prompt("item_id to inspect for disconnect (dry run, nothing is removed)");
+  if (!itemId) return;
+  show("checking...");
+  const res = await fetch("/plaid/disconnect-item", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemId }),
+  });
   const { ok, parsed } = await readBody(res);
   show(parsed, !ok);
 };

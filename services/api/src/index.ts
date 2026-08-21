@@ -98,6 +98,7 @@ const handler = {
       url.pathname === "/plaid/accounts" ||
       url.pathname === "/plaid/ledger-readout" ||
       url.pathname === "/plaid/purge-item" ||
+      url.pathname === "/plaid/disconnect-item" ||
       url.pathname === "/plaid/oauth-return" ||
       url.pathname === "/connect"
     ) {
@@ -219,6 +220,29 @@ const handler = {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ householdId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status,
+            headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/disconnect-item" && request.method === "POST") {
+          // DISCONNECT AN INSTITUTION. api proxies because the access token
+          // lives in the sync Worker; the household comes from the session and
+          // is never taken from the request.
+          //
+          // The status and body travel through unchanged: this is a
+          // destructive external action and the raw answer is the product.
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const b = (await request.json().catch(() => ({}))) as { itemId?: string; confirm?: boolean };
+          if (!b.itemId) return Response.json({ error: "itemId is required" }, { status: 400 });
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/disconnect-item", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId, itemId: b.itemId, confirm: b.confirm === true }),
             })
           );
           return new Response(await response.text(), {
