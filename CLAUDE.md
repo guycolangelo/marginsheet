@@ -249,6 +249,18 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: `set role`, `set_config` at session scope, search_path, anything that outlives a statement gets restored in a `finally` that covers **every** statement executed under it, including the assertions.
 
+- **A CAST IS NOT A CHECK, AND A GATE THAT CAN ONLY REFUSE LOOKS EXACTLY LIKE A CAREFUL ONE.** 20 Aug 2026, and the two halves belong together because the first produced the second.
+
+  `item-status.ts` classified a failed `/item/get` by reading `error_code` off `error.toJSON() as { error_code?: string }`. **`toJSON` emits `errorCode`.** The property was always `undefined`, so the classifier **could never return "gone"** in any circumstance.
+
+  **Nothing failed. That is the point.** Every refusal read as caution: the disconnect's repair branch never fired, the purge's gate never permitted a delete, and both reported exactly what a correctly conservative gate reports. **A control that can only refuse is indistinguishable from a working one until something needs it to permit**, and the tests all covered the refusals.
+
+  **The cast is what let it through review.** `as { error_code?: string }` asserts a shape TypeScript then stops verifying, so a wrong property name compiles cleanly. It is the same lesson as **a cast is not a filter**, recorded hours earlier when `callPlaid` returned a whole body cast to a narrower type: **a cast changes what the compiler will let you write, never what is there.** The repair is to read the typed field, `error.errorCode`, where a wrong name fails to compile at the moment it is written.
+
+  **The missing assertion names the class.** The classifier had tests, and every one of them checked a refusal. **A test suite made only of negative cases passes against a function hard-wired to refuse.** Where a decision has two outcomes, the suite must prove it can produce BOTH, and the positive case is the one that is easy to leave out precisely because refusing is the safe direction.
+
+  **It was found because the interpretation travels with its evidence.** The reply said `liveness: "unknown"` while the `detail` beside it said `ITEM_NOT_FOUND`, and the contradiction was legible to someone who had never read the file. An interpretation reported alone asks to be trusted; reported with its evidence, it can be disagreed with.
+
 - **A ROUTE WHOSE GUARD REFUSES A REPEAT CANNOT REPAIR ITS OWN PARTIAL FAILURE, AND PARTIAL FAILURE IS EXACTLY WHEN A REPEAT IS WHAT YOU NEED.** (Guy, 20 Aug 2026.)
 
   The disconnect refuses unless Plaid reports the Item live. It removed the Item, failed to mark our row, and **re-running was then refused, correctly**, because Plaid now reported it gone. **The guard was right and the absence of a repair path was the defect.**
