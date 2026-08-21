@@ -467,6 +467,20 @@ On the founder household as of 21 August 2026 that number is **five**: Xmas Gift
 
 **1b did not create this and the sequence must not be read as losing coverage.** Before 1b, unrefreshed accounts were reconciled against stale balances and produced zeros, which counted as clean observations. **The gap existed and was concealed by exactly the rows that made the criterion look green.** The fix made it visible. Anyone reading the two changes in order will otherwise conclude coverage was lost, when what was lost was a false claim of it.
 
+### This is a species, not an instance
+
+**A spec written before an endpoint was chosen can name inputs that endpoint does not return, and nothing in this repository checks a spec's named inputs against a provider's actual contract.** `/transactions/sync` is simply the first place anybody looked hard enough to notice.
+
+**The live second instance is already visible.** Cash Flow's committed outflow names `last_statement_balance` and `next_payment_due_date` as inputs. Those come from `/liabilities/get`, which **has never been called**, on Items that have consented to it. Same shape: a spec naming an input, and the path that would produce it not running. Whether the cause is the same is what the liabilities task determines, and it opens knowing this rather than discovering it at the end.
+
+**Is a cheap check buildable? Partly, and the honest answer is that one check does not cover both.**
+
+**The liabilities shape is checkable and the mechanism already exists.** A spec names a FIELD as an input; the field has a column; the column has no writer. `config/single-writer-columns.json` already enumerates writers per column and its control already fails on an undeclared one. Extending it to carry "named as an input by spec X" and failing when `declared_writers` is empty **and** no open item covers it is a small change to an existing control rather than a new one. **That would have caught the liabilities gap on the day the column was created.**
+
+**The reconciliation shape is probably not checkable.** What the spec named was not a field but a **cadence and coverage property**: balances *per account, on every sync*. Verifying that against Plaid's contract means machine-reading a provider's documentation about which accounts an endpoint returns, which this project cannot do and should not pretend to. **The nearest honest mechanism is a declaration** written when an endpoint is chosen, saying what it returns and how often, checked against what the spec assumed. That is a real artifact somebody must write and keep true, which is a second statement of a fact and therefore a drift risk, and it is the expensive option.
+
+**Cost, stated so the decision is available rather than implied.** The field half is hours and reuses a control. The cadence half is a new declaration per endpoint plus the discipline to update it, and it would have caught one of these two. **Not built. Recorded so the choice is made deliberately.**
+
 ### Tolerance
 
 The invariant says *"drift beyond tolerance"*. **The tolerance is zero**, ruled 21 August 2026: any non-zero threshold is a guess about an error nobody has observed, and every failure expected here is timing rather than magnitude, so a dollar threshold answers the wrong axis.
