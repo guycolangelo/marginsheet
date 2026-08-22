@@ -97,6 +97,14 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **Absent-with-an-owner beats flaky.** A gap in `docs/open-items.json` is honest, it is visible in CI, and somebody owns closing it. A flaky test is a false claim of coverage that also corrodes every true claim next to it. When a fixture cannot be made deterministic, the branch is split: test our **handler** against a synthesised response and say plainly that Plaid's behaviour is not what was proven.
 
+- **A TIMEOUT IS A FIXTURE PARAMETER, DERIVED FROM WHAT THE TEST DOES, NOT A DEFAULT INHERITED SILENTLY.** (Guy, 22 Aug 2026.)
+
+  A test that makes real round trips has a real round-trip cost, and a default chosen by a test runner that knows nothing about it is not a considered value. `invariant-8` failed at **5005ms against a 5000ms default**, which is a fixture reporting its own inadequacy in the shape of a failure about the code.
+
+  **Raising it to match the test's real cost is the OPPOSITE of masking, PROVIDED THE ROUND TRIPS ARE THE SUBJECT.** That proviso is the whole rule and it is what stops this licensing a lazy raise. Where the test exists to exercise a sequence of genuine network or database calls, the elapsed time is the fixture doing its job and the limit has to accommodate it. **Where the elapsed time is the thing under test**, a slow path, a deadline, a lock hold, raising the limit deletes the assertion, and the correct response is to make the test faster or to assert the duration directly.
+
+  So the question is not *"is 5 seconds enough"* but **"what is this test timing, and is the clock the subject or the scaffolding?"** A raise is recorded with the derivation, the same way `STALE_AFTER_MS` is derived from 1,560 rows in 47 seconds rather than picked.
+
 - **A PASSING FIXTURE MUST BE SHOWN TO PASS FOR ITS STATED REASON. Minimal-mutation proof.** Remove or alter **only the element under test** and confirm the pass disappears. If it does not, the fixture is passing on something else and the assertion is decoration.
 
   The instance: `"reminding you again"` was the fixture for `no-nagging`'s `reminding` inflection, and it passed. It fired on **`again`**. `reminding` alone did not fire at all, and the gap sat under a green assertion.
@@ -760,13 +768,29 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **The provider's namespace is shared across every household and none of it is ours.** Plaid issues one `item_id` per Item, one `plaid_account_id` per account, one `plaid_transaction_id` per transaction, and two households linking the same bank login see **the same values**. Our own `uuidv7` primary keys cannot collide across households, because we mint them.
 
-  **All four cross-household findings of 19 August 2026 were reachable through the first case, and none through the second.** `plaid_items.item_id`, `financial_accounts.plaid_account_id`, `transactions.plaid_transaction_id`, and `applyRemoved`'s `where plaid_transaction_id = any(...)`. Meanwhile `outbox.markEnqueued` on `signal_id` and `reconnect` on `id` were audited in the same pass and left alone, deliberately, because the key already scopes them.
+  **All four cross-household findings of 19 August 2026 were reachable through the first case, and none through the second.** `plaid_items.item_id`, `financial_accounts.plaid_account_id`, `transactions.plaid_transaction_id`, and `applyRemoved`'s `where plaid_transaction_id = any(...)`. Meanwhile `outbox.markEnqueued` on `signal_id` and `reconnect` on `id` were audited in the same pass and left alone, deliberately, because the key already scopes them. **THAT CLEARANCE WAS HALF WRONG AND IS CORRECTED BELOW: it held for the write and not for the read, and `reconnect`'s read went on to be a live cross-household path for four days.**
 
   **THE CHECK IS ONE QUESTION AND IT IS CHEAP: whose namespace does this key belong to?** If the answer is **Plaid, Stripe, Twilio or Postmark**, the statement names the household or it is a finding waiting to happen. If the answer is ours, the key is the scope.
 
   This is why 4e fixed one statement and stopped rather than adding predicates everywhere on principle. **Adding them everywhere would have obscured why `applyRemoved` was different**, and a rule applied uniformly to cases that differ teaches nobody which case mattered.
 
   **It does not depend on RLS being right, which is the point.** It was written because RLS was wrong: `sync_worker_access` is `USING (true)` for `marginsheet_sync`, so on that path the household GUC constrains nothing. **A statement should be correct even when the policy is wrong.**
+
+- **A WRITE-SHAPED AUDIT CLEARS A READ IT NEVER EXAMINED, AND THE CLEARANCE IS WHAT STOPS ANYONE LOOKING AGAIN.** (Guy, 22 Aug 2026.) The seventh cross-household finding, resolved, and the first one whose cause is a PREVIOUS finding's own remedy.
+
+  `reconnectItem` selected `from plaid_items where id = ${itemRowId}` with no household predicate. `sync_worker_read` on `plaid_items` is `USING (true)`, **so RLS supplied nothing**, and given another household's item uuid the statement would have decrypted that household's token and minted a Link token against it. **It is the one statement in the file that decrypts**, which is the exchange-endpoint finding reproduced in the sync Worker, and it validates the 19 August provider-namespace rule in that rule's exact intended currency.
+
+  **THE WRITE HALF WAS SAFE BY ACCIDENT OF POLICY RATHER THAN OF STATEMENT.** That phrase is the finding. The status update three lines down names no household either and was never reachable, because `sync_worker_write` **does** require one. Two statements, identical in shape, one exposed and one not, and **nothing in either statement says which** -- the difference lives entirely in a policy neither of them mentions.
+
+  **WHAT MAKES IT AN ENTRY RATHER THAN A BUG IS THAT THE 19 AUGUST AUDIT LOOKED DIRECTLY AT IT AND CLEARED IT.** `reconnect.ts` was created **18 Aug** and the clearance was written **19 Aug**, so this was never a case of new code arriving after a sweep. `docs/open-items.json` recorded the reasoning in full: *"reconnect keys on `plaid_items.id` and sets the GUC in the same transaction, so it is already declared."*
+
+  **Every clause of that is true, and the conclusion is false.** The GUC was set. It **declares the household to a policy that reads it**, and `sync_worker_read` does not read it. So the sentence is sound about the write and vacuous about the read, and it does not say which half it is about.
+
+  **The cause is the audit's own shape, and the item's id says so out loud: `sync-writes-keyed-on-internal-ids`.** The scan behind it is `every-write-declares-a-household.test.ts`. **A write scan cannot see a read**, so the read was never in scope of the thing that cleared it, and the clearance names the FILE rather than the STATEMENT. This is the join family once more: two verified halves, an unverified step between them, and **the verified halves are exactly what stopped either of us re-examining it.**
+
+  **AND A CLEARANCE IS WORSE THAN SILENCE, WHICH IS THE PART TO CARRY.** An unaudited statement is found by the next sweep. **A statement recorded as deliberately examined and safe is skipped by every sweep after it**, because the record answers the question before it is asked. That is why this survived four days under a file whose comments discuss cross-household reach at length.
+
+  So: **an audit records the PROPERTY it checked, never the file it looked at.** *"This write names its household"* is a finding. *"reconnect is fine"* is an inheritance. And where a table's read and write policies differ, **a clearance names which one it is about, or it is not a clearance.**
 
 - **RETURN WHAT HAPPENED, NOT WHAT WAS ASKED FOR.** `applyRemoved` returned `plaidTransactionIds.length`, the count of ids it was handed. It now returns the rows actually updated.
 
