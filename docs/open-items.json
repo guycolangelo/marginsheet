@@ -862,5 +862,14 @@
     "owed_to": "M4 and M13. Raised 22 Aug 2026.",
     "raised": "2026-08-22",
     "trigger_kind": "prose"
+  },
+  {
+    "id": "ci-tests-constraints-against-empty-tables",
+    "item": "A CONSTRAINT-ADDING MIGRATION IS ONLY EVER TESTED IN CI AGAINST TABLES WITH NO ROWS TO VIOLATE IT, so its failing case exists in exactly one environment and it is production. Found 22 Aug 2026 when 0045's foreign key on household_state_signals.source_sync_run_id was refused by production and applied cleanly by CI, dev and staging: every CI branch is created fresh (ruled 16 Aug so an edited migration has no database that persists it), and an empty table satisfies every CHECK, NOT NULL, UNIQUE and FOREIGN KEY vacuously. Three greens, all honest, none of which had a violating row available. It froze production, because migrate runs before the Worker deploy and each migration runs in one transaction, so nothing numbered after 0045 could run and no code could reach production either. Resolved by an authorized in-place edit pinned to one hash, in config/migration-edit-authorizations.json. THE MITIGATION QUESTION, POSED AND NOT SOLVED: can the migrate gate run candidate migrations against a Neon branch OF PRODUCTION'S DATA rather than a fresh one? If custody permits it, this class moves from discovered-at-deploy to discovered-in-CI, which is the difference between a frozen production and a red PR. If custody says no, the entry records why and the class stays deploy-detected, and the partial mitigation worth costing separately is a seeded fixture branch carrying one row per table with the shapes constraints actually meet. NOT TO BE BUILT WITHOUT A RULING: branching production data into CI is a custody decision before it is an engineering one, and every argument for it is an argument for household data reaching a place it does not currently reach.",
+    "owner": "Guy",
+    "trigger": "before the next migration that adds a constraint to a table that already holds production rows",
+    "owed_to": "M4 exit. Raised 22 Aug 2026.",
+    "raised": "2026-08-22",
+    "trigger_kind": "prose"
   }
 ]

@@ -139,6 +139,36 @@ COMMENT ON COLUMN "sync_runs"."balances_changed" IS
 
 ALTER TABLE "household_state_signals" ALTER COLUMN "source_sync_run_id" DROP NOT NULL;--> statement-breakpoint
 
+-- THE ROWS WRITTEN UNDER THE OLD MEANING, AND WHAT BECOMES OF THEM.
+--
+-- Every household_state_signals row that existed before this migration carries
+-- a source_sync_run_id produced by gen_random_uuid(): a value invented at insert
+-- time, naming a run that never existed, and pointing at nothing. The foreign
+-- key below refuses exactly those rows, which is the constraint doing its job.
+--
+-- SO THEY ARE NULLED, NOT DELETED. NULL says truthfully "no run was recorded",
+-- which is why the column became nullable one statement above. Deleting them
+-- would erase real events -- signals about transactions that genuinely arrived
+-- -- to comfort a traceability column, which is the wrong thing to protect.
+--
+-- IT IS A NO-OP ON ANY DATABASE WITHOUT SUCH ROWS. The predicate matches only
+-- ids absent from sync_runs, and a database whose signals table is empty, or
+-- whose signals all carry real run ids, updates nothing. That is why the three
+-- environments converge on identical schema and identical semantics.
+--
+-- THIS STATEMENT WAS ADDED AFTER 0045 MERGED, WHICH IS AN AUTHORIZED EDIT TO A
+-- MERGED MIGRATION. See config/migration-edit-authorizations.json for the
+-- authorization, the reasoning and the date. Production refused 0045 on its
+-- first run because it holds real signal rows; dev and staging applied it
+-- because they do not. There is no forward-only repair: each migration runs in
+-- one transaction, so 0045 rolled back whole, and nothing numbered after it can
+-- execute until it succeeds.
+UPDATE "household_state_signals" SET "source_sync_run_id" = NULL
+	WHERE "source_sync_run_id" IS NOT NULL
+	  AND NOT EXISTS (
+	    SELECT 1 FROM "sync_runs" r WHERE r.id = "household_state_signals"."source_sync_run_id"
+	  );--> statement-breakpoint
+
 ALTER TABLE "household_state_signals"
 	ADD CONSTRAINT "household_state_signals_source_sync_run_id_fk"
 	FOREIGN KEY ("source_sync_run_id") REFERENCES "sync_runs"("id") ON DELETE SET NULL;--> statement-breakpoint

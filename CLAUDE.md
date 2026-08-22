@@ -864,6 +864,28 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: a corrective migration takes the **next** tag, and the tags a given environment carries are a property of that environment's history rather than of the file. **Divergent tag lists across environments are the honest state.** Making them uniform claims a migration ran somewhere it did not, which is the same lie as an edited migration.
 
+- **THE APPEND-ONLY RULE HAS BEEN BYPASSED ONCE, AND THE BYPASS IS PINNED TO ONE HASH.** (Guy authorized, 22 Aug 2026.) Recorded here rather than only in the config, because a rule this file calls non-negotiable having an exception is something the next reader must meet at the rule.
+
+  **What forced it: there was no forward-only path.** 0045 added a foreign key from `household_state_signals.source_sync_run_id` to a new `sync_runs` table. Every pre-existing signal row carried a **fabricated `gen_random_uuid()`**, which is precisely what the migration existed to end, so **production refused the constraint while dev and staging applied it cleanly** -- they had no such rows.
+
+  Each migration runs in one `sql.begin`, so **0045 rolled back whole** and was never recorded as applied. Migrations run in filename order and the runner throws on the first failure, so **nothing numbered after it could execute on production**. Migrate runs before the Worker deploy, so **no code could reach production either**: a route that repaired the data first was not available, and production was frozen.
+
+  **Why the rule's failure mode does not occur here, which is the only question that matters.** The rule prevents **identical ledgers under divergent schemas**. The edit adds a `UPDATE ... WHERE NOT EXISTS` -- a **data** statement that matches only ids absent from `sync_runs`. Dev and staging applying the original cleanly *proves* they hold no such rows, since the constraint would have refused them too. So they skip the file forever, production nulls its orphans, and **all three arrive at identical schema and identical semantics.** The gate could not know that; it compares bytes, and byte comparison is what makes it worth trusting the other ninety-one times.
+
+  **THE MECHANISM IS THE NARROWEST THING THAT LETS ONE FILE THROUGH.** `config/migration-edit-authorizations.json` names one file at **one exact hash**, so a further edit to the same file produces a different hash and lands back on the gate. **An authorization cannot be reused to carry a second change**, and it cannot be written before the change it permits exists.
+
+  **Disabling the job was the easy alternative and it is broader than its reason twice over:** it authorizes every migration rather than one, and it switches off the duplicate-number check that shares the script. This file already records what an override becomes once it is available.
+
+  **Nulled rather than deleted**, because those rows are real events -- signals about transactions that genuinely arrived -- and deleting them to satisfy a traceability column erases data to protect metadata. NULL states the true fact, which is why the same migration made the column nullable.
+
+- **A CONSTRAINT-ADDING MIGRATION IS ONLY EVER TESTED AGAINST TABLES WITH NO ROWS TO VIOLATE IT.** (22 Aug 2026.) The CI gap the bypass above exposed, and it is a class rather than an incident.
+
+  **Every CI branch is created fresh**, ruled 16 Aug so that an edited migration has no database that persists it. That property is correct and it has a cost nobody had named: an empty table satisfies every `CHECK`, every `NOT NULL`, every `UNIQUE` and every `FOREIGN KEY` vacuously. **A constraint's failing case exists only where there is data, which is exactly one environment, and it is the one that matters.**
+
+  `migrate` was green on the pull request, green on dev and green on staging, and the constraint was refused by the only database holding rows. **Nothing was wrong with any of those three greens**; they were answers to a question with no violating rows available.
+
+  **The mitigation question is posed rather than solved:** can the migrate gate run candidate migrations against a Neon branch **of production's data** rather than a fresh one? If custody permits it, this whole class moves from discovered-at-deploy to discovered-in-CI. If it does not, the class stays deploy-detected and the entry says why. Recorded in `docs/open-items.json`; **not to be built without a ruling**, because branching production data into CI is a custody decision before it is an engineering one.
+
 - **Migrations are append-only after merge.** Once a migration file is on main, its contents are frozen. Corrections go forward as a new migration, never as an edit. The failure mode is worse than an error: an environment that has already applied a migration will never apply it again, so an edit reaches only the databases that have not seen it yet, and you end up with **two databases carrying identical ledgers and different schemas**. Nothing reports a problem until something reads the column. Enforced by the `migrations-append-only` CI job, which hashes every migration on main and fails on any modification. Additions pass; edits do not.
 - Each spec's invariants section seeds that module's test suite. An invariant without a test is not done.
 - Golden tests and the lint layer block merges in CI. No prompt version ships failing either.
