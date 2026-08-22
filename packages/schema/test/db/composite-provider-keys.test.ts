@@ -75,7 +75,38 @@ describe("the arbiter cannot reach another household's row", () => {
   it("THE FINDING: household B's upsert does not touch household A's token", async () => {
     // The 19 Aug demonstration, inverted into an assertion. Under the global
     // arbiter this REPLACED A's ciphertext and returned A's row id.
-    await upsertAs(B, SHARED_ITEM_ID, "v1.bbbbbbbb.bbbbbbbb").catch(() => undefined);
+    //
+    // THE EXCEPTION IS PART OF THE FIXTURE AND IS IDENTIFIED, which the first
+    // version of this test did not do and which cost a harness cycle to learn.
+    // It swallowed the error with .catch(() => undefined), so narrowing the
+    // index back to item_id alone -- the planted mutation -- made the statement
+    // fail with 42P10, "there is no unique or exclusion constraint matching the
+    // ON CONFLICT specification", the catch absorbed it, A's row was trivially
+    // unchanged, and the test passed against a broken arbiter.
+    //
+    // THAT IS THE SWALLOWED-THROW DEFECT CLAUDE.md ALREADY RECORDS, written
+    // into the test for the very finding that defect originally concealed. A
+    // catch that does not say WHICH error arrived is an unasserted branch.
+    //
+    // IN PHASE A THE EXPECTED ERROR IS 23505, unique_violation, raised by the
+    // global index that 0046 deliberately leaves in place: the composite finds
+    // no conflict for (B, shared item), so Postgres attempts the insert and the
+    // surviving global index refuses it. PHASE B CHANGES THIS ASSERTION, because
+    // dropping the global lets the insert succeed and both rows exist. The
+    // assertion below is therefore about phase A on purpose and says so.
+    let code: string | undefined;
+    try {
+      await upsertAs(B, SHARED_ITEM_ID, "v1.bbbbbbbb.bbbbbbbb");
+    } catch (error: unknown) {
+      code = (error as { code?: string }).code;
+    }
+
+    expect(
+      code,
+      "phase A expects the SURVIVING GLOBAL index to refuse B with a unique violation. " +
+        "42P10 means the composite index is absent and ON CONFLICT matched nothing, which is the arbiter being broken " +
+        "rather than the boundary holding. undefined means the insert succeeded, which is phase B's behaviour."
+    ).toBe("23505");
 
     expect(
       await ciphertextOf(A_ITEM),
