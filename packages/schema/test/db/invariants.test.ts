@@ -272,9 +272,25 @@ describe("discipline gaps: held closed by process, not by structure", () => {
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and c.relkind = 'r' and c.relforcerowsecurity
     `;
+    // ANY POLICY, NOT household_isolation SPECIFICALLY, AND THE CHANGE IS THE
+    // FINDING. This counted tables carrying a policy NAMED household_isolation,
+    // which was equal to the forced count only because every policied table
+    // happened to be household-scoped. IT CONFLATED "FORCED" WITH
+    // "HOUSEHOLD-ISOLATED".
+    //
+    // sweep_runs (0044) is the first table that is legitimately forced and
+    // legitimately NOT household-scoped: it holds two counts and a timestamp
+    // from a sweep that runs across every household, so there is no household
+    // dimension to isolate by and its policies are named for what they do.
+    //
+    // The old query was also WEAKER THAN ITS OWN SENTENCE. A table with
+    // policies but no household_isolation, left unforced, was invisible to it:
+    // it would not count in the denominator and its absence from the numerator
+    // would go unnoticed. Counting any policy is the stricter reading of "all
+    // or nothing across policied tables" and is what the name always claimed.
     const [policied] = await sql<{ n: number }[]>`
       select count(distinct tablename)::int as n from pg_policies
-      where schemaname = 'public' and policyname = 'household_isolation'
+      where schemaname = 'public'
     `;
     expect(
       forced.n,
