@@ -1,0 +1,47 @@
+{
+  "_doc": [
+    "AUTHORIZED EDITS TO MERGED MIGRATIONS. Empty is the normal state.",
+    "",
+    "Migrations are append-only after merge, and check-migrations-append-only.sh",
+    "enforces it byte for byte. This file is the ONLY way past that gate, and it",
+    "is deliberately the narrowest shape available: an entry names one file and",
+    "ONE EXACT HASH of its new contents. A further edit to the same file produces",
+    "a different hash and goes red again, so an authorization cannot be reused to",
+    "carry a second change through.",
+    "",
+    "WHY A PINNED HASH RATHER THAN DISABLING THE JOB. Disabling it for a run also",
+    "disables the duplicate-number check that shares the script, and it authorizes",
+    "every migration rather than one. An override that is broader than its reason",
+    "is how an override becomes available, which this repository has already paid",
+    "for once.",
+    "",
+    "AN ENTRY IS A RULING BY GUY AND RECORDS ITS OWN REASONING. The question it",
+    "must answer is not 'is this edit convenient' but 'does the rule's failure",
+    "mode occur here': identical ledgers under divergent schemas. If two",
+    "environments can end up disagreeing, the answer is no whatever the cost of",
+    "going forward."
+  ],
+  "authorizations": [
+    {
+      "file": "packages/schema/migrations/0045_a_sync_has_an_identity.sql",
+      "hash": "a4764e9b5205acef61367933d21a72e200bddfed",
+      "authorized_by": "Guy",
+      "date": "2026-08-22",
+      "deploy": "production deploy of 3375bbd, which failed at Migrate production",
+      "what_changed": "One UPDATE added before the foreign key, nulling source_sync_run_id where it names a run absent from sync_runs.",
+      "why_the_rules_failure_mode_does_not_occur": [
+        "The append-only rule prevents IDENTICAL LEDGERS UNDER DIVERGENT SCHEMAS: an edit reaches only the databases that have not applied the file, so two environments end up disagreeing while both report the same migration as applied.",
+        "This edit adds a DATA statement, not a schema change. Its predicate matches only ids absent from sync_runs, so it is a no-op on any database that has no such rows.",
+        "Dev and staging applied the original 0045 successfully, which proves they hold no orphaned rows: the foreign key would have refused them too. They skip the file forever and their schema is table + nullable column + foreign key.",
+        "Production applies the edited file, nulls its orphans, and arrives at table + nullable column + foreign key. IDENTICAL SCHEMA AND IDENTICAL SEMANTICS in all three.",
+        "The gate correctly could not know any of that. It compares bytes, which is the only thing it can compare, and byte comparison is what makes it trustworthy the other 99 times."
+      ],
+      "why_there_was_no_forward_only_path": [
+        "Each migration runs inside one sql.begin, so 0045 rolled back whole on production: sync_runs does not exist there and 0045 is not recorded as applied.",
+        "Migrations apply in filename order and the runner throws on the first failure, so nothing numbered 0046 or later can execute on production until 0045 succeeds.",
+        "Migrate runs before the Worker deploy, so no new code could reach production either. A route that repaired the data first was not available: production was frozen at ced65ff until this resolved."
+      ],
+      "alternative_rejected": "Deleting the offending rows. They are real events -- signals about transactions that genuinely arrived -- and deleting them to satisfy a traceability column erases data to protect metadata. NULL states the true fact, which is why the column was made nullable in the same migration."
+    }
+  ]
+}

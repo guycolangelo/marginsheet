@@ -20,6 +20,7 @@
 set -euo pipefail
 
 DIR="packages/schema/migrations"
+AUTH="config/migration-edit-authorizations.json"
 base="${1:-origin/main}"
 
 git fetch --quiet origin main 2>/dev/null || true
@@ -51,6 +52,22 @@ while IFS= read -r file; do
   current_hash="$(git hash-object "$file")"
 
   if [ "$merged_hash" != "$current_hash" ]; then
+    # AN AUTHORIZED EDIT IS PINNED TO ONE FILE AT ONE EXACT HASH.
+    #
+    # This is the only way past this gate and it is deliberately the narrowest
+    # available: the authorization names the bytes it authorizes, so a further
+    # edit to the same file produces a different hash and lands back here. An
+    # authorization cannot be reused to carry a second change through, and it
+    # cannot be written in advance of the change it permits.
+    #
+    # Disabling the job would have been the easy alternative and it is broader
+    # than its reason twice over: it authorizes every migration rather than one,
+    # and it also switches off the duplicate-number check further down.
+    if [ -f "$AUTH" ] && jq -e --arg f "$file" --arg h "$current_hash"          '.authorizations[] | select(.file == $f and .hash == $h)' "$AUTH" >/dev/null 2>&1; then
+      who="$(jq -r --arg f "$file" --arg h "$current_hash"         '.authorizations[] | select(.file == $f and .hash == $h) | "\(.authorized_by), \(.date)"' "$AUTH")"
+      echo "AUTHORIZED EDIT: $file (by $who)"
+      continue
+    fi
     echo "MODIFIED: $file" >&2
     changed=1
   fi
@@ -67,6 +84,14 @@ ledgers and different schemas. Nothing will report that as wrong.
 
 Add a new migration that corrects the old one, and say in its header what it
 corrects and why. See 0015_auth_method_text.sql for the shape.
+
+If no forward-only repair exists -- which happens when the merged migration
+cannot apply at all in some environment, so nothing numbered after it can run
+there either -- the edit needs a ruling from Guy recorded in
+config/migration-edit-authorizations.json, pinned to the exact hash. The
+question that entry must answer is whether the rule's failure mode occurs:
+identical ledgers under divergent schemas. If two environments could end up
+disagreeing, the answer is no whatever the cost of going forward.
 MSG
   exit 1
 fi
@@ -114,4 +139,15 @@ MSG
 fi
 
 count="$(git ls-tree -r --name-only "$base" -- "$DIR" | grep -c '\.sql$' || true)"
-echo "all $count merged migrations are byte-identical to $base"
+# THE SUMMARY MUST NOT CLAIM MORE THAN THE CHECK ESTABLISHED. With an
+# authorization in play "all N are byte-identical" is false, and a closing line
+# that overstates is how a reader stops reading the lines above it.
+authorized=0
+if [ -f "$AUTH" ]; then
+  authorized="$(jq '.authorizations | length' "$AUTH" 2>/dev/null || echo 0)"
+fi
+if [ "$authorized" -gt 0 ]; then
+  echo "$((count - authorized)) of $count merged migrations are byte-identical to $base; $authorized carries a pinned authorization above"
+else
+  echo "all $count merged migrations are byte-identical to $base"
+fi
