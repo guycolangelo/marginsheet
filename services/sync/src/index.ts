@@ -19,6 +19,8 @@ import { setItemWebhook } from "./set-webhook.js";
 import { clearFirstSyncMilestone } from "./clear-milestone.js";
 import { enableLiabilities } from "./enable-liabilities.js";
 import { sweepStuckSyncs } from "./sweep.js";
+import { reconnectItem } from "./reconnect.js";
+import { completeReconnect } from "./reconnect-complete.js";
 import { importRecurring } from "./import-recurring.js";
 import { verifyPlaidWebhook } from "./webhook-verify.js";
 import { itemStatus } from "./item-status.js";
@@ -454,6 +456,67 @@ export default {
     // THE FIRST PIECE OF M8's DISCONNECT FLOW. A household disconnecting a bank
     // and an operator removing an Item are the same call with a different
     // caller, so this is built as the real path rather than as scaffolding.
+    // POST /internal/reconnect-link-token: Link in UPDATE mode for an Item the
+    // institution has stopped trusting. Mints only; it repairs nothing.
+    if (url.pathname === "/internal/reconnect-link-token" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const b = (await request.json().catch(() => ({}))) as { householdId?: string; itemRowId?: string };
+      if (!b.householdId || !b.itemRowId) {
+        return Response.json({ error: "householdId and itemRowId are required" }, { status: 400 });
+      }
+      try {
+        const result = await reconnectItem(
+          b.itemRowId, b.householdId,
+          { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+          env.TOKEN_ENCRYPTION_KEY, env.NEON_DATABASE_URL
+        );
+        return Response.json(result);
+      } catch (error) {
+        const e = error as { toJSON?: () => unknown; message?: string };
+        return Response.json(
+          { error: "reconnect-link-token failed", detail: e.toJSON ? e.toJSON() : { message: e.message ?? "unknown" } },
+          { status: 500 }
+        );
+      }
+    }
+
+    // POST /internal/reconnect-complete: ASKS PLAID, then marks. Update mode
+    // returns nothing that proves the repair worked, so /item/get is the
+    // evidence and only "live" changes a row.
+    if (url.pathname === "/internal/reconnect-complete" && request.method === "POST") {
+      if (!env.NEON_DATABASE_URL || !env.TOKEN_ENCRYPTION_KEY) {
+        return Response.json({ error: "sync is not configured" }, { status: 503 });
+      }
+      if (!env.PLAID_CLIENT_ID || !env.PLAID_SECRET) {
+        return Response.json({ error: "Plaid credentials are not configured" }, { status: 503 });
+      }
+      const b = (await request.json().catch(() => ({}))) as {
+        householdId?: string; itemRowId?: string; itemId?: string;
+      };
+      if (!b.householdId || !b.itemRowId || !b.itemId) {
+        return Response.json({ error: "householdId, itemRowId and itemId are required" }, { status: 400 });
+      }
+      try {
+        const result = await completeReconnect(
+          b.householdId, b.itemRowId, b.itemId,
+          { clientId: env.PLAID_CLIENT_ID, secret: env.PLAID_SECRET, baseUrl: env.PLAID_BASE_URL },
+          env.TOKEN_ENCRYPTION_KEY, env.NEON_DATABASE_URL
+        );
+        return Response.json(result, { status: result.repaired ? 200 : 409 });
+      } catch (error) {
+        const e = error as { toJSON?: () => unknown; message?: string };
+        return Response.json(
+          { error: "reconnect-complete failed", detail: e.toJSON ? e.toJSON() : { message: e.message ?? "unknown" } },
+          { status: 500 }
+        );
+      }
+    }
+
     // POST /internal/enable-liabilities: start a per-Item recurring charge,
     // deliberately. Dry run by default, and the dry run names the cost.
     if (url.pathname === "/internal/enable-liabilities" && request.method === "POST") {

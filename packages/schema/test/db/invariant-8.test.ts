@@ -122,6 +122,20 @@ async function crash(victimPid: number): Promise<void> {
   }
 }
 
+/** These three open their OWN connection to a remote Neon branch, read a
+ *  backend pid, and kill it mid-transaction. That is four or more round trips
+ *  each before an assertion runs, and vitest's default is 5000ms.
+ *
+ *  ONE OF THEM TIMED OUT ON 22 AUG 2026 AT 5005ms while its siblings took
+ *  4629ms and 2334ms. Nothing about the test changed: the database suite grew
+ *  through the day and these were always marginal by design.
+ *
+ *  RAISED RATHER THAN RE-RUN, because a fixture that reddens on latency when
+ *  the code is correct teaches people to re-run, and that habit is how a real
+ *  red gets ignored. The number is not masking slowness in the subject: the
+ *  cost is the round trips, which are what the test is FOR. */
+const CRASH_TEST_TIMEOUT_MS = 20_000;
+
 describe("invariant 8: the four writes are one transaction", () => {
   it("POSITIVE: a crash mid-transaction leaves no partial state", async () => {
     const f = await seed();
@@ -155,7 +169,7 @@ describe("invariant 8: the four writes are one transaction", () => {
     expect(seen.transactionReviewed, "transaction reviewed with a pending dispatch").toBe(false);
 
     await cleanup(f);
-  });
+  }, CRASH_TEST_TIMEOUT_MS);
 
   it("NEGATIVE CONTROL: the same writes in autocommit DO leave partial state", async () => {
     // This test exists to prove the positive test above is capable of
@@ -194,7 +208,7 @@ describe("invariant 8: the four writes are one transaction", () => {
     expect(seen.transactionReviewed).toBe(false);
 
     await cleanup(f);
-  });
+  }, CRASH_TEST_TIMEOUT_MS);
 
   it("the complete transaction commits all four writes together", async () => {
     const f = await seed();
@@ -221,5 +235,5 @@ describe("invariant 8: the four writes are one transaction", () => {
     expect(seen.transactionReviewed).toBe(true);
 
     await cleanup(f);
-  });
+  }, CRASH_TEST_TIMEOUT_MS);
 });

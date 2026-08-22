@@ -35,8 +35,6 @@ const BUILT_AND_NOT_WIRED: Record<string, string> = {
   "outbox.ts:markEnqueued": "outbox-announcer-is-built-and-unwired",
   "outbox.ts:findRepairable": "outbox-announcer-is-built-and-unwired",
   "outbox.ts:countNeverAnnounced": "outbox-announcer-is-built-and-unwired",
-  "reconnect.ts:reconnectItem": "reconnect-completion-is-built-and-unwired",
-  "reconnect.ts:markReconnected": "reconnect-completion-is-built-and-unwired",
 };
 
 /** FIELDS ARE WATCHED TOO, BECAUSE THE SCAN ONLY SEES FUNCTIONS.

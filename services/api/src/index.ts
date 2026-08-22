@@ -103,6 +103,8 @@ const handler = {
       url.pathname === "/plaid/set-webhook" ||
       url.pathname === "/plaid/clear-first-sync-milestone" ||
       url.pathname === "/plaid/enable-liabilities" ||
+      url.pathname === "/plaid/reconnect-link-token" ||
+      url.pathname === "/plaid/reconnect-complete" ||
       url.pathname === "/plaid/oauth-return" ||
       url.pathname === "/plaid/webhook" ||
       url.pathname === "/connect" ||
@@ -306,6 +308,43 @@ const handler = {
           return new Response(await response.text(), {
             status: response.status,
             headers: { "content-type": "application/json" },
+          });
+        }
+
+        // THE HOUSEHOLD COMES FROM THE SESSION on both, as everywhere else
+        // here. reconnect-link-token decrypts a token, so a body-supplied
+        // household would be the worst place in the codebase to accept one.
+        if (url.pathname === "/plaid/reconnect-link-token" && request.method === "POST") {
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const b = (await request.json().catch(() => ({}))) as { itemRowId?: string };
+          if (!b.itemRowId) return Response.json({ error: "itemRowId is required" }, { status: 400 });
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/reconnect-link-token", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId, itemRowId: b.itemRowId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status, headers: { "content-type": "application/json" },
+          });
+        }
+
+        if (url.pathname === "/plaid/reconnect-complete" && request.method === "POST") {
+          if (!env.SYNC) return Response.json({ error: "no SYNC service binding" }, { status: 503 });
+          const b = (await request.json().catch(() => ({}))) as { itemRowId?: string; itemId?: string };
+          if (!b.itemRowId || !b.itemId) {
+            return Response.json({ error: "itemRowId and itemId are required" }, { status: 400 });
+          }
+          const response = await env.SYNC.fetch(
+            new Request("https://sync.internal/internal/reconnect-complete", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ householdId, itemRowId: b.itemRowId, itemId: b.itemId }),
+            })
+          );
+          return new Response(await response.text(), {
+            status: response.status, headers: { "content-type": "application/json" },
           });
         }
 

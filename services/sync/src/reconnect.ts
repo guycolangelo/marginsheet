@@ -38,11 +38,24 @@ export async function reconnectItem(
   try {
     const [row] = await sql.begin(async (tx) => {
       await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
-      // BY ID. Not by institution, not by "the household's item at this bank".
+      // BY ID AND BY HOUSEHOLD. Not by institution, not by "the household's
+      // item at this bank".
+      //
+      // THE HOUSEHOLD PREDICATE IS NOT REDUNDANT AND RLS DOES NOT SUPPLY IT.
+      // sync_worker_read on plaid_items is USING (true), so the GUC constrains
+      // nothing on this path: without the predicate, an item id belonging to
+      // another household would be selected, its token decrypted, and a link
+      // token minted against it. THAT IS THE ONE STATEMENT IN THIS FILE THAT
+      // DECRYPTS, which makes it the worst place to rely on a policy that
+      // deliberately does not scope.
+      //
+      // The write half is already safe by accident of policy rather than of
+      // statement: sync_worker_write DOES require the household, so a foreign
+      // update matches nothing. The read had no such backstop.
       return await tx<{ item_id: string; access_token_ciphertext: string | null }[]>`
         select item_id, access_token_ciphertext
           from plaid_items
-         where id = ${itemRowId}
+         where id = ${itemRowId} and household_id = ${householdId}
       `;
     });
 
@@ -211,20 +224,28 @@ export async function markReconnected(
   itemRowId: string,
   householdId: string,
   databaseUrl: string
-): Promise<void> {
+): Promise<{ marked: number }> {
   const sql = postgres(databaseUrl, { max: 1 });
+  let marked = 0;
   try {
     await sql.begin(async (tx) => {
       await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
       // WHERE id, again. A status update keyed on the institution would clear
       // needs_reauth on an Item nobody repaired, which is worse than leaving
       // it set: the household would see a healthy account that is not syncing.
-      await tx`
+      const rows = await tx<{ id: string }[]>`
         update plaid_items
            set status = 'healthy', updated_at = now()
-         where id = ${itemRowId}
+         where id = ${itemRowId} and household_id = ${householdId}
+        returning id
       `;
+      // ROWS ACTUALLY MARKED, never the id handed in. They differ exactly when
+      // the Item belongs to somebody else or the GUC is unset, which is the
+      // case this needs to get right, and returning the input would report a
+      // repair that did not happen.
+      marked = rows.length;
     });
+    return { marked };
   } finally {
     await sql.end({ timeout: 5 });
   }
