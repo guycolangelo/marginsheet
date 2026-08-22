@@ -307,37 +307,36 @@
     },
     {
       "id": "reconciliation-detects",
-      "control": "drift tolerance (plaid-pipeline invariant 3)",
-      "guards": "Balance drift beyond tolerance is noticed rather than absorbed.",
-      "status": "owed",
-      "owedTo": "M4 task 4.6",
-      "test": "services/sync/test/reconciliation.test.ts",
-      "name": "drift beyond tolerance opens an investigation item",
+      "control": "the reconciler's type-aware sign (4.6)",
+      "guards": "Credit and depository accounts move OPPOSITE ways for the same transaction, so a card is not reported as permanently drifting.",
+      "test": "packages/schema/test/db/reconciliation.test.ts",
+      "name": "reconciles a CREDIT account, where the same outflow moves the balance the OTHER WAY",
       "planted": {
         "kind": "source",
-        "file": "services/sync/src/reconciliation.ts",
-        "find": "TOLERANCE_PLACEHOLDER",
-        "replace": "Infinity",
-        "note": "Widening the tolerance to infinity. Owed with the control at 4.6."
+        "file": "packages/shared/src/balances.ts",
+        "find": "  if (account.type === \"credit\") {\n    return round(previous + outflow - inflow) as For<\"reconciliation\">;\n  }",
+        "replace": "  if (account.type === \"credit\") {\n    return round(previous + inflow - outflow) as For<\"reconciliation\">;\n  }",
+        "note": "THE CREDIT BRANCH USES THE DEPOSITORY FORMULA, which is what somebody writes who has not noticed the types differ, and it reads as correct: same shape, same operands, one order. Depository spending DECREASES current and credit spending INCREASES it, so this reports permanent drift on every card AND THE DRIFT LOOKS LIKE A SYNC FAULT RATHER THAN A SIGN ERROR, which is what makes it expensive. SOURCE RATHER THAN SQL, DELIBERATELY, AND THE STANDING RULE'S OWN TEST DECIDES IT: where does the thing this control guards actually live? A policy, grant, constraint or index lives in the database and only kind sql reaches it. THIS IS ARITHMETIC IN TYPESCRIPT. balance_reconciliations carries RLS policies, but those guard ACCESS to the rows rather than the verdict written into them, and no database object encodes the inversion."
       },
-      "distinction": "Registered BEFORE it is built, deliberately. An enumeration that silently omits what is not built is how unguarded things arrive later: the precedent is SENSITIVE_ACTIONS, where three unbuilt actions carry built:false and a test asserts each has no route. Proves only that the test notices a DISABLED tolerance; the blocking half is a separate entry."
+      "distinction": "THE FIXTURE HAS TO CONTAIN BOTH ACCOUNT TYPES OR IT PROVES ONE BRANCH. A suite of depository accounts cannot distinguish a type-aware reconciler from one that ignores type, because both answer the same for a bank account. The db test constructs a card and a checking account and asserts the SAME outflow moves them opposite ways, which is the only shape where the two implementations disagree. REGISTERED 22 AUG 2026, HAVING SHIPPED UNREGISTERED. The entry existed as 'owed' pointing at services/sync/src/reconciliation.ts, a filename that never existed; the reconciler shipped as reconcile-balances.ts with twelve database tests and the harness had never broken one."
     },
     {
       "id": "reconciliation-blocks",
       "control": "the block on a drifting account's numbers",
       "guards": "No customer-visible number ships from an account with an open drift investigation.",
       "status": "owed",
-      "owedTo": "M4 task 4.6",
-      "test": "services/sync/test/reconciliation.test.ts",
+      "owedTo": "M4 4.6's surfacing half, which needs a component holding a role entitled to both balance_reconciliations and whatever surfaces insights",
+      "test": "services/sync/test/drift-blocks-customer-numbers.test.ts",
       "name": "an account with an open investigation ships no numbers",
       "planted": {
         "kind": "source",
-        "file": "services/sync/src/reconciliation.ts",
+        "file": "services/sync/src/reconcile-balances.ts",
         "find": "BLOCK_PLACEHOLDER",
         "replace": "false",
-        "note": "Tolerance INTACT, the block removed. Owed with the control at 4.6."
+        "note": "STILL OWED, and the placeholder is still a placeholder. Repointed on 22 Aug 2026 at the file that will hold it. THE BLOCK DOES NOT EXIST: reconcileBalances returns driftingAccounts and NOTHING READS IT, verified by scanning every src file outside the module and its tests. A confirmed drift is recorded in balance_reconciliations, visible in the readout, and reaches nobody automatically. See reconciliation-drift-has-no-surfacing-path in docs/open-items.json."
       },
-      "distinction": "THE ONE THAT MATTERS, and the reason these are two entries. If blocking broke, would the detection test notice? No: drift is still detected, the investigation item still opens, the test still passes, and the number ships anyway. That is what Base44 had. A reconciliation check that reports without blocking looks healthy from every angle."
+      "distinction": "THE ONE THAT MATTERS, and the reason these are two entries. If blocking broke, would the detection test notice? No: drift is still detected, the investigation item still opens, the test still passes, and the number ships anyway. That is what Base44 had. A reconciliation check that reports without blocking looks healthy from every angle.",
+      "owedItem": "reconciliation-drift-has-no-surfacing-path"
     },
     {
       "id": "api-never-holds-access-token",
@@ -1014,6 +1013,21 @@
         "note": "The spread, which is what somebody writes when they want 'everything Plaid told us'. /item/get also returns institution id, webhook, error state and consent expiry. Verified red 20 Aug 2026."
       },
       "distinction": "THE ROUTE EXISTS BECAUSE A PROBE COULD NOT ANSWER THE QUESTION. additional_consented_products is documented as an UPDATE MODE field and we send it on an initial link token; Plaid accepts it either way, so a successful connection cannot distinguish HONORED from SILENTLY IGNORED. A link token probe was proposed and withdrawn for exactly that reason, and a failed Liabilities call afterwards is ambiguous between consent not taking, the institution not supporting the product, and something else. consented_products answers directly rather than by inference from a failure. The enumeration is the same discipline as PlaidError.toJSON, which was tightened the same week for the opposite reason: name what may be published, so a field added later is excluded by default."
+    },
+    {
+      "id": "reconciliation-window-requires-a-span",
+      "control": "the drift window's six hour span (4.6)",
+      "guards": "Three non-zero observations taken in quick succession do not confirm a drift.",
+      "test": "packages/schema/test/db/reconciliation.test.ts",
+      "name": "REFUSES with three non-zero observations that do not span six hours",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/reconcile-balances.ts",
+        "find": "  return newest - oldest >= DRIFT_SPAN_MS;",
+        "replace": "  return newest - oldest >= 0;",
+        "note": "AN ORDERING CHECK MISTAKEN FOR A SPAN CHECK, which reads as a sanity assertion and is always true because newest is selected first. It uses both variables and compiles, which the first version of this mutation did not: replacing the whole comparison with  orphaned newest and oldest, and A MUTATION THAT DOES NOT COMPILE READS AS \"DID NOT GO RED\" because the test never runs. Caught by typechecking the plant before registering it. THE SPAN IS WHAT STOPS AN INSTITUTION FLAPPING BETWEEN TWO VALUES ACROSS RAPID READS FROM CONFIRMING A FAULT, because the baseline chases each read and every one disagrees. Until 21 Aug it was also the only thing stopping three rows per account per household sync, written by our own loop, from reaching the threshold inside a single run."
+      },
+      "distinction": "THE MINIMAL MUTATION OF THE CONFIRMING CASE. The suite has a test that CONFIRMS on three non-zero observations spanning eight hours and a test that REFUSES on the same three compressed into thirty minutes. Same count, same differences, only the spread removed. Without the second, the confirming test passes against a window that checks the count and ignores the span, which is exactly the defect the span exists to prevent."
     }
   ]
 }

@@ -28,6 +28,8 @@ const register = JSON.parse(
     name: string;
     status?: "owed";
     owedTo?: string;
+  /** The open item that owns building this. Required for owed entries. */
+  owedItem?: string;
     planted: { kind: "source" | "sql"; file?: string; find?: string; apply?: string };
   }[];
 };
@@ -160,6 +162,40 @@ describe("owed entries are honest about being owed", () => {
   for (const control of owed) {
     it(`${control.id} names what it is owed to`, () => {
       expect(control.owedTo, `${control.id} is owed to nobody in particular`).toBeTruthy();
+    });
+
+    it(`${control.id} names an open item that exists and has an owner`, () => {
+      // THE GAP THIS CLOSES, AND IT IS ONE-VALUE-TWO-FACTS INSIDE THE
+      // INSTRUMENT THAT VERIFIES INSTRUMENTS.
+      //
+      // The check below asserts an owed entry's test does not exist yet, which
+      // is satisfied by "not built" AND by "built under a name the register
+      // does not know". Those are opposite facts. reconciliation-detects sat
+      // owed for the life of 4.6 pointing at a filename that never existed,
+      // while the reconciler shipped as reconcile-balances.ts with twelve
+      // database tests the harness had never broken.
+      //
+      // NO PATH-BASED CHECK CAN DETECT A RENAME, and saying so is part of this:
+      // the built thing has a different name, so nothing that compares paths
+      // will find it. What is available is the orphan allowlist's mechanism,
+      // transplanted: an owed entry must name an open item that EXISTS and HAS
+      // AN OWNER, so somebody owns noticing. It converts unfindable into
+      // printed-in-CI-with-a-name, which is weaker than detection and is the
+      // strongest thing on offer.
+      const items = JSON.parse(
+        readFileSync(join(ROOT, "docs", "open-items.json"), "utf8")
+      ) as Array<{ id: string; owner: string }>;
+      const known = new Map(items.map((i) => [i.id, i.owner]));
+
+      expect(
+        control.owedItem,
+        `${control.id} is owed and names no open item. An owed entry nobody owns is invisible until somebody happens to read the register.`
+      ).toBeTruthy();
+      expect(
+        known.has(control.owedItem!),
+        `${control.id} names open item "${control.owedItem}", which does not exist`
+      ).toBe(true);
+      expect(known.get(control.owedItem!), `open item "${control.owedItem}" has no owner`).toBeTruthy();
     });
 
     // THE DIRECTION THAT MATTERS. An owed entry's test must NOT yet exist.
