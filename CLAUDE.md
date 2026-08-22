@@ -1158,6 +1158,25 @@ The sync's `syncing` marker is written in its own transaction, committed, before
 
 **The repair is to plant where the mutation still produces the violation** - here a connection opener holding exactly one declaration - rather than to make the string longer. A longer string is still a string that a future edit can duplicate. **Where possible, plant against a file whose compliance depends on the single thing being removed.**
 
+### IT INVERTS EVERY PRIOR MEMBER OF THIS FILE
+
+Every other control finding here is **a control that could not fail.** This one is **a control failing correctly that a correct change nearby defused.** The improvement and the weakening share no commit message, no proximity in the diff, no file in common beyond the one that got better. **Until the assertion below existed, the only detector was somebody noticing that a mutation had stopped reddening.**
+
+### THE SWEEP, AND MULTIPLICITY IS A SMELL RATHER THAN A DEFECT
+
+Fifty source-kind plants. **Two matched more than once, and they were not the same case.**
+
+**`private-workers-answer-nobody` matches three times and all three are equivalent.** `workers_dev: false` appears once per environment and the test **loops over every environment**, so removing any occurrence reddens that environment's assertion. **Multiplicity is safe when the test covers every match.**
+
+**`connect-surface-household-from-session` matched four times and the test checks one site.** It slices from the link-token route, so a mutation landing elsewhere reddens nothing - **and it landed correctly only because that route happens to be first in the file.** Two of the four occurrences are routes added the same week, correctly, forwarding the same way. **Correct by line order is not correct.**
+
+**So the assertion permits more than one match only when DECLARED, with a required reason.** A bare count would let somebody raise the number to silence a failure rather than to record an equivalence, which is the difference between a declaration and a suppression. Planted both directions: an undeclared multiple, and a declared count with no note.
+
+### AND THE SWEEP FOUND A SECOND THING IT WAS NOT LOOKING FOR
+
+Two entries, `reconciliation-detects` and `reconciliation-blocks`, carry `status: "owed"` and point at `services/sync/src/reconciliation.ts`, **a filename that has never existed.** 4.6's reconciler shipped as `reconcile-balances.ts` with twelve database tests and **the register was never updated**, so the built control has no registered plant and the applicability check skips both as owed. **A control can ship, be tested, and remain invisible to the harness that exists to verify controls.**
+
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.

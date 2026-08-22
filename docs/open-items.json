@@ -802,9 +802,9 @@
   },
   {
     "id": "re-derive-the-watchdog-threshold-from-real-durations",
-    "item": "STALE_AFTER_MS IS DERIVED RATHER THAN MEASURED AND IS OWED A RE-DERIVATION. 30 minutes comes from the only throughput ever recorded: SoFi's first sync, 1,560 transactions in 47 seconds, in migration 0031's comment. Amex's 5,241-row first sync is the largest observed and computes to 2.6 minutes at that rate, so 30 is a 10x multiple of the worst observed case and clears a hypothetical 20,000-row backfill with 3x headroom. NO SYNC HAS EVER BEEN TIMED END TO END, because until 4.8 nothing recorded a start. plaid_items.sync_started_at persists one now and the completion write is observable, so real durations accumulate from 22 Aug 2026 onward. Re-derive against the actual distribution once enough exist, and record the sample size beside the number, because a threshold with no stated basis is a number that explains itself falsely.",
+    "item": "STALE_AFTER_MS IS DERIVED RATHER THAN MEASURED AND IS OWED A RE-DERIVATION. 30 minutes comes from the only throughput ever recorded: SoFi's first sync, 1,560 transactions in 47 seconds, in migration 0031's comment. Amex's 5,241-row first sync is the largest observed and computes to 2.6 minutes at that rate, so 30 is a 10x multiple of the worst observed case and clears a hypothetical 20,000-row backfill with 3x headroom. NO SYNC HAS EVER BEEN TIMED END TO END, because until 4.8 nothing recorded a start. plaid_items.sync_started_at persists one now and the completion write is observable, so real durations accumulate from 22 Aug 2026 onward. Re-derive against the actual distribution once enough exist, and record the sample size beside the number, because a threshold with no stated basis is a number that explains itself falsely. N IS NAMED RATHER THAN LEFT FLOATING (Guy, 22 Aug 2026): FIFTY completed syncs carrying both a sync_started_at and a completion, ACROSS AT LEAST TWO ITEMS, INCLUDING AT LEAST ONE FIRST SYNC. The composition matters as much as the count: fifty incremental syncs on one Item would measure the cheap case fifty times and say nothing about the backfill this threshold exists to protect. IT IS PROSE-TYPED AND NOT CONDITION-TYPED, DELIBERATELY. The condition kinds this repo supports are path_exists, file_contains and control_exists, none of which can reach a database, so a count of completed syncs is not something the repo can evaluate. Typing it as a condition would be prose wearing a mechanism's label, which the open-items check refuses by design and which would be worse than leaving it prose.",
     "owner": "build",
-    "trigger": "once at least 20 completed syncs carry both a sync_started_at and a completion, which is a condition on the data rather than on a module",
+    "trigger": "50 completed syncs carrying a sync_started_at and a completion, across at least 2 Items, including at least 1 first sync. Prose because no supported condition kind can query a database.",
     "owed_to": "M4 4.8. Raised 22 Aug 2026 with the start-only watchdog.",
     "raised": "2026-08-22",
     "trigger_kind": "prose"
@@ -815,6 +815,15 @@
     "owner": "build, gated on Guy's approval of the plan",
     "trigger": "before the first beta invitation is sent, with provider-events-handler-half; the two are one piece of work and splitting them would leave a receiver that records events nothing reads",
     "owed_to": "M4 provider events and M7. Raised 22 Aug 2026 when Postmark approval made an outside recipient possible.",
+    "raised": "2026-08-22",
+    "trigger_kind": "prose"
+  },
+  {
+    "id": "reconciliation-controls-were-never-registered",
+    "item": "THE REGISTER CARRIES TWO ENTRIES FOR 4.6'S RECONCILER THAT POINT AT A FILE WHICH HAS NEVER EXISTED. reconciliation-detects and reconciliation-blocks name services/sync/src/reconciliation.ts; the reconciler shipped as reconcile-balances.ts. Both entries are status 'owed', so the applicability check skips them, which is why nothing has failed. MEANWHILE THE BUILT CONTROL HAS NO REGISTERED PLANT: twelve database tests exercise reconciliation and the harness has never broken any of them to prove one goes red. A CONTROL CAN SHIP, BE TESTED, AND REMAIN INVISIBLE TO THE HARNESS THAT EXISTS TO VERIFY CONTROLS, because 'owed' correctly excludes an entry and nothing reconciles an owed entry against a built implementation. Found 22 Aug 2026 by sweeping every plant's find string, which is not what the sweep was looking for. WHAT IS OWED: repoint both entries at reconcile-balances.ts and reconciliation.test.ts, flip them to built, and give each a plausible mutation. The obvious candidates are the sign inversion, which must redden the credit case while leaving depository green, and the window's span, which must redden when three non-zero observations inside thirty minutes are treated as confirmation.",
+    "owner": "build",
+    "trigger": "before 4.6 is cited as complete in the M4 closure note, since the note would otherwise claim a verified control that no harness has ever exercised",
+    "owed_to": "M4 4.6. Raised 22 Aug 2026.",
     "raised": "2026-08-22",
     "trigger_kind": "prose"
   }
