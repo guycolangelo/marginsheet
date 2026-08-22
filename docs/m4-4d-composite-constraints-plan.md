@@ -79,3 +79,17 @@ Fixture 3's evidence branch on branch `finding/cross-household-upsert` and PR #1
 
 - **No change to `outbox.markEnqueued` or `reconnect`**, which key on ids we mint. The provider-namespace rule is about provider keys, and applying it uniformly to cases that differ teaches nobody which case mattered.
 - **No account-overlap decision.** Two households legitimately sharing an account is a product question (`account-overlap-recorded-not-acted-on`), and this task only stops the database from silently merging them.
+
+
+---
+
+## 7. PHASE B'S PLANT, WRITTEN NOW WHILE THE REASONING IS FRESH
+
+**Registered in phase B, not here, and the reason is a correction worth keeping.** The belt-and-braces mutation -- `CREATE UNIQUE INDEX ... ON plaid_items (item_id)` alongside the composite -- was drafted as a phase A register entry and pointed at *"the household-scoped index exists and is unique"*. **That plant cannot redden that test.** Adding a second index does not remove the first, so the assertion passes and the harness would have reported an insensitive control.
+
+The register's own checks caught it, on the `owed` status rather than on the mismatch, which is the weaker of the two signals and still enough. **A plant must break the thing the register says the test notices**, and a control whose plant is aimed at a different assertion is one nobody runs.
+
+**So phase B brings its test and its plant together:**
+
+- **Test:** two households legitimately hold one shared joint account -- the same `plaid_account_id` under two `household_id`s -- and **both rows exist.** It fails today and cannot pass until the global index is dropped, which makes it phase B's reason stated as a test rather than argued in a comment.
+- **Plant:** recreate the global unique index alongside the composite. It is belt-and-braces-shaped, it is what somebody nervous about dropping a constraint actually writes, it breaks nothing visible -- the arbiter still cannot cross a household and every phase A fixture still passes -- and **the only thing it does is silently refuse the second household.** A mutation that ADDS a constraint reads as caution, which is exactly why it is the one worth planting.

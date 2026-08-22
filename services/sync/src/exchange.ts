@@ -98,7 +98,13 @@ export async function exchangePublicToken(
       const [itemRow] = await tx<{ id: string; inserted: boolean }[]>`
         insert into plaid_items (household_id, institution_id, item_id, access_token_ciphertext)
         values (${householdId}, ${institutionRowId}, ${exchanged.item_id}, ${ciphertext})
-        on conflict (item_id) do update
+        -- THE ARBITER IS SCOPED, AND THIS LINE IS THE FINDING. An unscoped
+        -- ON CONFLICT infers from a unique index spanning every household, so it
+        -- FINDS another household's row and turns this insert into an update of
+        -- it. Confirmed 19 Aug 2026: household A replaced household B's
+        -- access_token_ciphertext. Naming the household in the inference
+        -- specification is what stops the arbiter leaving this household.
+        on conflict (household_id, item_id) do update
           set access_token_ciphertext = excluded.access_token_ciphertext,
               institution_id = excluded.institution_id,
               status = 'healthy',
@@ -119,7 +125,13 @@ export async function exchangePublicToken(
             ${account.balances?.available ?? null}, ${account.balances?.limit ?? null},
             ${account.balances?.iso_currency_code ?? null}
           )
-          on conflict (plaid_account_id) do update
+          -- Same shape as the Item upsert above, latent rather than
+          -- demonstrated. plaid_account_id belongs to Plaid's namespace, so two
+          -- households linking one joint account receive the same value and an
+          -- unscoped arbiter would make one of them the other's update. Enforced
+          -- by financial_accounts_household_account_unique (migration 0046) and
+          -- exercised by composite-provider-keys.test.ts.
+          on conflict (household_id, plaid_account_id) do update
             set name = excluded.name, official_name = excluded.official_name,
                 mask = excluded.mask, type = excluded.type, subtype = excluded.subtype,
                 current_balance = excluded.current_balance,

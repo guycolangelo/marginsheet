@@ -1073,6 +1073,22 @@
         "note": "COLLAPSES THE TWO POPULATIONS INTO ONE, which is what a reasonable engineer writes first: applyBalances already returns the refreshed set and reconciliation already consumes it, so reaching for it reads as reuse rather than as a mistake. It compiles, it reads correctly, and it passes every fixture where a balance actually moved. Plaid returns balances on every page of every sync, so under this mutation balances_updated fires on EVERY sync and the signal stops meaning anything."
       },
       "distinction": "THE FIXTURE THAT DISCRIMINATES IS THE ONE THAT LOOKS POINTLESS. 'The same balances again change nothing' reads as a triviality and is the only case that separates a changed population from a refreshed one. A fixture of syncs where balances moved passes against the collapsed version throughout. IT IS A DATABASE TEST BECAUSE THE CLAIM IS ABOUT IS DISTINCT FROM ON NULLABLE NUMERICS: a recorder proves the statement was constructed and says nothing about what Postgres does with a null, and `<>` on a null-since-creation column yields NULL rather than false, which reads as either answer depending on how it propagates through the OR."
+    },
+    {
+      "id": "composite-arbiter-cannot-leave-the-household",
+      "control": "the household-scoped ON CONFLICT arbiters (4d phase A)",
+      "guards": "One household's upsert cannot reach another household's plaid_items row, which is the confirmed 19 Aug 2026 cross-household finding.",
+      "test": "packages/schema/test/db/composite-provider-keys.test.ts",
+      "name": "THE FINDING: household B's upsert does not touch household A's token",
+      "guards_policy": false,
+      "planted": {
+        "kind": "sql",
+        "apply": "DROP INDEX \"plaid_items_household_item_unique\"; CREATE UNIQUE INDEX \"plaid_items_household_item_unique\" ON \"plaid_items\" USING btree (\"item_id\");",
+        "restore": "DROP INDEX \"plaid_items_household_item_unique\"; CREATE UNIQUE INDEX \"plaid_items_household_item_unique\" ON \"plaid_items\" USING btree (\"household_id\", \"item_id\");",
+        "proof": "select count(*)::int as n from pg_indexes where tablename = 'plaid_items' and indexname = 'plaid_items_household_item_unique' and indexdef like '%(item_id)%'",
+        "note": "NARROWS THE INDEX BACK TO THE PROVIDER KEY ALONE WHILE KEEPING ITS NAME, which is the mutation that leaves the code reading correctly: exchange.ts still says `on conflict (household_id, item_id)` and would now fail to infer, or with the global still present would infer the global. The plausible version of this mistake is not deleting the index, it is somebody 'simplifying' a two-column index they think is redundant because the provider id is already unique. THE MUTATION MUST BE DATABASE STATE: an index lives in the catalog, and a migration is applied once when the CI branch is created, so editing the .sql would prove a file changed and leave the schema untouched."
+      },
+      "distinction": "THE SECOND ASSERTION IS WHAT STOPS THE FIRST BEING VACUOUS. With no arbiter at all, B's insert cannot reach A's row either, so 'A's ciphertext is unchanged' passes against a schema with no uniqueness whatsoever -- and a re-fired exchange would then create a second Item for one household, which is 4.3's whole invariant. The pair pins both directions: the arbiter must not cross a household and must still find the household's own row. PHASE A CANNOT ASSERT THAT BOTH HOUSEHOLDS' ROWS EXIST, because the global index survives until 0047 and refuses the second insert; that is Phase B's fixture and asserting it here would test Phase B's behaviour against Phase A's schema. What this file pins across BOTH phases is the victim's row, which must never change whether the second household is refused or admitted."
     }
   ]
 }

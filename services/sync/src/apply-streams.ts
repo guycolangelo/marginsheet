@@ -111,7 +111,11 @@ export async function applyAddedAndModified(
       from financial_accounts fa
       where fa.household_id = ${householdId}
         and fa.plaid_account_id = ${t.account_id}
-      on conflict (plaid_transaction_id) do update
+      -- SCOPED, like the two upserts in exchange.ts. Plaid ids are
+      -- Item-scoped, so two households holding one shared account receive the
+      -- same plaid_transaction_id and a global arbiter makes one of them the
+      -- other's update. Latent today and structural rather than unlikely.
+      on conflict (household_id, plaid_transaction_id) do update
         set date = excluded.date,
             authorized_date = excluded.authorized_date,
             amount = excluded.amount,

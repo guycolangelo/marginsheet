@@ -904,6 +904,21 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **The mitigation question is posed rather than solved:** can the migrate gate run candidate migrations against a Neon branch **of production's data** rather than a fresh one? If custody permits it, this whole class moves from discovered-at-deploy to discovered-in-CI. If it does not, the class stays deploy-detected and the entry says why. Recorded in `docs/open-items.json`; **not to be built without a ruling**, because branching production data into CI is a custody decision before it is an engineering one.
 
+- **A CONSTRAINT MIGRATION OWES A PARAGRAPH SAYING WHETHER EXISTING ROWS CAN REFUSE IT, AND THE QUESTION IS DECIDABLE AT AUTHORING TIME.** (Guy, 22 Aug 2026.) Not by reading production, and not by reassurance that it looks fine.
+
+  **Ask whether the OLD constraint implies the NEW one.**
+
+  - **Strengthening, or adding where there was nothing: existing rows CAN refuse it.** The paragraph must say what happens to them, which is a decision the migration makes rather than one it discovers.
+  - **Replacing a constraint with a strictly weaker one: existing rows CANNOT refuse it**, and the proof is the implication rather than the data.
+
+  **0045 is the instance that bought this.** It added a foreign key where there had been no constraint, so every pre-existing row carrying a fabricated id violated it. Production refused it, rolled it back whole, and **froze**: nothing numbered after it could run and no code could deploy. The migration changed a column's meaning and never decided what became of the rows written under the old meaning.
+
+  **4d is the other side, and its proof is one sentence.** `UNIQUE (a)` implies `UNIQUE (h, a)`, because two pairs sharing `h` must differ in `a` and two pairs differing in `a` are already distinct. **That holds for any number of households and any data whatever**, so it is not a claim about production and does not weaken as the product grows.
+
+  **The tempting wrong version is "there is only one household."** True today, unverifiable from the migration, and false exactly when the constraint starts mattering. **An argument that expires is not a proof**, and the implication argument is available at the same cost.
+
+  **AND THE PARAGRAPH IS NOT THE WHOLE ANSWER, because the other hazard is ordering rather than data.** Migrate runs before the Worker deploy, so a migration that removes something the deployed code depends on -- an `ON CONFLICT` arbiter, a column, a default -- opens a window where the new schema is live under the old code. **Two phases eliminate that window; one phase shortens it.** 4d creates the composite indexes alongside the globals and drops the globals in a following migration, so there is no instant at which any deployed code lacks its arbiter.
+
 - **Migrations are append-only after merge.** Once a migration file is on main, its contents are frozen. Corrections go forward as a new migration, never as an edit. The failure mode is worse than an error: an environment that has already applied a migration will never apply it again, so an edit reaches only the databases that have not seen it yet, and you end up with **two databases carrying identical ledgers and different schemas**. Nothing reports a problem until something reads the column. Enforced by the `migrations-append-only` CI job, which hashes every migration on main and fails on any modification. Additions pass; edits do not.
 - Each spec's invariants section seeds that module's test suite. An invariant without a test is not done.
 - Golden tests and the lint layer block merges in CI. No prompt version ships failing either.
