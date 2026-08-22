@@ -1170,6 +1170,10 @@ The sync's `syncing` marker is written in its own transaction, committed, before
 
 **Neither is a property of a good test. Both are properties of being pointed at by the register**, and the obligation is invisible from the test: the fixture was correct for every other purpose and became wrong the moment an entry named it.
 
+**So the harness asserts it rather than leaving it to be re-derived.** Before mutating anything it runs the named test **once, unmutated**, and reports `TARGET NOT SELF-CONTAINED` as a **distinct verdict** from `did not go red`. The two send a reader to opposite places: one is a fixture that needs isolating, the other is a test that does not notice its own subject.
+
+**It is a precondition rather than a post-hoc diagnosis, because without it a RED result cannot be trusted either.** A target already failing in isolation reddens under any mutation, for reasons having nothing to do with it, and the harness would report `went red` and pass it. **The cost is one extra test run per control**, which roughly doubles that job; narrowing it to database-backed targets is the obvious economy if it ever bites.
+
 `reconciliation.test.ts` seeded with `on conflict do nothing`, so the restored run inherited the balances and the `balance_reconciliations` rows the mutated run had written, and failed. The harness reported **`restored -> STILL RED`**, which reads as a broken control and was a dirty fixture.
 
 **It is a property of being a plant target rather than of being a good test.** The fixture was correct for every other purpose, and became wrong the moment a register entry pointed at it. So a db test gains an obligation when it is registered, and **the obligation is invisible from the test.**
