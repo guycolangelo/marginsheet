@@ -792,6 +792,32 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: **an audit records the PROPERTY it checked, never the file it looked at.** *"This write names its household"* is a finding. *"reconnect is fine"* is an inheritance. And where a table's read and write policies differ, **a clearance names which one it is about, or it is not a clearance.**
 
+- **THE OBLIGATION BELONGS TO THE PATH AND BOTH SCANS CHECKED A PROPERTY OF A FILE.** (22 Aug 2026.) The fourth GUC instance, found while building something else, and the first that **two** controls were pointed at and neither could see.
+
+  `sweepStuckSyncs` updates `plaid_items`. `sync_worker_write` reads `current_setting`, and the scheduled handler opens its transaction **without declaring a household** -- correctly, because a sweep spans every household and there is no single one to declare. So the UPDATE evaluated its predicate against NULL, **matched no rows and raised nothing.**
+
+  **THE WATCHDOG SWEPT NOTHING FROM THE MOMENT ITS CRON WENT LIVE, and reported `items_swept: 0`, WHICH ITS OWN MIGRATION DOCUMENTS AS THE NORMAL CASE.** Total failure and perfect health render identically. That is the empty-result class arriving in the one component whose entire job is to notice that something stopped.
+
+  **WHY EACH SCAN MISSED IT, AND THE TWO REASONS ARE DIFFERENT.**
+
+  - `every-write-declares-a-household` passes a statement that **names `household_id` in its WHERE clause**, and this one does. That is the exact conflation the third GUC instance already recorded in words: *the policy reads a SETTING, not the statement*. The scan joined the two with `||`, so satisfying either was enough, and **they are not alternatives**: the GUC is what the policy reads, and the predicate is defence in depth.
+  - The GUC presence scan looks for a file that **both opens a connection and contains a write**. `index.ts` opens the connection and delegates; `sweep.ts` holds the write and opens nothing. **Neither file satisfies both halves, so the pair falls between them.** Every other opener happened to write inline, which is why the scan worked everywhere else.
+
+  **THE GENERAL FORM: a scan that tests a property of a FILE cannot see an obligation that belongs to a PATH.** Split a connection from its write across a module boundary and the file-level predicate stops describing anything. It is not a gap in the pattern; it is the pattern being about the wrong unit, which is the same defect as trademark placement being scoped to a file when the unit is a journey.
+
+  **AND THE FIXTURE SUPPLIED WHAT PRODUCTION OMITTED, WHICH IS THE PART TO CARRY.** `sweep.test.ts` runs against a real database, imports the real function, plants both directions, and called it as:
+
+  ```
+  sql.begin(async (tx) => {
+    await tx`select set_config('marginsheet.household_id', ${HOUSEHOLD}, true)`;
+    return sweepStuckSyncs(tx, new Date());
+  })
+  ```
+
+  **The test wrote the caller, and wrote it correctly, while the real caller was wrong.** So it proved that the sweep works *when given a declared transaction*, and nothing anywhere proved the production caller gives it one. This is the recorder finding's next step outward: there, the database was absent; here the database is real and **the CALLER is the fixture**, constructed by someone who knew what the code needed.
+
+  **So a database test of a module that receives its transaction asserts the SHAPE OF THE CALL, not only the behaviour of the callee.** Where production's caller can be reproduced exactly, reproduce it exactly, and let the fixture be wrong in the same way production would be.
+
 - **A CLEARANCE IS WORSE THAN SILENCE.** (Guy, 22 Aug 2026.) Stated on its own because it is the mechanism behind the finding above rather than a detail of it, and it applies to every audit this file requires.
 
   **An unaudited statement is found by the next sweep. A statement recorded as deliberately examined and safe is SKIPPED by every sweep after it**, because the record answers the question before it is asked. Silence leaves work visible. A clearance removes it from view while looking like diligence.

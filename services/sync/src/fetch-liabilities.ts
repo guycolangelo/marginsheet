@@ -33,6 +33,12 @@ export interface LiabilitiesOutcome {
   /** Why not, when not. Never a bare false. */
   reason: string;
   accountsReported: number;
+  /** Accounts whose liability detail ACTUALLY MOVED. A different number from
+   *  accountsReported, and the one the signal may use: Plaid reports the same
+   *  statement balance every day until the statement cuts, so a
+   *  liabilities_updated keyed on accountsReported would fire on every sync of
+   *  every card and mean nothing. */
+  accountsChanged: number;
   accountsNotReported: number;
   unsupported: boolean;
 }
@@ -77,7 +83,7 @@ export async function fetchLiabilities(
     // through /internal/enable-liabilities rather than one a sync makes.
     return {
       itemId: item.itemId, fetched: false, unsupported: false,
-      accountsReported: 0, accountsNotReported: 0,
+      accountsReported: 0, accountsChanged: 0, accountsNotReported: 0,
       reason: "liabilities is not enabled for this Item, so no call was made and no charge was started",
     };
   }
@@ -101,7 +107,7 @@ export async function fetchLiabilities(
       `;
       return {
         itemId: item.itemId, fetched: false, unsupported: true,
-        accountsReported: 0, accountsNotReported: 0,
+        accountsReported: 0, accountsChanged: 0, accountsNotReported: 0,
         reason: `the institution does not serve Liabilities for this Item (${e.errorCode}), so no card on it has a committed outflow we can see`,
       };
     }
@@ -113,6 +119,9 @@ export async function fetchLiabilities(
   // stale value. The order matters: marking absences first would clear the
   // rows this loop is about to set.
   const reportedIds: string[] = [];
+  // Accounts whose detail actually moved. A different population from
+  // reportedIds, and the only one the signal may be keyed on.
+  const changedIds: string[] = [];
   for (const c of credit) {
     const rows = (await tx`
       update financial_accounts
@@ -126,6 +135,40 @@ export async function fetchLiabilities(
 
     const apr = (type: string) =>
       c.aprs?.find((a) => (a.apr_type ?? "").toLowerCase().includes(type))?.apr_percentage ?? null;
+
+    // DID THIS ROW ALREADY SAY EXACTLY THIS? Asked before the upsert and asked
+    // IN SQL, because the alternative is marshalling numerics and dates back
+    // through JavaScript and comparing them there, where a numeric arrives as a
+    // string and a date as a Date and every comparison is a chance to be wrong
+    // about a type rather than about the data.
+    //
+    // GATING THE UPSERT WOULD HAVE BEEN THE OBVIOUS MOVE AND IT IS WRONG:
+    // fetched_at records WHEN WE LAST ASKED, and a DO UPDATE ... WHERE skipping
+    // unchanged rows leaves it stale on exactly the cards whose details are
+    // steady. Stale coverage is worse than none because it is confident, which
+    // this file learned once already on liability_coverage. The write stays
+    // unconditional and the question is asked separately.
+    //
+    // NO ROW YET MEANS CHANGED, which falls out of exists() rather than needing
+    // a branch: the first fetch for a card is a change from nothing.
+    const [same] = (await tx`
+      select exists (
+        select 1 from liability_details
+         where household_id = ${householdId}
+           and account_id = ${accountId}
+           and last_statement_balance is not distinct from ${c.last_statement_balance ?? null}::numeric
+           and last_statement_date    is not distinct from ${c.last_statement_issue_date ?? null}::date
+           and minimum_payment        is not distinct from ${c.minimum_payment_amount ?? null}::numeric
+           and next_payment_due_date  is not distinct from ${c.next_payment_due_date ?? null}::date
+           and last_payment_date      is not distinct from ${c.last_payment_date ?? null}::date
+           and last_payment_amount    is not distinct from ${c.last_payment_amount ?? null}::numeric
+           and purchase_apr           is not distinct from ${apr("purchase")}::numeric
+           and cash_apr               is not distinct from ${apr("cash")}::numeric
+           and balance_transfer_apr   is not distinct from ${apr("balance_transfer")}::numeric
+           and is_overdue             is not distinct from ${c.is_overdue ?? false}
+      ) as unchanged
+    `) as { unchanged: boolean }[];
+    if (!same.unchanged) changedIds.push(accountId);
 
     await tx`
       insert into liability_details (
@@ -178,7 +221,8 @@ export async function fetchLiabilities(
 
   return {
     itemId: item.itemId, fetched: true, unsupported: false,
-    accountsReported: reportedIds.length, accountsNotReported: missed.length,
+    accountsReported: reportedIds.length, accountsChanged: changedIds.length,
+    accountsNotReported: missed.length,
     reason: reportedIds.length === 0
       ? "the institution serves Liabilities and reported no cards on this Item"
       : `reported ${reportedIds.length} card${reportedIds.length === 1 ? "" : "s"}`,

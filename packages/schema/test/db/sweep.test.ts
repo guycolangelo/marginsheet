@@ -26,9 +26,40 @@ const STALE = "01998888-6001-7000-8000-0000000005ee";
 const FRESH = "01998888-6002-7000-8000-0000000005ee";
 const IDLE = "01998888-6003-7000-8000-0000000005ee";
 
+/** Calls the sweep EXACTLY AS THE SCHEDULED HANDLER DOES: a transaction with no
+ *  household declared.
+ *
+ *  IT USED TO SET THE GUC HERE AND THAT IS WHY THE DEFECT SHIPPED. The fixture
+ *  supplied the declaration production omits, so this file proved that
+ *  sweepStuckSyncs works WHEN GIVEN A DECLARED TRANSACTION and nothing anywhere
+ *  proved the real caller gives it one. index.ts opens the connection and
+ *  delegates the write to this module, so neither file both opens a connection
+ *  and contains a write, and the source scans looking for that pair saw
+ *  nothing.
+ *
+ *  A sweep spans every household, so there is no single household the
+ *  transaction could declare. The module declares per write instead, which is
+ *  what this now proves. */
 async function run() {
   return sql.begin(async (tx) => {
-    await tx`select set_config('marginsheet.household_id', ${HOUSEHOLD}, true)`;
+    // AS marginsheet_sync, AND WITHOUT THIS THE TEST COULD NOT FAIL.
+    //
+    // The thing under test is whether the sweep satisfies sync_worker_write,
+    // and that policy is written TO marginsheet_sync. Run on the migration
+    // owner's connection the policy simply does not apply, so removing the
+    // sweep's set_config left every assertion green and the planted-failure
+    // harness reported the control as insensitive. It was: a test that never
+    // adopts the role cannot observe a policy written for it, however real its
+    // database is.
+    //
+    // It is the has_column_privilege lesson one level up. Asking the catalog
+    // what a role MAY do and running AS that role are different questions, and
+    // only the second is the one production asks. A control that verifies a
+    // privilege adopts the identity that will use it.
+    //
+    // SET LOCAL, so the role reverts when the transaction ends on any path
+    // including a throw, and no pooled connection returns holding it.
+    await tx.unsafe("SET LOCAL ROLE marginsheet_sync");
     return sweepStuckSyncs(tx as never, new Date());
   }) as never as Promise<Awaited<ReturnType<typeof sweepStuckSyncs>>>;
 }

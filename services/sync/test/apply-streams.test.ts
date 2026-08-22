@@ -3,7 +3,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { applyRemoved, applyAddedAndModified, markFirstSyncCompleted, didChange } from "../src/apply-streams.js";
+import { applyRemoved, applyAddedAndModified, markFirstSyncCompleted } from "../src/apply-streams.js";
 
 const HOUSEHOLD = "11111111-1111-4111-8111-111111111111";
 
@@ -82,16 +82,6 @@ describe("first_sync_completed_at is set once", () => {
       await markFirstSyncCompleted(tx, "h1"),
       "a second sync claimed the first-sync milestone and would introduce the household twice"
     ).toBe(false);
-  });
-});
-
-describe("a sync that changed nothing reports no change", () => {
-  it("is false for an empty sync", () => {
-    expect(didChange({ added: 0, modified: 0, removed: 0 })).toBe(false);
-  });
-  it("is true when any stream moved", () => {
-    expect(didChange({ added: 0, modified: 0, removed: 1 })).toBe(true);
-    expect(didChange({ added: 1, modified: 0, removed: 0 })).toBe(true);
   });
 });
 

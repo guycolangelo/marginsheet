@@ -58,6 +58,19 @@ export interface BalanceResult {
   /** WHICH accounts, not how many. Reconciliation may only judge an account
    *  whose balance was read on this sync, so it needs the set. */
   accountIds: string[];
+  /** Accounts whose balance ACTUALLY MOVED, which is a different set from
+   *  accountIds and must stay one.
+   *
+   *  THE SIGNAL NEEDS THIS AND RECONCILIATION MUST NOT HAVE IT. Amendment 14
+   *  scopes reconciliation to accounts whose balance was READ: an account read
+   *  and unchanged still has a fresh observation, and is exactly where drift
+   *  would be most suspicious. Narrowing that population to the changed set
+   *  would silently delete the invariant for every steady account.
+   *
+   *  And the signal must not have accountIds. Plaid returns balances on every
+   *  page of every sync, so a balances_updated keyed on rows TOUCHED fires
+   *  always, which does not widen the gate's input, it deletes the gate. */
+  changedAccountIds: string[];
 }
 
 /** Writes current balances and today's snapshot for each account.
@@ -71,7 +84,7 @@ export async function applyBalances(
   householdId: string,
   accounts: PlaidAccountBalances[]
 ): Promise<BalanceResult> {
-  if (accounts.length === 0) return { accounts: 0, snapshots: 0, accountIds: [] };
+  if (accounts.length === 0) return { accounts: 0, snapshots: 0, accountIds: [], changedAccountIds: [] };
 
   let updated = 0;
   let snapshots = 0;
@@ -80,24 +93,46 @@ export async function applyBalances(
   // whose balance was not read this sync has nothing to reconcile, and a count
   // cannot say which ones those were.
   const accountIds: string[] = [];
+  const changedAccountIds: string[] = [];
 
   for (const account of accounts) {
     const current = account.balances?.current ?? null;
     const available = account.balances?.available ?? null;
     const limit = account.balances?.limit ?? null;
 
+    // THE OLD ROW IS JOINED IN SO THE STATEMENT CAN REPORT BOTH POPULATIONS.
+    //
+    // An UPDATE ... FROM reads the FROM row before the update applies, so
+    // `prev` holds the pre-update values and one statement answers "was this
+    // account read" and "did its balance move" without a second round trip per
+    // account per page.
+    //
+    // IS DISTINCT FROM, NEVER <>. Every one of these columns is nullable and
+    // `null <> null` is null, so <> would report an account that has been null
+    // since it was created as changed on no sync and unchanged on all of them,
+    // depending on which way the null propagated. IS DISTINCT FROM treats two
+    // nulls as equal and a null against a value as different, which is the
+    // question actually being asked.
     const rows = (await tx`
-      update financial_accounts
+      update financial_accounts f
          set current_balance = ${current},
              available_balance = ${available},
              credit_limit = ${limit},
              updated_at = now()
-       where household_id = ${householdId}
-         and plaid_account_id = ${account.account_id}
-      returning id
-    `) as { id: string }[];
+        from financial_accounts prev
+       where prev.id = f.id
+         and f.household_id = ${householdId}
+         and f.plaid_account_id = ${account.account_id}
+      returning f.id,
+             (prev.current_balance   is distinct from ${current}::numeric
+           or prev.available_balance is distinct from ${available}::numeric
+           or prev.credit_limit      is distinct from ${limit}::numeric) as moved
+    `) as { id: string; moved: boolean }[];
     updated += rows.length;
-    for (const r of rows) accountIds.push(r.id);
+    for (const r of rows) {
+      accountIds.push(r.id);
+      if (r.moved) changedAccountIds.push(r.id);
+    }
 
     // THE SNAPSHOT IS KEYED ON OUR ACCOUNT ID, so it can only be written for a
     // row the update above already found within this household. No account, no
@@ -116,5 +151,5 @@ export async function applyBalances(
     snapshots += written.length;
   }
 
-  return { accounts: updated, snapshots, accountIds };
+  return { accounts: updated, snapshots, accountIds, changedAccountIds };
 }

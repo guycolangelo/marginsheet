@@ -255,7 +255,3 @@ export async function markFirstSyncCompleted(tx: Tx, householdId: string): Promi
   return rows.length > 0;
 }
 
-/** Whether this sync changed anything, which decides if the signal fires. */
-export function didChange(counts: StreamCounts): boolean {
-  return counts.added + counts.modified + counts.removed > 0;
-}

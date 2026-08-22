@@ -24,11 +24,13 @@ import postgres from "postgres";
 import { decryptToken } from "./token-crypto.js";
 import { runTransactionsSync, type SyncOutcome, type SyncPage } from "./transactions-sync.js";
 import type { PlaidCredentials } from "./plaid-client.js";
-import { applyAddedAndModified, applyRemoved, markFirstSyncCompleted, didChange, type Tx } from "./apply-streams.js";
+import { applyAddedAndModified, applyRemoved, markFirstSyncCompleted, type Tx } from "./apply-streams.js";
 import { applyBalances } from "./apply-balances.js";
 import { reconcileBalances } from "./reconcile-balances.js";
 import { fetchLiabilities, type LiabilitiesOutcome } from "./fetch-liabilities.js";
 import { onSyncComplete, type SyncStatus } from "./sync-state.js";
+import { openSyncRun, closeSyncRun } from "./sync-runs.js";
+import { writeStateSignal } from "./state-signal.js";
 
 export interface RunResult {
   itemId: string;
@@ -66,6 +68,13 @@ export interface RunResult {
   accountsRefreshed: number;
   snapshotUpsertsIssued: number;
   signalId: string | null;
+  /** The run's identity, which household_state_signals.source_sync_run_id now
+   *  carries. It used to be gen_random_uuid(), joining to nothing. */
+  syncRunId: string;
+  /** Accounts whose balance MOVED. accountsRefreshed counts accounts READ, and
+   *  the two differ on every sync where an account reported the same figure
+   *  twice, which is most of them. */
+  balancesChanged: number;
 }
 
 /** Runs one sync for one Item. The caller holds the household's chain lock. */
@@ -88,13 +97,23 @@ export async function runSyncForItem(
     //
     // The status and the timestamp are ONE statement. A marker without a moment
     // is a fact the sweep cannot judge, and its whole judgement is elapsed time.
-    await sql.begin(async (tx) => {
+    // THE RUN ROW IS OPENED HERE TOO, IN THE SAME TRANSACTION, and that is
+    // deliberate rather than convenient. sync_runs.started_at and
+    // plaid_items.sync_started_at are two statements of one fact and would
+    // drift by default; written together they cannot disagree at the moment of
+    // writing, and sync-run-agrees-with-the-marker asserts they still do not.
+    //
+    // It also inherits the marker's whole reason: a record of an attempt that
+    // lives inside the transaction whose failure it records is rolled back by
+    // that failure, which is the one circumstance it exists for.
+    const syncRunId = await sql.begin(async (tx) => {
       await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
       await tx`
         update plaid_items
            set sync_status = 'syncing', sync_started_at = now(), updated_at = now()
          where id = ${itemRowId} and household_id = ${householdId}
       `;
+      return await openSyncRun(tx as unknown as Tx, householdId, itemRowId);
     });
 
     return await sql.begin(async (tx) => {
@@ -124,6 +143,13 @@ export async function runSyncForItem(
       // per page and Plaid resends balances on every page, so writes issued
       // exceeds accounts refreshed whenever an account appears on more than one.
       const refreshedAccountIds = new Set<string>();
+      // ACCOUNTS WHOSE BALANCE MOVED, which is a second set and must stay one.
+      // Reconciliation reads the set above (amendment 14: an account read and
+      // unchanged still has a fresh observation, and is exactly where drift
+      // would be most suspicious). The signal reads this one, because Plaid
+      // returns balances on every page of every sync and a signal keyed on the
+      // set above would fire always.
+      const changedAccountIds = new Set<string>();
 
       const accessToken = await decryptToken(item.access_token_ciphertext, encryptionKey);
 
@@ -155,6 +181,7 @@ export async function runSyncForItem(
           balanceWritesIssued += balances.accounts;
           snapshotUpsertsIssued += balances.snapshots;
           for (const id of balances.accountIds) refreshedAccountIds.add(id);
+          for (const id of balances.changedAccountIds) changedAccountIds.add(id);
           return { written, flagged };
         }
       );
@@ -194,11 +221,17 @@ export async function runSyncForItem(
 
       const firstSync = await markFirstSyncCompleted(tx as unknown as Tx, householdId);
 
+      // BOTH VALUES ARE IN HAND HERE, which is the whole reason
+      // item_status_changed is cheap on this path: the transition is computed
+      // for the write anyway, so detecting it costs a comparison.
+      const nextStatus = onSyncComplete(item.sync_status);
+      const itemStatusChanged = nextStatus !== item.sync_status;
+
       await tx`
         update plaid_items
            set sync_cursor = ${outcome.cursor},
                last_completed_cursor = ${outcome.cursor},
-               sync_status = ${onSyncComplete(item.sync_status)},
+               sync_status = ${nextStatus},
                last_successful_sync = now(),
                last_synced_at = now(),
                updated_at = now()
@@ -207,25 +240,44 @@ export async function runSyncForItem(
 
       // A SYNC THAT CHANGED NOTHING DOES NOT FIRE. A watcher waking for nothing
       // is how a watcher becomes noise (plaid-pipeline-spec section 4).
-      let signalId: string | null = null;
-      if (didChange(outcome)) {
-        const changed: string[] = [];
-        if (outcome.added > 0) changed.push("transactions_added");
-        if (outcome.modified > 0) changed.push("transactions_modified");
-        if (outcome.removed > 0) changed.push("transactions_removed");
-        // COUNTS ONLY. A count is metadata; an amount is not, and a payload
-        // carrying household figures would put them outside the RLS boundary.
-        const [signal] = await tx<{ signal_id: string }[]>`
-          insert into household_state_signals
-            (household_id, source_plaid_item_id, source_sync_run_id, changed, counts)
-          values (
-            ${householdId}, ${itemRowId}, gen_random_uuid(), ${changed},
-            ${JSON.stringify({ added: outcome.added, modified: outcome.modified, removed: outcome.removed })}::jsonb
-          )
-          returning signal_id
-        `;
-        signalId = signal.signal_id;
-      }
+      //
+      // THE GATE READS WHAT THE SYNC DID, not what one stream did. It used to
+      // be didChange(outcome), a pure function of the transaction counts, so a
+      // sync that refreshed balances, wrote snapshots, fetched liabilities and
+      // moved this Item's status FIRED NOTHING when no transaction arrived.
+      //
+      // Each input is a CHANGED population rather than a touched one. Keying
+      // balances on refreshedAccountIds would fire on every sync, because
+      // Plaid returns balances on every page: that deletes the gate rather
+      // than widening its input, which is the opposite of the repair.
+      const signalId = await writeStateSignal(
+        tx as unknown as Tx, householdId, itemRowId, syncRunId,
+        {
+          transactionsAdded: outcome.added,
+          transactionsModified: outcome.modified,
+          transactionsRemoved: outcome.removed,
+          balancesChanged: changedAccountIds.size,
+          liabilitiesChanged: liabilities.accountsChanged,
+          itemStatusChanged,
+        }
+      );
+
+      // THE RUN IS CLOSED LAST, INSIDE THE MAIN TRANSACTION, and that is the
+      // mirror of the marker rather than an inconsistency with it. Opening
+      // records an attempt and must survive the attempt failing. Closing
+      // records that the work COMMITTED, so it belongs to the commit: a run
+      // marked complete by a transaction that then rolled back would be the
+      // more dangerous lie, since a reader would take it as finished work.
+      await closeSyncRun(tx as unknown as Tx, householdId, syncRunId, {
+        transactionsAdded: outcome.added,
+        transactionsModified: outcome.modified,
+        transactionsRemoved: outcome.removed,
+        accountsRefreshed: refreshedAccountIds.size,
+        balancesChanged: changedAccountIds.size,
+        liabilitiesChanged: liabilities.accountsChanged,
+        pages: outcome.pages,
+        restarts: outcome.restarts,
+      });
 
       return {
         itemId: item.item_id,
@@ -243,6 +295,8 @@ export async function runSyncForItem(
         liabilities,
         snapshotUpsertsIssued,
         signalId,
+        syncRunId,
+        balancesChanged: changedAccountIds.size,
       };
     });
   } finally {

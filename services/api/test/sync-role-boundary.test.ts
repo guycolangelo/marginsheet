@@ -130,7 +130,7 @@ describe.skipIf(!configured)("the sync role can still do its actual job", () => 
 });
 
 describe.skipIf(!configured)("the narrowing is enumerated, so a new table is not silently reachable", () => {
-  it("holds grants on exactly the 12 tables 0023, 0024, 0038 and 0044 name", async () => {
+  it("holds grants on exactly the 13 tables 0023, 0024, 0038, 0044 and 0045 name", async () => {
     // The shape assertion. If somebody adds a table and grants it broadly,
     // this goes red and sends them to 0023's comment, which explains why the
     // list is a list.
@@ -166,6 +166,10 @@ describe.skipIf(!configured)("the narrowing is enumerated, so a new table is not
       // that find nothing, which is the row that separates a dead cron from a
       // quiet one. It holds two counts and a timestamp and no household data.
       "sweep_runs",
+      // ADDED BY 0045, by name, per the same process. A sync had no identity,
+      // so household_state_signals.source_sync_run_id carried gen_random_uuid()
+      // and joined to nothing while looking exactly like a foreign key.
+      "sync_runs",
       "transactions",
     ]);
   });
