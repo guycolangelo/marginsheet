@@ -1021,7 +1021,13 @@ gh run view <deploy-run-id> --log | grep "ok: .*build="
 
 **Nothing distinguished "runs in production" from "runs in CI"**, and the second is a state a feature passes through on the way to the first and can remain in indefinitely.
 
-**Asking the question once found three more.** `outbox.ts` and `sync-state.ts` are imported by nothing at all: signals accumulate with `enqueued_at` null forever, and the watchdog has no cron on either Worker to trigger it. `reconnectItem` and `markReconnected` have no caller while two exports of the same file do, so an Item in `needs_reauth` cannot be recovered through the product.
+**Asking the question once found three more.** `outbox.ts` is imported by nothing at all, so signals accumulate with `enqueued_at` null forever. `sweepReason` and `onWebhook` have no caller and there is no cron on either Worker to trigger a sweep. `reconnectItem` and `markReconnected` have no caller while two exports of the same file do, so an Item in `needs_reauth` cannot be recovered through the product.
+
+**A CORRECTION TO THIS ENTRY, 22 August 2026.** It first read *"`outbox.ts` and `sync-state.ts` are imported by nothing at all"*, and that is **false for `sync-state.ts`**: `run-sync.ts` imports `onSyncComplete` and the `SyncStatus` type from it. The orphan scan reported two FUNCTIONS with no caller and the entry generalised that to the MODULE, which is a different and larger claim. **The scan's output was correct and the sentence written from it was not**, which is the join family again: a true reading extended one step past what it demonstrated.
+
+**AND THE WATCHDOG IS WORSE THAN UNWIRED, WHICH THE CORRECTION EXPOSED.** `sweepReason` returns null unless `syncStatus === "syncing"`, and **nothing anywhere sets `sync_status` to `'syncing'`.** All three production Items read `idle`. So a cron added today would run on schedule, examine every Item, and **sweep nothing, forever, while reporting healthy.**
+
+**That is this repository's most-named failure, and wiring the trigger alone would have built it.** The task that reads as "add a cron" is really "build the state machine's write half": mark `syncing` at start, persist a start time, call `onWebhook` when one lands mid-sync so the queued follow-up happens, and only then sweep. **A watchdog over a state nothing enters is a control that cannot fail.**
 
 ### HIGH COVERAGE ON AN UNREACHED FUNCTION IS EVIDENCE OF ELABORATION IN CI, NOT OF MATURITY
 
@@ -1093,6 +1099,24 @@ The orphan-export control's first version had one category and **that conflates 
 **ANNOTATING IS WHAT WE REACH FOR FIRST, AND IT IS THE WEAKER MOVE.** The note on `comparable: false` is good, and it is still **a string a reader has to interpret.** Splitting the value is structural; adding a note is a report. Same ladder this file states everywhere else: type, then runtime check, then comment - and a note is the bottom rung wearing diligence's clothes.
 
 **The 404 is the one legitimate member and it is worth saying why**, so the class does not read as a blanket ban. There the conflation is the POINT: distinguishing the two would confirm a route exists to a caller who has not proven they may know. **When the ambiguity is the security property, it stays, and the remedy is that a human meets the explanation where they meet the refusal** - which is why it went into `secrets-custody.md` rather than staying a code comment.
+
+### THE WRITER IS NOT THE READER, WHICH IS WHY NAMING THE CLASS DOES NOT PREVENT IT
+
+**The live instance merged in the same session the class was named, in three other places, by the same author.** Recording that as carelessness would waste it.
+
+**At the moment of writing, the author knows which fact they mean.** The value is unambiguous to them and ambiguous only to every later reader, so the ambiguity is invisible from the one position that could still cheaply fix it. **The naming does not help while writing, because the writer is not the reader.**
+
+**So the test in this entry has to be applied by something other than recall, and mostly it cannot be.**
+
+**The general form is undecidable.** "A state introduced with fewer distinct values than the facts it is asked to carry" requires knowing the intended semantics, which no scan has.
+
+**The specific pattern is weakly detectable and not worth trusting.** *Every write to column C is scoped by a predicate naming column D, therefore rows failing D hold the default forever* is a real static smell, and it would have caught this instance. It also fires on every column legitimately scoped to a subset, which is many of them. **A heuristic that flags correct code more often than defective code trains people to suppress it**, which this file already records as the cost of a flaky control.
+
+**The strong version is a declaration, which is annotation moved up a level.** Declaring per column "rows satisfying P are out of scope" makes the two facts distinct in the declaration while the column still conflates them, and somebody must keep it true.
+
+**So: THIS ENTRY IS A REVIEW PROMPT AND NOT A CONTROL, and it says so rather than letting anyone mistake it for one.**
+
+**What IS available is a control per instance rather than over the class.** For this column: *no credit account may hold `unknown` once liabilities is enabled for its Item*, and *no non-credit account may hold anything but `not_applicable`*. Both are database tests, both are cheap, and neither generalises. **That is the inverse of last night's finding** that a precaution against a named instance is not a control over the class: here the class genuinely admits only per-instance controls, and saying so stops somebody building a general check and trusting it.
 
 **One member is live and unfixed, in a migration that merged the night this was written.** Every write in `fetch-liabilities.ts` is scoped to `type = 'credit'`, so six depository and two investment accounts hold `unknown` permanently meaning *not applicable*, while a card holding `unknown` means *not yet fetched*. **Cash Flow reading that column cannot tell them apart**, and it was written by someone who had spent the evening naming this exact failure in three other places. Recorded in `docs/open-items.json` rather than patched in passing.
 
