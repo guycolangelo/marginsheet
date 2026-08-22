@@ -262,8 +262,22 @@ describe("reconcileBalances", () => {
   it("reconciles a CREDIT account, where the same outflow moves the balance the OTHER WAY", async () => {
     // THE ASSERTION THAT MAKES THE PREVIOUS ONE MEAN SOMETHING. A reconciler
     // that ignored type would pass the depository case and report permanent
-    // drift here, and the drift would read as a sync fault rather than a sign
-    // error, which is what makes it expensive.
+    // drift here, and the drift would read as a sign error dressed as a sync
+    // fault, which is what makes it expensive.
+    //
+    // IT ESTABLISHES ITS OWN BASELINE RATHER THAN INHERITING ONE, because a
+    // plant points at this test and the harness runs it with -t, ALONE, with
+    // every sibling skipped. It previously relied on the first-observation test
+    // having created the card's baseline, so run in isolation it saw a first
+    // observation, got expected: null, and the harness reported
+    // "restored -> STILL RED" against a control that was working.
+    //
+    // A PLANT TARGET MUST PASS IN ISOLATION AND TWICE. Neither is a property of
+    // a good test; both are properties of being pointed at by the register.
+    await sql`delete from balance_reconciliations where account_id = ${CARD}`;
+    await setBalance(CARD, "3000.00");
+    await run();                                  // the baseline this test owns
+
     await addTxn(CARD, "100.00", "outflow", "recon-card-1");
     await setBalance(CARD, "3100.00");
     const r = await run();

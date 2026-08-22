@@ -1158,9 +1158,17 @@ The sync's `syncing` marker is written in its own transaction, committed, before
 
 **The repair is to plant where the mutation still produces the violation** - here a connection opener holding exactly one declaration - rather than to make the string longer. A longer string is still a string that a future edit can duplicate. **Where possible, plant against a file whose compliance depends on the single thing being removed.**
 
-### A DATABASE-BACKED TEST THAT A PLANT POINTS AT MUST BE IDEMPOTENT
+### A PLANT TARGET MUST PASS IN ISOLATION AND TWICE
 
-**The harness runs the file twice against one database:** apply the mutation, run, restore, run again. **Nothing else in the suite does that.**
+**The harness runs the named test ALONE, via `-t`, and runs it twice against one database:** apply the mutation, run, restore, run again. **Nothing else in the suite does either.**
+
+`reconciliation-detects` reported `restored -> STILL RED` twice against a control that was working, for two different reasons stacked.
+
+**First, state.** The file seeded with `on conflict do nothing`, so the restored run inherited the balances and rows the mutated run wrote.
+
+**Then, isolation.** With that fixed it still failed, because `-t` skipped seventeen siblings and the named test had been **inheriting its baseline from an earlier test in the file.** Run alone it saw a first observation, got `expected: null`, and failed on a precondition no sibling was there to create.
+
+**Neither is a property of a good test. Both are properties of being pointed at by the register**, and the obligation is invisible from the test: the fixture was correct for every other purpose and became wrong the moment an entry named it.
 
 `reconciliation.test.ts` seeded with `on conflict do nothing`, so the restored run inherited the balances and the `balance_reconciliations` rows the mutated run had written, and failed. The harness reported **`restored -> STILL RED`**, which reads as a broken control and was a dirty fixture.
 
