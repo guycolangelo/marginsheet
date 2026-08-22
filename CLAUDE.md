@@ -1158,6 +1158,14 @@ The sync's `syncing` marker is written in its own transaction, committed, before
 
 **The repair is to plant where the mutation still produces the violation** - here a connection opener holding exactly one declaration - rather than to make the string longer. A longer string is still a string that a future edit can duplicate. **Where possible, plant against a file whose compliance depends on the single thing being removed.**
 
+### A DATABASE-BACKED TEST THAT A PLANT POINTS AT MUST BE IDEMPOTENT
+
+**The harness runs the file twice against one database:** apply the mutation, run, restore, run again. **Nothing else in the suite does that.**
+
+`reconciliation.test.ts` seeded with `on conflict do nothing`, so the restored run inherited the balances and the `balance_reconciliations` rows the mutated run had written, and failed. The harness reported **`restored -> STILL RED`**, which reads as a broken control and was a dirty fixture.
+
+**It is a property of being a plant target rather than of being a good test.** The fixture was correct for every other purpose, and became wrong the moment a register entry pointed at it. So a db test gains an obligation when it is registered, and **the obligation is invisible from the test.**
+
 ### IT INVERTS EVERY PRIOR MEMBER OF THIS FILE
 
 Every other control finding here is **a control that could not fail.** This one is **a control failing correctly that a correct change nearby defused.** The improvement and the weakening share no commit message, no proximity in the diff, no file in common beyond the one that got better. **Until the assertion below existed, the only detector was somebody noticing that a mutation had stopped reddening.**

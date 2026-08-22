@@ -61,20 +61,36 @@ function of(r: Awaited<ReturnType<typeof reconcileBalances>>, id: string) {
 }
 
 beforeAll(async () => {
+  // RESETS RATHER THAN INSERTS-IF-ABSENT, BECAUSE THE HARNESS RUNS THIS FILE
+  // TWICE AGAINST ONE DATABASE.
+  //
+  // A planted failure applies the mutation, runs the test, restores, and runs
+  // it again. With `on conflict do nothing` the second invocation inherited the
+  // first's balances and its balance_reconciliations rows, so the restored run
+  // started from state the mutated run wrote and failed. The harness reported
+  // "restored -> STILL RED", which reads as a broken control and was a dirty
+  // fixture.
+  //
+  // A DATABASE-BACKED TEST THAT A PLANT POINTS AT MUST BE IDEMPOTENT, and that
+  // is a property of being a plant target rather than of being a good test:
+  // nothing else in the suite runs a file twice in one process against one
+  // database.
+  await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+  await sql`delete from transactions where household_id = ${HOUSEHOLD}`;
   await sql`insert into households (id, name) values (${HOUSEHOLD}, 'recon fixture') on conflict (id) do nothing`;
   await sql`insert into plaid_items (id, household_id, item_id) values (${ITEM}, ${HOUSEHOLD}, 'item-recon') on conflict (id) do nothing`;
   await sql`insert into plaid_items (id, household_id, item_id, status)
             values (${OTHER_ITEM}, ${HOUSEHOLD}, 'item-recon-other', 'needs_reauth') on conflict (id) do nothing`;
   await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
             values (${OTHER_CARD}, ${HOUSEHOLD}, ${OTHER_ITEM}, 'acct-recon-other', 'Stale Card', 'credit', 'credit card', 4321.00)
-            on conflict (id) do nothing`;
+            on conflict (id) do update set current_balance = excluded.current_balance`;
   await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
             values (${NOTE_ACCT}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-note', 'Note Checking', 'depository', 'checking', 1000.00)
-            on conflict (id) do nothing`;
+            on conflict (id) do update set current_balance = excluded.current_balance`;
   await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
             values (${BANK}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-bank', 'Fixture Checking', 'depository', 'checking', 1731.96),
                    (${CARD}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-card', 'Fixture Card', 'credit', 'credit card', 3000.00)
-            on conflict (id) do nothing`;
+            on conflict (id) do update set current_balance = excluded.current_balance`;
 });
 
 afterAll(async () => {
