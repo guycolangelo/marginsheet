@@ -1033,6 +1033,8 @@ gh run view <deploy-run-id> --log | grep "ok: .*build="
 
 **`sweepReason` has twelve test references and zero callers.** It is the most-tested function in the sync Worker and the one that never runs.
 
+**IT HAS A SECOND MEMBER AND THAT ONE SHIPPED AS A COMPLETED SECTION.** Those twelve tests were counted as 4.4's evidence of completeness. They were evidence the function had been **elaborated in CI**, and the write half they served never existed: nothing set `sync_status` to `'syncing'`, so the first line of `sweepReason` returned null for every Item that has ever existed. **A section can pass review, ship, and be recorded as done while the only thing exercising it is its own suite.**
+
 **This is the one place where more testing makes a defect harder to see rather than easier.** Everywhere else in this file, coverage is the thing that catches a fault. Here it is the thing that conceals one: a function elaborated across twelve cases reads as load-bearing, and the elaboration happened precisely because CI was the only place it executed. **The signal inverts, and it inverts silently.**
 
 So when a function's test count is high and its call count is unknown, **check the call count first.**

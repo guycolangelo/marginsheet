@@ -35,8 +35,11 @@ const BUILT_AND_NOT_WIRED: Record<string, string> = {
   "outbox.ts:markEnqueued": "outbox-announcer-is-built-and-unwired",
   "outbox.ts:findRepairable": "outbox-announcer-is-built-and-unwired",
   "outbox.ts:countNeverAnnounced": "outbox-announcer-is-built-and-unwired",
-  "sync-state.ts:sweepReason": "watchdog-is-built-and-has-no-trigger",
-  "sync-state.ts:onWebhook": "watchdog-is-built-and-has-no-trigger",
+  // BUILT AND DELIBERATELY NOT WIRED, ruled by Guy 22 Aug 2026: the trigger is
+  // its own task and lands only once the thing it triggers can go red. This
+  // control caught it in the same commit that created it, which is the shortest
+  // distance between introducing an orphan and being told.
+  "sweep.ts:sweepStuckSyncs": "the-sweep-has-no-trigger-yet",
   "reconnect.ts:reconnectItem": "reconnect-completion-is-built-and-unwired",
   "reconnect.ts:markReconnected": "reconnect-completion-is-built-and-unwired",
 };

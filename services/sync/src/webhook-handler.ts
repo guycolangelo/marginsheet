@@ -48,6 +48,8 @@ async function eventKey(rawBody: string): Promise<string> {
 /** Codes that mean transactions changed and a sync should run. Anything else is
  *  recorded and not acted on, which is deliberate: an unrecognised code should
  *  leave a row somebody can read rather than trigger work nobody designed. */
+import { onWebhook } from "./sync-state.js";
+
 const SYNC_CODES = new Set(["SYNC_UPDATES_AVAILABLE", "DEFAULT_UPDATE", "INITIAL_UPDATE", "HISTORICAL_UPDATE"]);
 
 export async function handlePlaidWebhook(
@@ -138,6 +140,27 @@ export async function handlePlaidWebhook(
       return { webhookType, webhookCode, itemId, firstTime: false, dispatched: null, note: "already recorded, so no sync was dispatched" };
     }
     if (!item) return finish("no Item of ours matches this item_id");
+
+    // A WEBHOOK ARRIVING MID-SYNC MARKS THE ITEM QUEUED, which is onWebhook's
+    // only writer and the reason its queued branch has been unreachable since
+    // 4.4. Without this, onSyncComplete always reads 'syncing' and always
+    // returns 'idle', so the follow-up a mid-sync webhook is owed never runs
+    // and the transactions it announced wait for the next unrelated trigger.
+    //
+    // REQUIRES THE STATUS IT IS CHANGING FROM, so a webhook landing while the
+    // Item is idle does not invent a queued sync nobody will run. The queued
+    // state means "a sync is in flight and another is owed", and it is only
+    // true if one is in flight.
+    await sql.begin(async (tx) => {
+      await tx`select set_config('marginsheet.household_id', ${item.household_id}, true)`;
+      await tx`
+        update plaid_items
+           set sync_status = ${onWebhook("syncing")}::sync_status, updated_at = now()
+         where id = ${item.id}
+           and household_id = ${item.household_id}
+           and sync_status = 'syncing'
+      `;
+    });
 
     // PLAID CONFIRMING THE BACKFILL IS ASSEMBLED. Recorded before the sync is
     // dispatched, and SET ONCE: the WHERE clause is the guard, for the same
