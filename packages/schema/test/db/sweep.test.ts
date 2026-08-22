@@ -41,9 +41,27 @@ const IDLE = "01998888-6003-7000-8000-0000000005ee";
  *  transaction could declare. The module declares per write instead, which is
  *  what this now proves. */
 async function run() {
-  return sql.begin(async (tx) => sweepStuckSyncs(tx as never, new Date())) as never as Promise<
-    Awaited<ReturnType<typeof sweepStuckSyncs>>
-  >;
+  return sql.begin(async (tx) => {
+    // AS marginsheet_sync, AND WITHOUT THIS THE TEST COULD NOT FAIL.
+    //
+    // The thing under test is whether the sweep satisfies sync_worker_write,
+    // and that policy is written TO marginsheet_sync. Run on the migration
+    // owner's connection the policy simply does not apply, so removing the
+    // sweep's set_config left every assertion green and the planted-failure
+    // harness reported the control as insensitive. It was: a test that never
+    // adopts the role cannot observe a policy written for it, however real its
+    // database is.
+    //
+    // It is the has_column_privilege lesson one level up. Asking the catalog
+    // what a role MAY do and running AS that role are different questions, and
+    // only the second is the one production asks. A control that verifies a
+    // privilege adopts the identity that will use it.
+    //
+    // SET LOCAL, so the role reverts when the transaction ends on any path
+    // including a throw, and no pooled connection returns holding it.
+    await tx.unsafe("SET LOCAL ROLE marginsheet_sync");
+    return sweepStuckSyncs(tx as never, new Date());
+  }) as never as Promise<Awaited<ReturnType<typeof sweepStuckSyncs>>>;
 }
 
 async function statusOf(id: string): Promise<string> {
