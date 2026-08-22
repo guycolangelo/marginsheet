@@ -186,6 +186,18 @@ export interface Readout {
     minutesSince: number | null;
     lastExamined: number | null;
     lastSwept: number | null;
+    /** How many runs exist at all, so peakExamined below is readable: zero
+     *  across two runs and zero across two hundred are different claims. */
+    runsRecorded: number;
+    firstRunAt: string | null;
+    /** The most Items any single run found in 'syncing'. ZERO ACROSS ALL RUNS
+     *  IS THE ONLY THING THAT RETIRES THE WINDOW in which the watchdog could
+     *  not act: it means no Item was ever stuck, so there was no work to fail
+     *  at. items_swept cannot answer this, because zero swept was both the
+     *  normal case and the symptom. */
+    peakExamined: number;
+    runsThatFoundWork: number;
+    windowNote: string;
     note: string;
   };
   settleCriterion: {
@@ -391,6 +403,33 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
       from sweep_runs order by ran_at desc limit 1
   `;
 
+  // THE HISTORY, NOT ONLY THE LATEST RUN, AND IT ANSWERS A QUESTION THE LATEST
+  // RUN CANNOT.
+  //
+  // The watchdog's cron reached production at 13:18:58Z on 22 Aug 2026 and
+  // could not sweep anything until the per-write household declaration landed:
+  // sync_worker_write reads current_setting and the scheduled handler declares
+  // none, so the UPDATE matched nothing and raised nothing. Every run in that
+  // window reported items_swept: 0, WHICH IS THE DOCUMENTED NORMAL CASE.
+  //
+  // items_examined is the column that separates the two readings, because it
+  // counts Items found in 'syncing' whether or not any could be swept. Across
+  // every run it answers whether an Item was EVER stuck while the watchdog was
+  // unable to act. peakExamined = 0 means nothing was: no Item entered the
+  // state the sweep exists to end, so the broken window cost nothing.
+  //
+  // A MAXIMUM OVER HISTORY, NOT A CURRENT READING. Asking plaid_items for
+  // sync_status = 'syncing' now would answer a different and weaker question:
+  // an Item that hung and was later cleared by a successful sync leaves no
+  // trace there, and this column keeps one every ten minutes.
+  const [history] = await tx<{ runs: number; peak: number | null; with_work: number; first_at: string | null }[]>`
+    select count(*)::int as runs,
+           max(items_examined)::int as peak,
+           count(*) filter (where items_examined > 0)::int as with_work,
+           (min(ran_at))::text as first_at
+      from sweep_runs
+  `;
+
   return {
     accounts,
     byType,
@@ -399,6 +438,19 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
       minutesSince: trace?.mins ?? null,
       lastExamined: trace?.examined ?? null,
       lastSwept: trace?.swept ?? null,
+      runsRecorded: history?.runs ?? 0,
+      firstRunAt: history?.first_at ?? null,
+      /** The most Items any single run has found in 'syncing'. ZERO ACROSS ALL
+       *  RUNS MEANS NO ITEM HAS EVER BEEN STUCK, which is the only thing that
+       *  can retire the window where the watchdog could not act. */
+      peakExamined: history?.peak ?? 0,
+      runsThatFoundWork: history?.with_work ?? 0,
+      windowNote:
+        (history?.runs ?? 0) === 0
+          ? "no runs recorded, so this says nothing either way."
+          : (history?.peak ?? 0) === 0
+            ? `NOTHING HAS EVER BEEN STUCK: ${history?.runs} runs recorded since ${history?.first_at}, and not one found an Item in 'syncing'. The window between the cron reaching production (13:18:58Z, 22 Aug 2026) and the per-write household declaration landing therefore cost nothing, because there was no work for the sweep to fail at.`
+            : `${history?.with_work} of ${history?.runs} runs found an Item in 'syncing', peaking at ${history?.peak}. ANY OF THOSE BEFORE THE DECLARATION LANDED WAS NOT SWEPT, because the UPDATE matched nothing. Check those Items individually rather than assuming the sweep handled them.`,
       note:
         !trace
           ? "NO SWEEP HAS EVER RUN. Either the cron has never fired or this database has never had one, and those are different: check the Worker's triggers before assuming the watchdog is healthy."

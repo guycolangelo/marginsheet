@@ -97,6 +97,20 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   **Absent-with-an-owner beats flaky.** A gap in `docs/open-items.json` is honest, it is visible in CI, and somebody owns closing it. A flaky test is a false claim of coverage that also corrodes every true claim next to it. When a fixture cannot be made deterministic, the branch is split: test our **handler** against a synthesised response and say plainly that Plaid's behaviour is not what was proven.
 
+- **A TEST OBSERVING AN RLS POLICY RUNS AS THE ROLE THE POLICY IS WRITTEN TO. The owner bypasses everything, so a real database proves nothing about a policy unless the connection adopts the role.** (Guy, 22 Aug 2026.)
+
+  A policy is `TO marginsheet_sync` or `TO marginsheet_app`. **A connection that is neither is not subject to it**, so every assertion in the test passes for a reason that has nothing to do with the policy, and the test reads as thorough because its database is genuinely real.
+
+  The instance: `sweep.test.ts` ran against a real Neon branch, imported the real function, owned its own household, and planted both directions. Removing the sweep's household declaration -- **the exact defect that had shipped to production** -- left every assertion green, and the planted-failure harness reported the control as insensitive. It was.
+
+  **IT IS THE `has_column_privilege` LESSON ONE LEVEL UP, and they belong together.** There, naming the role asks what a GRANT says and omitting it asks what the SESSION can do. Here, a real database asks what the schema permits and adopting the role asks what production will experience. **Both times the easier question is the one that is right there, returns a clean answer, and is about something adjacent to what is being guarded.**
+
+  Two adoption forms are valid: `SET LOCAL ROLE` inside the transaction, or connecting with a credential issued for the role. The second is stronger, because it never leaves the role.
+
+  **The check exists and its coverage is the cost, which is worth stating plainly.** Nothing can infer which controls guard a policy, so `guards_policy` is declared per register entry and the check asserts what that declaration obligates. **An absent flag means NOT JUDGED, never judged-and-cleared**, so the control is honest about being partial. It found a second member of the four-argument `has_column_privilege` defect on its first run, in `sync-worker-reach.test.ts`, which two registered controls depend on.
+
+  **AND ITS PATTERN WAS TOO NARROW TWICE BEFORE IT WAS RIGHT**, which is the sweep rule biting inside the fix for the sweep rule. Version one matched `SET ROLE` and reported a file as unguarded that connects as the role via `rotateRole`. Version two added `rotateRole` and reported another that uses `rotateAppRole`. **Each version looked complete and each was one spelling short**, and the only reason either was caught is that the check was run against files whose answer was already known.
+
 - **A TIMEOUT IS A FIXTURE PARAMETER, DERIVED FROM WHAT THE TEST DOES, NOT A DEFAULT INHERITED SILENTLY.** (Guy, 22 Aug 2026.)
 
   A test that makes real round trips has a real round-trip cost, and a default chosen by a test runner that knows nothing about it is not a considered value. `invariant-8` failed at **5005ms against a 5000ms default**, which is a fixture reporting its own inadequacy in the shape of a failure about the code.
