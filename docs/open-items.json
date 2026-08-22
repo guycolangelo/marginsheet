@@ -789,5 +789,14 @@
     "owed_to": "M4 4.8. Raised 22 Aug 2026.",
     "raised": "2026-08-22",
     "trigger_kind": "prose"
+  },
+  {
+    "id": "the-watchdog-progress-branch-cannot-fire",
+    "item": "THE WATCHDOG'S PROGRESS BRANCH CANNOT FIRE, AND THE VALUE IT READS BELONGS TO A DIFFERENT RUN. sync-state.ts states its design content plainly: measure from LAST CURSOR PERSISTENCE rather than from sync start, because a 20,000 transaction backfill reads as stuck when measured from start and gets swept mid-flight. run-sync writes last_cursor_at PER PAGE BUT INSIDE THE MAIN TRANSACTION, so no cursor write is visible to anything until the whole sync commits, and at that moment the status is already idle. AN ITEM THAT IS 'syncing' HAS, BY CONSTRUCTION, NO COMMITTED CURSOR FROM THAT RUN. WORSE THAN INERT: the marker does not clear last_cursor_at, so a hung sync inherits the timestamp of the PREVIOUS SUCCESSFUL run, and the sweep declines to fire on evidence from work that already finished. The delay is bounded, it is measured from the wrong moment, and the progress it reads is another run's. THE TENSION IS REAL AND NEITHER HALF IS WRONG. One transaction gives the sync atomicity across streams, balances, reconciliation and liabilities, which is why it is one. Per-page persistence gives observable progress, which is why 4.4 built it. THEY ARE INCOMPATIBLE AS WRITTEN and nothing noticed because the branch needing the second has never run. TWO OPTIONS AND THE CHOICE IS A RULING ABOUT WHAT A SYNC GUARANTEES. (A) Persist the cursor in its own committed transaction per page, which makes progress observable and gives up atomicity between the cursor and the rows that page wrote: a crash could leave a cursor ahead of its transactions, which is the duplicate-import hazard the two-cursor design already exists to manage. (B) Accept a start-only watchdog, clear last_cursor_at when marking syncing so no stale value is read, and raise STALE_AFTER_MS above the longest plausible backfill, which sweeps a genuinely hung sync later and never cancels a working one. B IS CHEAPER AND WEAKER; A IS WHAT 4.4 INTENDED. Found 22 Aug 2026 by Guy asking where the completion write sits relative to the main transaction. The completion write is INSIDE it, so the gap he asked about (work committed, completion lost) cannot occur: they are atomic. The seam he pointed at was real and one level below where he pointed.",
+    "owner": "Guy",
+    "trigger": "before the sweep's trigger is added, because a cron over a watchdog whose progress branch cannot fire is a schedule for a control that can only measure the wrong thing",
+    "owed_to": "M4 4.8. Raised 22 Aug 2026.",
+    "raised": "2026-08-22",
+    "trigger_kind": "prose"
   }
 ]
