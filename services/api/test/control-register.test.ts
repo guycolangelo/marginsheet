@@ -74,10 +74,61 @@ describe("every planted failure is applicable", () => {
       // register must then be updated rather than the entry deleted, and this
       // is where somebody finds that out.
       const source = readFileSync(join(ROOT, control.planted.file!), "utf8");
+      const matches = source.split(control.planted.find!).length - 1;
+
       expect(
-        source.includes(control.planted.find!),
+        matches > 0,
         `the mutation for ${control.id} no longer matches ${control.planted.file}. The control was probably refactored: update the register rather than dropping the entry.`
       ).toBe(true);
+
+      // EXACTLY ONCE, AND THE SECOND MATCH IS THE INTERESTING FAILURE.
+      //
+      // On 22 Aug 2026 the marker added to run-sync gave that file a SECOND,
+      // identical set_config line. The plant for
+      // every-connection-opener-declares-the-household deleted one occurrence
+      // and left the file still compliant, so the mutation stopped producing
+      // the violation the control is about and the harness reported it as not
+      // going red. The report was accurate; the plant had quietly stopped
+      // reaching the control.
+      //
+      // EVERY PRIOR CONTROL FINDING HERE WAS A CONTROL THAT COULD NOT FAIL.
+      // THIS ONE WAS A CONTROL FAILING CORRECTLY THAT A CORRECT CHANGE NEARBY
+      // DEFUSED. The improvement and the weakening share no commit, no diff
+      // proximity, nothing, and until this assertion existed the only detector
+      // was somebody noticing a mutation had stopped reddening.
+      //
+      // A find string matching twice targets "a line like this" rather than
+      // "this line". Making the string longer does not fix it, because a longer
+      // string is still one a future edit can duplicate: plant where the
+      // mutation still produces the violation.
+      // MORE THAN ONE MATCH IS PERMITTED ONLY WHEN DECLARED, WITH ITS REASON.
+      //
+      // Multiplicity is not automatically a defect. workers_dev: false appears
+      // once per environment and no-public-routes loops over every one, so
+      // removing any occurrence reddens the assertion for that environment: the
+      // matches are equivalent BECAUSE THE TEST COVERS ALL OF THEM.
+      //
+      // It is a defect when the test checks one site. connect-surface slices
+      // from the link-token route, so a mutation landing on a different route
+      // reddens nothing, and it landed on the right one only because that route
+      // happens to be first in the file. CORRECT BY LINE ORDER IS NOT CORRECT.
+      //
+      // So the declaration is the reviewer stating which case this is, and the
+      // note is required because a bare number would let somebody raise it to
+      // silence a failure rather than to record an equivalence.
+      const declared = (control.planted as { findMatches?: number }).findMatches ?? 1;
+      if (declared !== 1) {
+        expect(
+          (control.planted as { findMatchesNote?: string }).findMatchesNote,
+          `${control.id} declares findMatches: ${declared} and gives no reason. A count without a reason is a suppression.`
+        ).toBeTruthy();
+      }
+      expect(
+        matches,
+        `the mutation for ${control.id} matches ${control.planted.file} ${matches} times but declares ${declared}. ` +
+          `If every match reddens the test, declare findMatches with a note saying why they are equivalent. ` +
+          `If the test checks only one site, the mutation can miss it: widen the find until it is unique to that site.`
+      ).toBe(declared);
     });
   }
 

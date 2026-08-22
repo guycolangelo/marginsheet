@@ -1,0 +1,27 @@
+-- 'postmark' has been a declared provider_source with no receiver since 0002.
+--
+-- A READER MEETING THE ENUM SHOULD MEET THE CAVEAT IN THE SAME PLACE (Guy, 22
+-- Aug 2026), rather than in an open-items list they have not read. The value
+-- has been present for the entire life of the project, so anyone finding it
+-- would reasonably conclude something receives Postmark events. Nothing does.
+--
+-- CHECKED 22 AUG 2026: there is no endpoint anywhere that could receive one.
+-- The conversation Worker holds POSTMARK_TOKEN and serves /health and
+-- /debug/db-identity. api's routes include no Postmark path. No source file
+-- mentions bounce, complaint or SpamComplaint. services/api/src/email.ts SENDS
+-- through Postmark and reads nothing back.
+--
+-- WHY IT MATTERS NOW AND DID NOT BEFORE. Amendment 8 limited sends to
+-- @marginsheet.com and returned 422 for anything else, so no outside recipient
+-- existed and no bounce was possible. Postmark approved the account on 22 Aug
+-- 2026, which discharges that constraint and makes amendment 7's commitment
+-- testable against reality: Guy told Postmark's review that bounce and
+-- complaint webhooks land in provider_events first and that hard bounces
+-- surface in-app.
+--
+-- THE FIRST OUTSIDE RECIPIENT WHO BOUNCES SILENTLY IS THE PROMISE BROKEN, which
+-- is why the handler is owed BEFORE THE FIRST BETA INVITATION rather than at a
+-- module boundary: a module number is only a valid trigger for something we
+-- control, and the first invitation is Guy's act.
+COMMENT ON TYPE "public"."provider_source" IS
+  'Which provider an event came from. stripe, plaid, twilio, postmark. PLAID IS THE ONLY ONE WITH A LIVE RECEIVER as of 22 Aug 2026: /internal/plaid-webhook verifies, records and dispatches. THE OTHER THREE ARE DECLARED AND UNRECEIVED. postmark in particular is a live commitment rather than a future one: the account was approved on 22 Aug 2026, so an outside recipient is now possible, and bounce and complaint handling was promised to Postmark''s review. No endpoint exists to receive it, so a delivery would reach a 404 whether or not the webhooks are registered on their side. Owed before the first beta invitation is sent; see postmark-bounce-receiver-does-not-exist and provider-events-handler-half in docs/open-items.json. A READER MEETING THIS ENUM SHOULD NOT CONCLUDE THAT ANYTHING RECEIVES THESE EVENTS.';
