@@ -1122,6 +1122,28 @@ The orphan-export control's first version had one category and **that conflates 
 
 **One member is live and unfixed, in a migration that merged the night this was written.** Every write in `fetch-liabilities.ts` is scoped to `type = 'credit'`, so six depository and two investment accounts hold `unknown` permanently meaning *not applicable*, while a card holding `unknown` means *not yet fetched*. **Cash Flow reading that column cannot tell them apart**, and it was written by someone who had spent the evening naming this exact failure in three other places. Recorded in `docs/open-items.json` rather than patched in passing.
 
+## A DURABLE RECORD OF AN ATTEMPT COMMITS OUTSIDE THE TRANSACTION WHOSE FAILURE IT RECORDS (locked 22 August 2026)
+
+**A marker that disappears with the failure it marks is not a marker.**
+
+The sync's `syncing` marker is written in its own transaction, committed, before the main one opens. Written inside it, a crashed Worker would take the marker down with the work: Postgres discards the transaction, the row reads `idle`, and the watchdog finds nothing to sweep. **The record of the attempt would be rolled back by the attempt failing**, which is the one circumstance it exists for.
+
+**It generalises past markers.** Anything recording that something was tried, so a later reader can tell an unfinished attempt from one that never began, has to survive the failure. That means its own transaction, committed first.
+
+**The audit, run when this was named.** Two other sites record an attempt and both are correct. `provider_events` inserts the event in its own `sql.begin` before any dispatch, so a webhook that fails to dispatch still leaves a row somebody can read. `processed_at` is marked in a separate transaction on every path the handler reaches deliberately. **Neither records an attempt inside the attempt.**
+
+## AND THE COMPANION FAILURE: A PROGRESS SIGNAL THAT CANNOT BE OBSERVED WHILE THE WORK RUNS
+
+`sync-state.ts` states its own design content: **the watchdog measures from last cursor persistence, not from sync start**, because a 20,000 transaction backfill reads as stuck when measured from start and gets swept mid-flight.
+
+**That branch cannot fire, and the reason is one level below it.** `run-sync` writes `last_cursor_at` per page **inside the main transaction**, so no cursor write is visible to anything until the whole sync commits, at which point the status is already `idle`. **An Item that is `syncing` has, by construction, no committed cursor from that run.**
+
+**Worse than inert: the value read belongs to a different run.** The marker does not clear `last_cursor_at`, so a hung sync inherits the timestamp of the *previous successful* one. The sweep then reads recent progress that a completed run made, and declines to sweep on evidence from work that already finished.
+
+**The tension is real and it is not a bug in either half.** One transaction gives the sync atomicity across streams, balances, reconciliation and liabilities, which is why it is one transaction. Per-page cursor persistence gives observable progress, which is why 4.4 built it. **They are incompatible as written, and nothing noticed because the branch that needed the second has never run.**
+
+**Recorded rather than fixed**: the choice between committing cursors outside the main transaction and accepting a start-only watchdog is a ruling about what a sync guarantees, not a repair.
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.
