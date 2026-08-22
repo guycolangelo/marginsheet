@@ -221,6 +221,47 @@ export interface Readout {
  *  own WHERE clause, which is the 19 Aug rule that a statement should be
  *  correct even when the policy is wrong. The GUC is for the policies that read
  *  it, and it should be right for the same reason. */
+
+/** The committed-outflow sentence, derived from the TOTAL rather than from a
+ *  list of the ways a card can be missing.
+ *
+ *  THE BUG THIS REPLACES, AND IT IS THE SETTLE-NOTE SPECIES EXACTLY: a sentence
+ *  emitted for a case it does not describe. The old chain asked whether
+ *  notReported + unsupported was non-zero and, finding both zero, fell through
+ *  to "all N cards reported". `unknown` was not in that sum. So a household
+ *  holding eleven cards, ten reported and one never fetched, was told all ten
+ *  reported and that totalDue was its committed outflow -- while an $8,453.84
+ *  balance sat outside the figure and the note asserted completeness.
+ *
+ *  ENUMERATING THE WAYS SOMETHING CAN BE MISSING IS THE DEFECT, NOT THE
+ *  OMISSION OF ONE OF THEM. A list of failure states is a list somebody must
+ *  extend every time a state is added, and liability_coverage gained `unknown`
+ *  after this note was written. Deriving `unseen = total - reported` cannot
+ *  miss a state, including states that do not exist yet: anything that is not
+ *  `reported` is a card whose committed outflow we cannot see.
+ *
+ *  Exported so the branches can be exercised without a database. */
+export function committedOutflowNote(c: {
+  reported: number; notReported: number; unsupported: number; unknown: number;
+}): string {
+  const total = c.reported + c.notReported + c.unsupported + c.unknown;
+  const unseen = total - c.reported;
+
+  if (total === 0) return "this household holds no credit accounts, so there is no committed outflow to report";
+  if (c.reported === 0) {
+    return `liabilities has never been read for any of these ${total} card${total === 1 ? "" : "s"}, so no committed outflow is known and none is claimed`;
+  }
+  if (unseen > 0) {
+    const why = [
+      c.notReported > 0 ? `${c.notReported} reported by the institution as unavailable` : null,
+      c.unsupported > 0 ? `${c.unsupported} on an Item that does not support liabilities` : null,
+      c.unknown > 0 ? `${c.unknown} never fetched at all` : null,
+    ].filter(Boolean).join(", ");
+    return `PARTIAL: ${c.reported} of ${total} cards reported, so totalDue OMITS ${unseen} card${unseen === 1 ? "" : "s"} (${why}) and must not be presented as the household's committed outflow.`;
+  }
+  return `all ${total} cards reported; totalDue is the household's committed outflow`;
+}
+
 export async function readLedger(tx: Sql, householdId: string): Promise<Readout> {
   await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
 
@@ -467,12 +508,12 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
       // Including a card we cannot see would state a total the data does not
       // support, which is a figure worse than a blank.
       totalDue: cov?.total_due ?? null,
-      note:
-        (cov?.unknown ?? 0) > 0 && (cov?.reported ?? 0) === 0
-          ? "liabilities has never been fetched for these cards, so no committed outflow is known and none is claimed"
-          : (cov?.not_reported ?? 0) + (cov?.unsupported ?? 0) > 0
-            ? `${cov.reported} card${cov.reported === 1 ? "" : "s"} reported. ${(cov.not_reported ?? 0) + (cov.unsupported ?? 0)} CANNOT BE SEEN, so totalDue is a partial figure and must not be presented as the household's committed outflow.`
-            : `all ${cov?.reported ?? 0} cards reported; totalDue is the household's committed outflow`,
+      note: committedOutflowNote({
+        reported: cov?.reported ?? 0,
+        notReported: cov?.not_reported ?? 0,
+        unsupported: cov?.unsupported ?? 0,
+        unknown: cov?.unknown ?? 0,
+      }),
     },
     directionAudit,
     historyCompletion,
