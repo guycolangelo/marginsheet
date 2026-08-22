@@ -61,20 +61,36 @@ function of(r: Awaited<ReturnType<typeof reconcileBalances>>, id: string) {
 }
 
 beforeAll(async () => {
+  // RESETS RATHER THAN INSERTS-IF-ABSENT, BECAUSE THE HARNESS RUNS THIS FILE
+  // TWICE AGAINST ONE DATABASE.
+  //
+  // A planted failure applies the mutation, runs the test, restores, and runs
+  // it again. With `on conflict do nothing` the second invocation inherited the
+  // first's balances and its balance_reconciliations rows, so the restored run
+  // started from state the mutated run wrote and failed. The harness reported
+  // "restored -> STILL RED", which reads as a broken control and was a dirty
+  // fixture.
+  //
+  // A DATABASE-BACKED TEST THAT A PLANT POINTS AT MUST BE IDEMPOTENT, and that
+  // is a property of being a plant target rather than of being a good test:
+  // nothing else in the suite runs a file twice in one process against one
+  // database.
+  await sql`delete from balance_reconciliations where household_id = ${HOUSEHOLD}`;
+  await sql`delete from transactions where household_id = ${HOUSEHOLD}`;
   await sql`insert into households (id, name) values (${HOUSEHOLD}, 'recon fixture') on conflict (id) do nothing`;
   await sql`insert into plaid_items (id, household_id, item_id) values (${ITEM}, ${HOUSEHOLD}, 'item-recon') on conflict (id) do nothing`;
   await sql`insert into plaid_items (id, household_id, item_id, status)
             values (${OTHER_ITEM}, ${HOUSEHOLD}, 'item-recon-other', 'needs_reauth') on conflict (id) do nothing`;
   await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
             values (${OTHER_CARD}, ${HOUSEHOLD}, ${OTHER_ITEM}, 'acct-recon-other', 'Stale Card', 'credit', 'credit card', 4321.00)
-            on conflict (id) do nothing`;
+            on conflict (id) do update set current_balance = excluded.current_balance`;
   await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
             values (${NOTE_ACCT}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-note', 'Note Checking', 'depository', 'checking', 1000.00)
-            on conflict (id) do nothing`;
+            on conflict (id) do update set current_balance = excluded.current_balance`;
   await sql`insert into financial_accounts (id, household_id, plaid_item_id, plaid_account_id, name, type, subtype, current_balance)
             values (${BANK}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-bank', 'Fixture Checking', 'depository', 'checking', 1731.96),
                    (${CARD}, ${HOUSEHOLD}, ${ITEM}, 'acct-recon-card', 'Fixture Card', 'credit', 'credit card', 3000.00)
-            on conflict (id) do nothing`;
+            on conflict (id) do update set current_balance = excluded.current_balance`;
 });
 
 afterAll(async () => {
@@ -246,8 +262,22 @@ describe("reconcileBalances", () => {
   it("reconciles a CREDIT account, where the same outflow moves the balance the OTHER WAY", async () => {
     // THE ASSERTION THAT MAKES THE PREVIOUS ONE MEAN SOMETHING. A reconciler
     // that ignored type would pass the depository case and report permanent
-    // drift here, and the drift would read as a sync fault rather than a sign
-    // error, which is what makes it expensive.
+    // drift here, and the drift would read as a sign error dressed as a sync
+    // fault, which is what makes it expensive.
+    //
+    // IT ESTABLISHES ITS OWN BASELINE RATHER THAN INHERITING ONE, because a
+    // plant points at this test and the harness runs it with -t, ALONE, with
+    // every sibling skipped. It previously relied on the first-observation test
+    // having created the card's baseline, so run in isolation it saw a first
+    // observation, got expected: null, and the harness reported
+    // "restored -> STILL RED" against a control that was working.
+    //
+    // A PLANT TARGET MUST PASS IN ISOLATION AND TWICE. Neither is a property of
+    // a good test; both are properties of being pointed at by the register.
+    await sql`delete from balance_reconciliations where account_id = ${CARD}`;
+    await setBalance(CARD, "3000.00");
+    await run();                                  // the baseline this test owns
+
     await addTxn(CARD, "100.00", "outflow", "recon-card-1");
     await setBalance(CARD, "3100.00");
     const r = await run();
