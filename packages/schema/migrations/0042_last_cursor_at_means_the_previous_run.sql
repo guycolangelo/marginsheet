@@ -1,0 +1,22 @@
+-- last_cursor_at keeps its data and loses its meaning (amendment 15).
+--
+-- 0027 added it so the watchdog could distinguish a stuck sync from a slow
+-- backfill: measure from LAST PROGRESS rather than from start, because a 20,000
+-- transaction backfill reads as stuck when measured from start.
+--
+-- run-sync writes it PER PAGE BUT INSIDE THE MAIN TRANSACTION, so no write is
+-- visible to anything until the whole sync commits, and at that moment the
+-- status is already idle. The value an in-flight sync can see therefore belongs
+-- to the PREVIOUS successful run.
+--
+-- RULED 22 AUG 2026 (Guy): the watchdog measures from start and the progress
+-- branch is deleted. The deciding fact is from 4.2 rather than the watchdog:
+-- PLAID REJECTS MID-PAGINATION BOOKMARKS, so a per-page committed cursor could
+-- never be resumed from, and committing one outside the main transaction would
+-- buy observability with no resumability at the price of atomicity.
+--
+-- THE COLUMN IS NOT CLEARED AND ITS ROWS ARE REAL. What changed is what it can
+-- be read to mean, and this comment exists because a future reader will
+-- otherwise assume it means what its name says. Both parties here did.
+COMMENT ON COLUMN "plaid_items"."last_cursor_at" IS
+  'When a cursor was last persisted BY A SYNC THAT COMMITTED. It is written per page, but inside run-sync''s single transaction, so nothing observes it until the sync ends: A RUN IN FLIGHT CANNOT BE DESCRIBED BY IT, and the value visible during one belongs to the previous successful sync. NOT A PROGRESS SIGNAL, despite the name and despite 0027''s stated purpose. The watchdog measured from it until 22 Aug 2026 and that branch could not fire; it now measures elapsed time from plaid_items.sync_started_at, and this column is read by the readout and by nothing that makes a decision. See amendment 15 for what would have to change for it to mean what it says: cursors committed outside the main transaction AND a resumption path able to use them, which Plaid''s rejection of mid-pagination bookmarks currently prevents.';

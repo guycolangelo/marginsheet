@@ -1144,6 +1144,20 @@ The sync's `syncing` marker is written in its own transaction, committed, before
 
 **Recorded rather than fixed**: the choice between committing cursors outside the main transaction and accepting a start-only watchdog is a ruling about what a sync guarantees, not a repair.
 
+## A SECOND CORRECT CALL CAN WEAKEN THE CONTROL THAT PLANTS AGAINST THE FIRST (recorded 22 August 2026)
+
+**The code became more correct and the control became weaker, with nothing connecting the two.**
+
+`every-connection-opener-declares-the-household` planted by deleting one line from `run-sync.ts`: its single `set_config`. 4.8's marker added a **second, identical** `set_config` to the same file, correctly, because the marker commits in its own transaction and that transaction owes its own declaration.
+
+**The plant's `find` string then matched twice, so removing one occurrence left the file still compliant.** The mutation stopped producing the violation the control is about, and the harness reported it as not going red. **That report was accurate and the control was fine; the plant had quietly stopped reaching it.**
+
+**Nothing in the change touched the control, the test, or the register.** Adding a correct line to a source file is invisible to every check that watches controls, which is why this is a class rather than an oversight.
+
+**The general form: a plant whose `find` string can match more than once is not a precise mutation**, whatever the harness does with the second match. It targets "a line like this" rather than "this line", and the difference only appears when a second one arrives.
+
+**The repair is to plant where the mutation still produces the violation** - here a connection opener holding exactly one declaration - rather than to make the string longer. A longer string is still a string that a future edit can duplicate. **Where possible, plant against a file whose compliance depends on the single thing being removed.**
+
 ## Vocabulary and format (locked; lint-enforced)
 
 - Dollar result = **Kept** (negative = **Overspent**). Percentage = **Margin**, always the % symbol.

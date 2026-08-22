@@ -41,21 +41,23 @@ export async function sweepStuckSyncs(tx: Tx, now: Date): Promise<SweepOutcome> 
   const rows = (await tx`
     select id, item_id, household_id,
            sync_status::text as sync_status,
-           last_cursor_at, sync_started_at
+           sync_started_at
       from plaid_items
      where sync_status = 'syncing'
      order by id
   `) as Array<{
     id: string; item_id: string; household_id: string;
-    sync_status: string; last_cursor_at: Date | null; sync_started_at: Date | null;
+    sync_status: string; sync_started_at: Date | null;
   }>;
 
   const swept: SweptItem[] = [];
 
   for (const row of rows) {
+    // START TIME AND NOTHING ELSE. last_cursor_at is deliberately not selected:
+    // it can only describe a PREVIOUS run, so reading it here would be reading
+    // another sync's progress to judge this one.
     const state: ItemSyncState = {
       syncStatus: "syncing",
-      lastCursorAt: row.last_cursor_at,
       syncStartedAt: row.sync_started_at,
     };
     const reason = sweepReason(state, now);

@@ -202,7 +202,16 @@ export const plaidItemStatus = pgEnum("plaid_item_status", [
   "disconnected",
 ]);
 
-export const syncStatus = pgEnum("sync_status", ["idle", "syncing", "queued", "error"]);
+/** 'swept' added by 0041. DELIBERATELY NOT idle: idle after a clean finish and
+ *  idle after a watchdog sweep are two facts, and the column records what
+ *  happened rather than restricting what may happen next. */
+export const syncStatus = pgEnum("sync_status", [
+  "idle",
+  "syncing",
+  "queued",
+  "error",
+  "swept",
+]);
 
 export const cardState = pgEnum("card_state", [
   "paid_in_full",

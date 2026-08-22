@@ -484,3 +484,39 @@ On the founder household as of 21 August 2026 that number is **five**: Xmas Gift
 ### Tolerance
 
 The invariant says *"drift beyond tolerance"*. **The tolerance is zero**, ruled 21 August 2026: any non-zero threshold is a guess about an error nobody has observed, and every failure expected here is timing rather than magnitude, so a dollar threshold answers the wrong axis.
+
+---
+
+## 15. The watchdog measures elapsed time, and the progress branch is deleted (amends 4.4.3; ruled by Guy, 22 August 2026)
+
+### The deciding fact comes from 4.2, not from the watchdog
+
+**Plaid rejects mid-pagination bookmarks.** That is why two cursors exist.
+
+So a per-page **committed** cursor could never be resumed from: a crashed sync restarts from `last_completed_cursor` whatever progress was visible. Persisting cursors outside the main transaction would therefore buy **progress that can only be observed and never acted on**, and pay for it by opening a crash seam between a cursor and its page's rows, inside the transaction that holds streams, balances, reconciliation and liabilities.
+
+**Observability with no resumability, priced in atomicity.** The alternative's cost is recovery latency on a hung sync, which a webhook-driven digest product can afford. **Different species of cost, and the ruling follows.**
+
+### The species: a spec naming an input the chosen path does not produce. Second member.
+
+4.4's progress branch assumed **per-page cursor visibility** that the single-transaction design does not supply. Same shape as amendment 14, where the reconciliation invariant assumed per-account balances on every sync that `/transactions/sync` does not return.
+
+**Not drift, and not a wrong implementation.** In both cases the spec is coherent, the code is coherent, and the input named by one is not produced by the other. **Both were invisible until something consumed them, and both were found the same way: by building the consumer.** The first was found by building a reconciler; this by building a sweep.
+
+### What was deleted, and what would bring it back
+
+`sweepReason`'s progress branch, its `ItemSyncState.lastCursorAt` field, and the tests that exercised them, including the fixture case this repository was right to be proud of: an Item started four hours ago that wrote a cursor a minute ago.
+
+**Deleted rather than left unreachable.** An unreachable branch carrying its own tests is the coverage inversion in its purest form: elaboration in CI, permanently, in the file where that class was named.
+
+**It could return.** If per-page cursor visibility ever becomes real, which means cursors committed outside the main transaction **and** a resumption path that can use them, the progress branch is the right design and this amendment says what it looked like. **That is a future design change and not a repair of this one.**
+
+### `last_cursor_at` keeps its data and loses its meaning
+
+The column is not cleared and its rows are real. **But it only ever becomes visible at commit, so it describes the last successful sync's progress and cannot describe a run in flight.** Recorded on the column itself, because a future reader will otherwise assume it means what its name says, which is the mistake both parties made here.
+
+### The threshold is derived and says so
+
+**30 minutes**, from the only measured throughput available: SoFi's first sync, 1,560 transactions in 47 seconds, recorded in migration 0031. Amex's 5,241-row first sync is the largest observed and computes to **2.6 minutes** at that rate. Thirty is a **10x multiple of the worst case observed**, and still clears a hypothetical 20,000-row backfill with 3x headroom.
+
+**Derived, not measured, and the difference is stated in the constant.** No sync has ever been timed end to end, because until 4.8 nothing recorded a start. Start times persist from now on, so real durations accumulate and this number is owed a re-derivation against them. **A threshold with no stated basis is the settle note again: a number that explains itself falsely.**

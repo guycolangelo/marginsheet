@@ -64,8 +64,11 @@ describe("the watchdog sweeps what stopped and leaves what is working", () => {
     await sql`update plaid_items set sync_status = 'syncing',
                 sync_started_at = now() - ${staleAgo}::interval, last_cursor_at = null
               where id = ${STALE}`;
+    // STARTED RECENTLY, which under ruling B is the only thing that keeps an
+    // Item from being swept. Its previous shape was a stale start with a fresh
+    // cursor, which tested the progress branch deleted by amendment 15.
     await sql`update plaid_items set sync_status = 'syncing',
-                sync_started_at = now() - ${staleAgo}::interval,
+                sync_started_at = now() - ${freshAgo}::interval,
                 last_cursor_at = now() - ${freshAgo}::interval
               where id = ${FRESH}`;
     await sql`update plaid_items set sync_status = 'idle' where id = ${IDLE}`;
@@ -77,11 +80,17 @@ describe("the watchdog sweeps what stopped and leaves what is working", () => {
     expect(await statusOf(STALE)).toBe("swept");
   });
 
-  it("DOES NOT SWEEP an Item whose cursor moved recently, however long it has run", async () => {
-    // THE PLANT THAT CATCHES THE EXPENSIVE FAILURE. Its start is as stale as
-    // the swept one; only its PROGRESS is fresh. A watchdog measuring elapsed
-    // time from start rather than from last persistence cancels exactly this
-    // Item, and a 20,000 transaction backfill is exactly this Item.
+  it("DOES NOT SWEEP an Item still inside the threshold", async () => {
+    // THE PLANT THAT CATCHES THE EXPENSIVE FAILURE, in ruling B's terms. Too
+    // late costs recovery latency on a hung sync, which this product can
+    // afford. TOO EARLY CANCELS A WORKING BACKFILL, which then restarts and is
+    // cancelled again, so an Item progressing perfectly never finishes while
+    // every status looks busy. A fixture proving only that the sweep fires
+    // proves the dangerous half.
+    //
+    // It carries a fresh last_cursor_at deliberately, so the row would also
+    // have survived the old progress branch: the assertion is about the start
+    // time and nothing else reads that column now.
     expect(await statusOf(FRESH)).toBe("syncing");
     const r = await run();
     expect(r.swept.map((s) => s.itemId)).not.toContain("item-sweep-fresh");
@@ -104,7 +113,7 @@ describe("the watchdog sweeps what stopped and leaves what is working", () => {
               where id = ${STALE}`;
     const r = await run();
     const entry = r.swept.find((s) => s.itemId === "item-sweep-stale");
-    expect(entry?.reason).toMatch(/no first page within/);
+    expect(entry?.reason).toMatch(/running for \d+s without completing/);
   });
 
   it("is idempotent: a second pass finds nothing left to sweep", async () => {

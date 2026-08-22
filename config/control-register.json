@@ -415,19 +415,19 @@
       "distinction": "The failure this guards is not a crash. Retrying the in-flight cursor SUCCEEDS and produces duplicate transactions in a household's ledger, arriving through a change that looked like reliability work and had a green suite behind it. Tested against a SYNTHESISED 400: the real error reproduced 3 times in 5 against Sandbox, which is flaky and therefore not a fixture, so this proves our handler takes the right branch and does not claim to have proven Plaid's behaviour."
     },
     {
-      "id": "watchdog-measures-progress",
-      "control": "the watchdog's staleness threshold (M4 task 4.4.3)",
-      "guards": "A long backfill making steady progress is not swept as stuck.",
+      "id": "watchdog-measures-elapsed-time",
+      "control": "the watchdog's staleness threshold (4.4.3, amended by 4.8 and amendment 15)",
+      "guards": "A sync inside the threshold is not swept, and the boundary is exclusive.",
       "test": "services/sync/test/watchdog-threshold.test.ts",
-      "name": "does NOT sweep a four-hour backfill that wrote a cursor a minute ago",
+      "name": "does not sweep an Item exactly AT the threshold",
       "planted": {
         "kind": "source",
         "file": "services/sync/src/sync-state.ts",
-        "find": "    const sinceProgress = now.getTime() - state.lastCursorAt.getTime();",
-        "replace": "    const sinceProgress = now.getTime() - (state.syncStartedAt ?? state.lastCursorAt).getTime();",
-        "note": "MEASURES FROM SYNC START, which is the implementation somebody naturally writes: the question sounds like 'has this been running too long'. Verified 18 Aug 2026, three tests redden including BOTH DIRECTIONS, the healthy long backfill and the recently-started dead sync."
+        "find": "    return sinceStart > STALE_AFTER_MS",
+        "replace": "    return sinceStart >= STALE_AFTER_MS",
+        "note": "ONE CHARACTER, AND IT IS WHAT SOMEBODY WOULD ACTUALLY WRITE. 'has it run past the threshold' and 'has it reached the threshold' read identically in English and differ by an equals sign. The boundary test is the only thing that separates them, which is why it exists. THE PREVIOUS ENTRY PLANTED AGAINST THE PROGRESS BRANCH and that branch was deleted on 22 Aug 2026 by ruling B: Plaid rejects mid-pagination bookmarks, so a per-page committed cursor could never be resumed from, and persisting one outside the main transaction would buy observability with no resumability at the price of atomicity. The register refused the stale mutation on the first run after the deletion, which is the register working."
       },
-      "distinction": "The fixture's failure case is a HEALTHY long backfill, and it has to exist among the values the fixture can take or nothing is proven: a suite whose syncs all start recently cannot distinguish measuring from progress from measuring from start, because both answer the same for a short sync. The damage is also not a crash. Measured from start, a large first backfill is swept mid-flight, set back to queued, restarted and swept again, so an Item working perfectly NEVER FINISHES while every status looks busy."
+      "distinction": "A THRESHOLD CONTROL'S DANGEROUS DIRECTION IS SWEEPING TOO EAGERLY, not too late. Too late costs recovery latency on a hung sync, which a webhook-driven digest product can afford. Too early cancels a working backfill, which is then restarted and cancelled again, so an Item that is progressing perfectly never finishes while every status looks busy. The fixture therefore has to contain a sync INSIDE the threshold as well as one past it, or it passes against an implementation that always sweeps. The boundary case is the third, because > and >= are one character apart and the difference is invisible in review."
     },
     {
       "id": "removed-flags-never-deletes",
@@ -914,10 +914,10 @@
       "name": "is set at all by every file that opens a connection and writes",
       "planted": {
         "kind": "source",
-        "file": "services/sync/src/run-sync.ts",
+        "file": "services/sync/src/enable-liabilities.ts",
         "find": "      await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;",
         "replace": "",
-        "note": "REMOVES THE ONLY DECLARATION FROM THE SYNC RUNNER, which is how disconnect.ts actually shipped: nobody writes a wrong GUC, the failure mode is that nobody writes one at all. The resulting code reads correctly and every statement still names the household in its own WHERE clause; the writes simply stop matching, because 0026's write policies read a SETTING rather than the statement. IT POINTS AT run-sync.ts RATHER THAN AT disconnect.ts, AND THAT IS THE CORRECTION. The first version removed one of TWO calls in disconnect.ts, leaving the other, so the file still contained a declaration and this file-level check stayed green: the harness reported broke-it yes, went-red NO, correctly. It had been verified locally against a strip of BOTH calls, which is a DIFFERENT MUTATION FROM THE ONE REGISTERED. A mutation is verified as written or it is not verified."
+        "note": "A CONNECTION OPENER LEFT WITH NO GUC AT ALL, which is what the scan's presence half exists to catch: a module that opens its own connection owes a declaration, and a file contributing no set_config row passes a scan that only checks the FORM of calls that exist. THE PLANT MOVED HERE ON 22 AUG 2026 AND THE REASON IS THE FINDING. It pointed at run-sync.ts, whose GUC line was unique until 4.8's marker added a second identical one. Removing one occurrence then left the file still compliant, so the mutation stopped making the file violate anything and the harness correctly reported the control as not going red. THE CODE BECAME MORE CORRECT AND THE CONTROL BECAME WEAKER, with nothing connecting the two. enable-liabilities.ts holds exactly one set_config and opens its own connection, so removing it produces the violation this control is about. A PLANT WHOSE find STRING CAN MATCH TWICE IS NOT A PRECISE MUTATION, whatever the harness does with the second match."
       },
       "distinction": "A SCAN THAT CHECKS THE FORM OF WHAT EXISTS CANNOT SEE WHAT IS ABSENT, and this is the second half of a control that had only the first. The receiver scan beside it reads every set_config call and requires a transaction handle, so a file with NO call contributes no rows and passes perfectly. disconnect.ts shipped with an UPDATE and no GUC, sat inside the scanned roots the entire time, and the scan was green. THE DISTINCTION IT DRAWS IS THE WHOLE RULE: a file that opens its own connection owes a GUC, and a helper that receives a tx does not, because the caller declared it. apply-streams.ts and outbox.ts write constantly and correctly set nothing. Direction 2 asserts more than two writing modules were found, because a regex that stopped matching would leave it filtering an empty list and passing."
     },
