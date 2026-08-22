@@ -78,6 +78,25 @@ export async function runSyncForItem(
 ): Promise<RunResult> {
   const sql = postgres(databaseUrl, { max: 1 });
   try {
+    // THE MARKER COMMITS IN ITS OWN TRANSACTION, BEFORE THE MAIN ONE, AND THAT
+    // IS THE WHOLE POINT OF IT.
+    //
+    // Written inside the main transaction it would ROLL BACK ON EXACTLY THE
+    // CRASH IT EXISTS TO RECORD: the Worker dies, Postgres discards the
+    // transaction, the row reads 'idle', and the watchdog has nothing to find.
+    // A marker that disappears with the failure it marks is not a marker.
+    //
+    // The status and the timestamp are ONE statement. A marker without a moment
+    // is a fact the sweep cannot judge, and its whole judgement is elapsed time.
+    await sql.begin(async (tx) => {
+      await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
+      await tx`
+        update plaid_items
+           set sync_status = 'syncing', sync_started_at = now(), updated_at = now()
+         where id = ${itemRowId} and household_id = ${householdId}
+      `;
+    });
+
     return await sql.begin(async (tx) => {
       // Migration 0026 refuses a write from a transaction that declares no
       // household. This is also what every policy on this path reads.
