@@ -16,10 +16,29 @@
 // This is about mechanisms for doing work that run nowhere, and it was found
 // the same way: by trying to use one.
 //
-// WHAT THE ALLOWLIST MEANS. An entry is a feature that is BUILT AND NOT WIRED,
-// carrying an open item that says so. Carrying such an item is legitimate;
-// carrying an unowned one is not, which is why every entry names its id and the
-// open-items check fails on an item with no owner.
+// WHAT THE ALLOWLIST MEANS, AND IT IS TWO THINGS RATHER THAN ONE.
+//
+// The first version had one category, and that conflated two states which look
+// identical to a scan and are OPPOSITE IN MEANING:
+//
+//   consumer_exists_and_wiring_is_owed  -- a DEFECT. Something could call this
+//                                          today and does not. Go wire it.
+//   consumer_does_not_exist_yet         -- CORRECT. The caller belongs to a
+//                                          module that has not been built. Leave it.
+//
+// Both are "no production caller". Only one is wrong, and a single list makes
+// the second look like the first, which sends a reader to the opposite action.
+//
+// THE REASON IS A JUDGEMENT AND THE CHECK IS ON WHAT THE JUDGEMENT OBLIGATES.
+// Nothing can verify "the consumer does not exist yet" in general. What is
+// checkable is that the claim NAMES the module that supplies the consumer, so
+// the entry can be read against a roadmap instead of taken on trust. That is
+// the forcing-field pattern: a value that obligates a companion field, checked
+// rather than suggested.
+//
+// Carrying such an item is legitimate; carrying an unowned one is not, which is
+// why every entry names its id and the open-items check fails on an item with
+// no owner.
 
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
@@ -31,10 +50,44 @@ const SRC = join(import.meta.dirname, "..", "src");
  *  owns wiring it. THE LIST ONLY SHRINKS. Adding to it is declaring that a
  *  feature was built and left unreachable, which is a decision somebody makes
  *  deliberately rather than a state a module drifts into. */
-const BUILT_AND_NOT_WIRED: Record<string, string> = {
-  "outbox.ts:markEnqueued": "outbox-announcer-is-built-and-unwired",
-  "outbox.ts:findRepairable": "outbox-announcer-is-built-and-unwired",
-  "outbox.ts:countNeverAnnounced": "outbox-announcer-is-built-and-unwired",
+type OrphanReason =
+  /** The caller belongs to a module that does not exist. Correct, waiting.
+   *  OBLIGATES `supplier`, naming the module that will supply the consumer. */
+  | "consumer_does_not_exist_yet"
+  /** Something could call this today and does not. A defect, owed. */
+  | "consumer_exists_and_wiring_is_owed";
+
+interface DeclaredOrphan {
+  /** The open item that owns this. Must exist and have an owner. */
+  item: string;
+  reason: OrphanReason;
+  /** Required when the reason is consumer_does_not_exist_yet: the module that
+   *  supplies the consumer, as an M-number. Checked, not merely requested. */
+  supplier?: string;
+}
+
+const BUILT_AND_NOT_WIRED: Record<string, DeclaredOrphan> = {
+  // RULED 22 AUG 2026: deliberately unwired until M13, which is a DIFFERENT
+  // FACT from "built and not yet wired" and the reason this list gained a
+  // second category. No queue binding exists in any of the three Workers and
+  // nothing reads household_state_signals; the consumer is M13's watcher.
+  // plaid-pipeline-spec:105 states the in-database outbox as the legitimate
+  // resting position, so waiting is the spec's answer rather than a delay.
+  "outbox.ts:markEnqueued": {
+    item: "outbox-announcer-is-built-and-unwired",
+    reason: "consumer_does_not_exist_yet",
+    supplier: "M13",
+  },
+  "outbox.ts:findRepairable": {
+    item: "outbox-announcer-is-built-and-unwired",
+    reason: "consumer_does_not_exist_yet",
+    supplier: "M13",
+  },
+  "outbox.ts:countNeverAnnounced": {
+    item: "outbox-announcer-is-built-and-unwired",
+    reason: "consumer_does_not_exist_yet",
+    supplier: "M13",
+  },
 };
 
 /** FIELDS ARE WATCHED TOO, BECAUSE THE SCAN ONLY SEES FUNCTIONS.
@@ -114,9 +167,38 @@ describe("every exported function is reachable from production code", () => {
     const items = JSON.parse(readFileSync(itemsPath, "utf8")) as Array<{ id: string; owner: string }>;
     const known = new Map(items.map((i) => [i.id, i.owner]));
 
-    for (const [key, id] of Object.entries(BUILT_AND_NOT_WIRED)) {
-      expect(known.has(id), `${key} points at open item "${id}", which does not exist`).toBe(true);
-      expect(known.get(id), `open item "${id}" has no owner`).toBeTruthy();
+    for (const [key, d] of Object.entries(BUILT_AND_NOT_WIRED)) {
+      expect(known.has(d.item), `${key} points at open item "${d.item}", which does not exist`).toBe(true);
+      expect(known.get(d.item), `open item "${d.item}" has no owner`).toBeTruthy();
+    }
+  });
+
+  it("a waiting entry names the module that supplies its consumer", () => {
+    // THE FORCING FIELD. "The consumer does not exist yet" is a claim about the
+    // future, and a claim about the future that names no date is unfalsifiable.
+    // Naming the module makes it checkable against a roadmap, and makes the
+    // entry go stale loudly when that module ships instead of quietly.
+    for (const [key, d] of Object.entries(BUILT_AND_NOT_WIRED)) {
+      if (d.reason !== "consumer_does_not_exist_yet") continue;
+      expect(
+        d.supplier,
+        `${key} claims its consumer does not exist yet and names no module that will supply it. ` +
+          `Without that the entry is indistinguishable from one that is simply owed.`
+      ).toMatch(/^M\d+/);
+    }
+  });
+
+  it("an owed entry names no supplier, because its consumer exists now", () => {
+    // The two categories are exclusive and the wrong pairing is the tell: an
+    // entry claiming the consumer exists AND naming a future module is one of
+    // the two states mislabelled.
+    for (const [key, d] of Object.entries(BUILT_AND_NOT_WIRED)) {
+      if (d.reason !== "consumer_exists_and_wiring_is_owed") continue;
+      expect(
+        d.supplier,
+        `${key} says its consumer exists today and also names ${d.supplier} as supplying one. ` +
+          `Those are the two categories at once; pick the one that is true.`
+      ).toBeUndefined();
     }
   });
 

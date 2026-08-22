@@ -792,6 +792,26 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   So: **an audit records the PROPERTY it checked, never the file it looked at.** *"This write names its household"* is a finding. *"reconnect is fine"* is an inheritance. And where a table's read and write policies differ, **a clearance names which one it is about, or it is not a clearance.**
 
+- **A CLEARANCE IS WORSE THAN SILENCE.** (Guy, 22 Aug 2026.) Stated on its own because it is the mechanism behind the finding above rather than a detail of it, and it applies to every audit this file requires.
+
+  **An unaudited statement is found by the next sweep. A statement recorded as deliberately examined and safe is SKIPPED by every sweep after it**, because the record answers the question before it is asked. Silence leaves work visible. A clearance removes it from view while looking like diligence.
+
+  **THE CORRECTION IS TO THE FORM OF THE RECORD, NOT TO THE CARE TAKEN.** A clearance names **the statement and the half it examined**, never the file. *"This write names its household"* is a finding somebody can disagree with. *"reconnect is fine"* is an inheritance.
+
+  **The anti-pattern, kept verbatim because its persuasiveness is the point:** *"reconnect keys on `plaid_items.id` and sets the GUC in the same transaction, so it is already declared."* Every clause is true. It is **sound about the write, vacuous about the read**, and **silent about which one it is about** -- and that silence is what let a reader take it as covering both. Setting the GUC declares the household **to a policy that reads it**; `sync_worker_read` is `USING (true)` and reads nothing.
+
+  **So where a table's read and write policies differ, a clearance says which one it covers, or it is not a clearance.** And where an audit's scan has a shape, the clearance inherits that shape: a write scan clears writes and nothing else, whatever file it was pointed at.
+
+- **TEST EVERY SWEEP AGAINST A KNOWN-POSITIVE BEFORE BELIEVING ITS NEGATIVE.** The instrument-verification rule's cleanest instance, because here the instrument reported **clean** while structurally unable to see the very thing it was built to find.
+
+  The sweep for id-keyed selects with no household predicate matched `\b(?:tx|sql)`` and reported one hit, no findings. **Typed queries put a generic between the tag and the template** -- `tx<{ item_id: string }[]>`` -- so it saw **39 of 79** templates, and the statement the whole audit existed to generalise from was in the 40 it could not see. The corrected pattern allows an optional `<...>` between tag and backtick.
+
+  **A NEGATIVE RESULT FROM AN UNVERIFIED INSTRUMENT IS NOT EVIDENCE.** It is the same standing question this file opens with, asked of a sweep instead of a control: *if the thing this searches for were present, would this find it?* An empty result and a blind instrument render identically, and the blind one is more reassuring because it is faster.
+
+  **The method is one step and it costs nothing: point the sweep at the instance you already know about.** Here that was free, because the finding that motivated the sweep was a known positive sitting in the same directory. **A sweep prompted by a specific defect always has one available**, which is exactly when people skip it, because the defect is already fixed and looking for it feels redundant.
+
+  **What can and cannot hold this as a convention, stated so nobody builds the wrong half.** A **committed** scan already has the mechanism: the planted-failure harness mutates the code and requires the scan to go red, which is a known-positive by construction. An **ad-hoc sweep run in a session** has nothing and can have nothing, because it leaves no artifact for CI to check. **That is the half this rule governs**, and it is written rather than enforced because there is nothing there to enforce it on.
+
 - **RETURN WHAT HAPPENED, NOT WHAT WAS ASKED FOR.** `applyRemoved` returned `plaidTransactionIds.length`, the count of ids it was handed. It now returns the rows actually updated.
 
   **Those two numbers differ exactly when an id belongs to somebody else**, which is the case the function exists to get right. Returning the input length **reports success for work that did not happen**, and that is the shape of a control that cannot fail: no input produces a discrepancy, so no caller can ever detect one.
@@ -1109,7 +1129,7 @@ The orphan-export control's first version had one category and **that conflates 
 
 **Both are "no production caller". Only one is wrong.** A gate built before the thing it gates exists is not unwired, it is early, and `channel-gate.ts` carries a static test that will bite the moment a send path checks the wrong thing.
 
-**So the allowlist needs two categories rather than one**, and the distinction is not cosmetic: an entry meaning *defect, owed* and an entry meaning *correct, waiting* send a reader to opposite actions, and a single list makes the second look like the first. **Owed, with the extension to api and conversation.**
+**So the allowlist needs two categories rather than one**, and the distinction is not cosmetic: an entry meaning *defect, owed* and an entry meaning *correct, waiting* send a reader to opposite actions, and a single list makes the second look like the first. **BUILT 22 AUG 2026**, when the announcer ruling made outbox the first entry that is deliberately unwired rather than owed. `consumer_does_not_exist_yet` and `consumer_exists_and_wiring_is_owed` are a union, so a third state cannot be written. **The reason is a judgement and no check can verify it, so the check is on what the judgement OBLIGATES:** a waiting entry must name the module supplying its consumer, which makes an unfalsifiable claim about the future readable against a roadmap and makes the entry go stale loudly when that module ships. The pairing is exclusive both ways, because an entry claiming its consumer exists **and** naming a future module is the two categories at once. **Still owed: the extension to api and conversation.**
 
 ## ONE VALUE STANDING FOR TWO FACTS (locked 21 August 2026)
 
