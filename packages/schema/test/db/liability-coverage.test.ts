@@ -140,6 +140,28 @@ describe("liability coverage says WHY a committed outflow is missing", () => {
     // Stale coverage would be worse than none: a card that dropped out of the
     // response keeping 'reported' means Cash Flow reads its last statement
     // balance as current when the institution has stopped saying so.
+    //
+    // IT ESTABLISHES 'reported' ITSELF RATHER THAN INHERITING IT, and that is
+    // load-bearing rather than tidiness. The register names this test, and the
+    // planted-failure harness runs a named test ALONE via -t. Inheriting the
+    // reported state from the test above, run by itself CARD_A was still
+    // 'unknown', and the planted mutation -- narrowing the sweep to cards not
+    // already marked reported -- CHANGED NOTHING for an unknown card. The
+    // harness correctly reported the control as insensitive: the fixture could
+    // not construct the state the defect needs.
+    //
+    // The two calls are the whole point: reported first, absent second.
+    plaid.call.mockReset();
+    plaid.call.mockResolvedValue({
+      liabilities: { credit: [{
+        account_id: "plaid-card-a", last_statement_balance: 412.10,
+        next_payment_due_date: "2026-09-15", minimum_payment_amount: 35,
+      }] },
+    });
+    await run("2026-08-21T00:00:00Z");
+    expect(await coverage(CARD_A), "the fixture must reach 'reported' before demotion can be tested").toBe("reported");
+
+    plaid.call.mockReset();
     plaid.call.mockResolvedValue({ liabilities: { credit: [] } });
     await run("2026-08-21T00:00:00Z");
     expect(await coverage(CARD_A)).toBe("not_reported");

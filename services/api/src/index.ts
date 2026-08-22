@@ -273,9 +273,16 @@ const handler = {
           const accounts = await sql.begin(async (tx) => {
             await tx`select set_config('marginsheet.household_id', ${householdId}, true)`;
             return tx<
-              { name: string | null; mask: string | null; type: string | null; institution: string | null; item_id: string }[]
+              { name: string | null; mask: string | null; type: string | null; institution: string | null; item_id: string; item_row_id: string }[]
             >`
-              select fa.name, fa.mask, fa.type, i.name as institution, pi.item_id
+              select fa.name, fa.mask, fa.type, i.name as institution, pi.item_id,
+                     -- OUR row id as well as Plaid's, because the repair flow
+                     -- needs it. reconnectItem takes an item ROW id rather than
+                     -- a household plus an institution, deliberately: a
+                     -- signature that cannot express the wrong lookup cannot
+                     -- perform it. Widening that signature to accept Plaid's id
+                     -- would undo the property to save a column here.
+                     pi.id as item_row_id
                 from financial_accounts fa
                 join plaid_items pi on pi.id = fa.plaid_item_id and pi.household_id = fa.household_id
                 left join institutions i on i.id = pi.institution_id

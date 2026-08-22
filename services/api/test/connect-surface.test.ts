@@ -104,3 +104,51 @@ describe("the surface is honest about failing", () => {
     expect(PAGE).toMatch(/receivedRedirectUri/);
   });
 });
+
+describe("the repair flow is reachable, and the charge is named before it starts", () => {
+  // THE ROUTES EXISTED AND THE SURFACE DID NOT OFFER THEM, which is the orphan
+  // shape one level out: reconnect-link-token, reconnect-complete and
+  // enable-liabilities were all session-gated and live, and the only button on
+  // the page was "Ledger readout". A route nobody can reach is a route nobody
+  // runs, and the first Item needing re-consent found that out.
+
+  it("offers reconnect per ITEM rather than per account", () => {
+    // An Item is what Plaid re-authenticates and what carries consent, so a
+    // button beside each of one institution's six cards offers one act six
+    // times and reads as six.
+    expect(PAGE).toContain("Reconnect / re-consent");
+    expect(PAGE, "the per-Item guard is what stops one button per card").toContain("seen.has(a.item_row_id)");
+  });
+
+  it("completes the reconnect with the SERVER's item id, not Link's metadata", () => {
+    // Taking it from the browser would let the two disagree about which Item
+    // was repaired, and the route that minted the token already said which.
+    expect(PAGE).toContain("itemId: parsed.itemId");
+  });
+
+  it("surveys before it enables, and enables only what was named", () => {
+    // A permission that names no target is the shape that destroyed shared dev.
+    expect(PAGE).toContain('confirm: false');
+    expect(PAGE).toContain("itemIds: eligible.map((i) => i.itemId)");
+    expect(PAGE, "an 'enable everything' call must not be constructible here").not.toContain('confirm: true, itemIds: []');
+  });
+
+  it("NEVER OFFERS AN ITEM HOLDING NO CREDIT ACCOUNTS", () => {
+    // Enabling it buys nothing and starts a charge. Guard the target, not the
+    // action: SoFi-shaped Items must not appear in the list at all.
+    expect(PAGE).toContain("i.creditAccounts > 0 && !i.alreadyEnabled");
+  });
+
+  it("states that a recurring cost begins, per institution rather than per card", () => {
+    // Plaid bills per Item per month. Stating it per card would overstate the
+    // cost by an order of magnitude on an institution holding six of them, and
+    // a cost surface must name the provider's unit explicitly because the
+    // reader's unit is their own.
+    expect(PAGE).toContain("IT STARTS A RECURRING MONTHLY COST");
+    expect(PAGE).toContain("per institution rather than per card");
+  });
+
+  it("requires the COUNT typed back, so an unread list cannot be confirmed", () => {
+    expect(PAGE).toContain("String(eligible.length)");
+  });
+});

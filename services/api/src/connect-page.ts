@@ -29,6 +29,7 @@ export const CONNECT_PAGE = `<!doctype html>
 <button id="readout">Ledger readout</button>
 <button id="disconnect">Disconnect an institution (dry run)</button>
 <button id="purge">Purge an Item (dry run)</button>
+<button id="liabilities">Statement balances: survey and turn on</button>
 <div id="out" hidden></div>
 <h2>Already connected</h2>
 <table id="accounts"><tbody></tbody></table>
@@ -75,15 +76,85 @@ async function readBody(res) {
 
 async function listAccounts() {
   const res = await fetch("/plaid/accounts");
-  if (!res.ok) return show("accounts: " + res.status + " " + (await res.text()), true);
+  if (!res.ok) return;
   const { accounts } = await res.json();
   const body = document.querySelector("#accounts tbody");
-  body.innerHTML = accounts.length
-    ? accounts.map(a =>
-        "<tr><td>" + (a.institution ?? "?") + "</td><td>" + (a.name ?? "?") +
-        "</td><td>" + (a.mask ? "****" + a.mask : "") + "</td><td>" + (a.type ?? "") + "</td></tr>"
-      ).join("")
-    : "<tr><td colspan=4>none yet</td></tr>";
+  body.innerHTML = "";
+
+  // ONE REPAIR BUTTON PER ITEM, NOT PER ACCOUNT. An Item is what Plaid
+  // re-authenticates and what carries consent, so a button beside every card of
+  // one institution would offer the same act six times and read as six acts.
+  const seen = new Set();
+
+  for (const a of accounts) {
+    const row = document.createElement("tr");
+    const cells = [a.institution ?? "", a.name ?? "", a.mask ? "****" + a.mask : "", a.type ?? ""];
+    for (const text of cells) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      row.appendChild(td);
+    }
+    const action = document.createElement("td");
+    if (a.item_row_id && !seen.has(a.item_row_id)) {
+      seen.add(a.item_row_id);
+      const button = document.createElement("button");
+      button.textContent = "Reconnect / re-consent";
+      button.onclick = () => reconnect(a.item_row_id, a.institution);
+      action.appendChild(button);
+    }
+    row.appendChild(action);
+    body.appendChild(row);
+  }
+}
+
+/** Link in UPDATE MODE, which is the only way to add consent to an Item that
+ *  already exists.
+ *
+ *  WHY THIS IS NOT FOUNDER TOOLING. Consent is fixed when an Item is created,
+ *  so every Item connected before a product was added to the link token needs
+ *  this path, and that includes every beta household with a pre-existing
+ *  connection. M8 replaces this surface and inherits these routes.
+ *
+ *  THE COMPLETION ASKS PLAID BEFORE IT MARKS ANYTHING. Update mode reuses the
+ *  existing access token and returns nothing proving the repair worked, so a
+ *  route that simply marked the Item healthy would be claiming a repair it had
+ *  not verified. onSuccess here means Link closed cleanly, which is not the
+ *  same thing, and the server decides.
+ */
+async function reconnect(itemRowId, institution) {
+  show("requesting an update-mode link token for " + (institution ?? "this institution") + "...");
+  const res = await fetch("/plaid/reconnect-link-token", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemRowId }),
+  });
+  const { ok, parsed } = await readBody(res);
+  if (!ok) return show(parsed, true);
+
+  const handler = Plaid.create({
+    token: parsed.linkToken,
+    receivedRedirectUri: window.location.href.includes("oauth_state_id")
+      ? window.location.href
+      : undefined,
+    onSuccess: async () => {
+      show("Link closed cleanly. Asking Plaid whether the Item is actually live...");
+      const done = await fetch("/plaid/reconnect-complete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        // itemId comes from the SERVER's answer rather than from Link's
+        // metadata: the route that minted the token already said which Item it
+        // is, and taking it from the browser would let the two disagree.
+        body: JSON.stringify({ itemRowId, itemId: parsed.itemId }),
+      });
+      const { ok: doneOk, parsed: result } = await readBody(done);
+      show(result, !doneOk);
+      listAccounts();
+    },
+    onExit: (err, metadata) => {
+      show({ exited: true, error: err, metadata }, Boolean(err));
+    },
+  });
+  handler.open();
 }
 
 document.getElementById("products").onclick = async () => {
@@ -150,6 +221,68 @@ document.getElementById("purge").onclick = async () => {
   });
   const { ok, parsed } = await readBody(res);
   show(parsed, !ok);
+};
+
+/** Statement balances and due dates, which is what Cash Flow reads as committed.
+ *
+ *  TWO STEPS, AND THE SURVEY COMES FIRST BECAUSE THE CHOICE NEEDS SOMETHING TO
+ *  CHOOSE FROM. The dry run reports every Item, how many credit accounts each
+ *  holds, and whether it is already on. Nothing is enabled by looking.
+ *
+ *  THE CONFIRM NAMES THE CHARGE, which is the route's whole reason for
+ *  existing. Plaid bills PER ITEM PER MONTH, not per card, and stating it in
+ *  the household's units would overstate the cost by an order of magnitude on
+ *  an institution holding six cards.
+ *
+ *  AN ITEM WITH NO CREDIT ACCOUNTS IS NOT OFFERED. Enabling it buys nothing and
+ *  starts a charge, which is guarding the target rather than the action.
+ */
+document.getElementById("liabilities").onclick = async () => {
+  show("surveying which institutions hold credit accounts...");
+  const survey = await fetch("/plaid/enable-liabilities", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ confirm: false, itemIds: [] }),
+  });
+  const { ok, parsed } = await readBody(survey);
+  if (!ok) return show(parsed, true);
+
+  const eligible = (parsed.items ?? []).filter((i) => i.creditAccounts > 0 && !i.alreadyEnabled);
+  if (eligible.length === 0) {
+    return show({
+      survey: parsed,
+      note: "nothing to turn on: every institution holding a credit account already reads statement balances, or none holds one.",
+    });
+  }
+
+  show(parsed);
+  const names = eligible.map((i) => (i.institution ?? i.itemId) + " (" + i.creditAccounts + " cards)").join("\n  ");
+  const answer = prompt(
+    "Turn on statement balances for these institutions?\n\n  " + names +
+      "\n\nThis reads each card's statement balance and due date, which is what MarginSheet needs to tell you what is committed before your next deposit.\n\n" +
+      "IT STARTS A RECURRING MONTHLY COST, charged per institution rather than per card, for as long as the institution stays connected. " +
+      eligible.length + " institution(s) would start.\n\n" +
+      "Type the number of institutions to confirm, or cancel."
+  );
+  if (answer === null) return show("cancelled; nothing was turned on and no cost was started");
+  if (answer.trim() !== String(eligible.length)) {
+    // A TYPED COUNT RATHER THAN AN OK BUTTON. The thing being confirmed is how
+    // many recurring costs begin, so the confirmation is the number itself: an
+    // operator who has not read the list cannot produce it.
+    return show("not confirmed: expected " + eligible.length + " and got " + JSON.stringify(answer.trim()), true);
+  }
+
+  show("turning on statement balances for " + eligible.length + " institution(s)...");
+  const applied = await fetch("/plaid/enable-liabilities", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    // NAMED IDS, NEVER "ALL". A permission that names no target is the shape
+    // that destroyed shared dev: the operator answers a question about
+    // themselves while the cost is a property of the target.
+    body: JSON.stringify({ confirm: true, itemIds: eligible.map((i) => i.itemId) }),
+  });
+  const { ok: appliedOk, parsed: result } = await readBody(applied);
+  show(result, !appliedOk);
 };
 
 document.getElementById("go").onclick = async () => {
