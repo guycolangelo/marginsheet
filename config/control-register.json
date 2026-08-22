@@ -245,10 +245,10 @@
     },
     {
       "id": "sync-grant-enumeration",
-      "control": "marginsheet_sync holds exactly twelve tables (0023, 0024, 0038, 0044)",
+      "control": "marginsheet_sync holds exactly thirteen tables (0023, 0024, 0038, 0044, 0045)",
       "guards": "A thirteenth table granted to the sync role is noticed, even when nobody named it.",
       "test": "services/api/test/sync-role-boundary.test.ts",
-      "name": "holds grants on exactly the 12 tables",
+      "name": "holds grants on exactly the 13 tables",
       "planted": {
         "kind": "sql",
         "apply": "GRANT SELECT ON receivables TO marginsheet_sync",

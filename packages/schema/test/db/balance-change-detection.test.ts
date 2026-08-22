@@ -78,18 +78,40 @@ describe("applyBalances reports what was read and what moved as two sets", () =>
     // Plaid returns balances on EVERY PAGE OF EVERY SYNC, so this is not an
     // edge case, it is the ordinary sync. A signal keyed on the refreshed set
     // fires here, which does not widen the gate's input, it deletes the gate.
-    const r = await apply([account("plaid-acct-mover", 100, 90), account("plaid-acct-steady", 50, 50)]);
+    //
+    // IT ESTABLISHES ITS OWN BASELINE RATHER THAN INHERITING THE TEST ABOVE,
+    // and it has to. The register names this test, and the planted-failure
+    // harness runs a named test ALONE via -t and runs it TWICE against one
+    // database. Inheriting a sibling's balances, it reported TARGET NOT
+    // SELF-CONTAINED: run by itself the accounts were still null, so the first
+    // apply was a genuine change and the assertion failed for a reason having
+    // nothing to do with what it tests.
+    //
+    // That is a property of being a plant target rather than of being a good
+    // test, and it is invisible from the test: this fixture was correct for
+    // every other purpose and became wrong the moment an entry pointed at it.
+    // Applying the same figures twice is idempotent, so it also survives the
+    // harness's second run after the mutation is restored.
+    const seed = [account("plaid-acct-mover", 100, 90), account("plaid-acct-steady", 50, 50)];
+    await apply(seed);
+    const r = await apply(seed);
     expect(r.accountIds, "both accounts were read and reconciliation must still see them").toHaveLength(2);
     expect(r.changedAccountIds, "nothing moved, so nothing may signal").toEqual([]);
   });
 
   it("reports only the account that moved", async () => {
+    // Seeds both, then moves one. Self-contained for the same reason as above:
+    // a fixture that depends on which sibling ran last cannot tell a pass from
+    // a failure when it runs alone.
+    await apply([account("plaid-acct-mover", 100, 90), account("plaid-acct-steady", 50, 50)]);
     const r = await apply([account("plaid-acct-mover", 175, 90), account("plaid-acct-steady", 50, 50)]);
     expect(r.accountIds).toHaveLength(2);
     expect(r.changedAccountIds).toEqual([MOVER]);
   });
 
   it("null against null is not a change, which <> could not express", async () => {
+    // NEVER_REPORTED is untouched by every test above, so it is genuinely null
+    // here whether this runs alone or in sequence.
     // NEVER_REPORTED has been null since it was created. Under `<>` this
     // comparison yields NULL rather than false, so the account would be
     // reported as unchanged only by accident of how the null propagated
@@ -100,11 +122,13 @@ describe("applyBalances reports what was read and what moved as two sets", () =>
   });
 
   it("null becoming a figure IS a change", async () => {
+    await apply([account("plaid-acct-null", null, null)]);
     const r = await apply([account("plaid-acct-null", 10, null)]);
     expect(r.changedAccountIds).toEqual([NEVER_REPORTED]);
   });
 
   it("a figure becoming null IS a change", async () => {
+    await apply([account("plaid-acct-null", 10, null)]);
     const r = await apply([account("plaid-acct-null", null, null)]);
     expect(r.changedAccountIds).toEqual([NEVER_REPORTED]);
   });
