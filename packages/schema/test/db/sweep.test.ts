@@ -26,11 +26,24 @@ const STALE = "01998888-6001-7000-8000-0000000005ee";
 const FRESH = "01998888-6002-7000-8000-0000000005ee";
 const IDLE = "01998888-6003-7000-8000-0000000005ee";
 
+/** Calls the sweep EXACTLY AS THE SCHEDULED HANDLER DOES: a transaction with no
+ *  household declared.
+ *
+ *  IT USED TO SET THE GUC HERE AND THAT IS WHY THE DEFECT SHIPPED. The fixture
+ *  supplied the declaration production omits, so this file proved that
+ *  sweepStuckSyncs works WHEN GIVEN A DECLARED TRANSACTION and nothing anywhere
+ *  proved the real caller gives it one. index.ts opens the connection and
+ *  delegates the write to this module, so neither file both opens a connection
+ *  and contains a write, and the source scans looking for that pair saw
+ *  nothing.
+ *
+ *  A sweep spans every household, so there is no single household the
+ *  transaction could declare. The module declares per write instead, which is
+ *  what this now proves. */
 async function run() {
-  return sql.begin(async (tx) => {
-    await tx`select set_config('marginsheet.household_id', ${HOUSEHOLD}, true)`;
-    return sweepStuckSyncs(tx as never, new Date());
-  }) as never as Promise<Awaited<ReturnType<typeof sweepStuckSyncs>>>;
+  return sql.begin(async (tx) => sweepStuckSyncs(tx as never, new Date())) as never as Promise<
+    Awaited<ReturnType<typeof sweepStuckSyncs>>
+  >;
 }
 
 async function statusOf(id: string): Promise<string> {

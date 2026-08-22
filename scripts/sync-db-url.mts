@@ -66,6 +66,20 @@ const EXPECTED_TABLES = [
   // sync-grant-is-the-only-boundary-on-that-path), a table grant to solve a
   // two-column problem is fourteen columns of unnecessary reach.
   "households",
+  // STALE BY TWO WHEN sync_runs WAS ADDED, 22 Aug 2026, and worth recording
+  // rather than quietly correcting. balance_reconciliations (0038) and
+  // sweep_runs (0044) were granted to this role and never added here, because
+  // this list is a hand-maintained second statement and nothing reconciles it:
+  // the script issues a credential and is run by a person, so a stale list is
+  // invisible until somebody runs it.
+  //
+  // IT STAYS A LITERAL DELIBERATELY. Parsing the migrations would make it agree
+  // with whatever the migrations say, including a table somebody added without
+  // thinking, and two independent statements of what this role may reach is the
+  // entire point. The cost of independence is exactly this kind of drift.
+  "balance_reconciliations",
+  "sweep_runs",
+  "sync_runs",
   "commitments",
   "financial_accounts",
   "institutions",

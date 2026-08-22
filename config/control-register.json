@@ -1028,6 +1028,36 @@
         "note": "AN ORDERING CHECK MISTAKEN FOR A SPAN CHECK, which reads as a sanity assertion and is always true because newest is selected first. It uses both variables and compiles, which the first version of this mutation did not: replacing the whole comparison with  orphaned newest and oldest, and A MUTATION THAT DOES NOT COMPILE READS AS \"DID NOT GO RED\" because the test never runs. Caught by typechecking the plant before registering it. THE SPAN IS WHAT STOPS AN INSTITUTION FLAPPING BETWEEN TWO VALUES ACROSS RAPID READS FROM CONFIRMING A FAULT, because the baseline chases each read and every one disagrees. Until 21 Aug it was also the only thing stopping three rows per account per household sync, written by our own loop, from reaching the threshold inside a single run."
       },
       "distinction": "THE MINIMAL MUTATION OF THE CONFIRMING CASE. The suite has a test that CONFIRMS on three non-zero observations spanning eight hours and a test that REFUSES on the same three compressed into thirty minutes. Same count, same differences, only the spread removed. Without the second, the confirming test passes against a window that checks the count and ignores the span, which is exactly the defect the span exists to prevent."
+    },
+    {
+      "id": "sweep-declares-the-household-it-writes",
+      "control": "the watchdog's per-write household declaration (4.8, corrected 22 Aug 2026)",
+      "guards": "The sweep can actually sweep. sync_worker_write on plaid_items reads current_setting, so an undeclared household makes the predicate NULL, matches no rows and raises nothing.",
+      "test": "packages/schema/test/db/sweep.test.ts",
+      "name": "SWEEPS an Item marked syncing whose start is stale and which never wrote a cursor",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/sweep.ts",
+        "find": "    await tx`select set_config('marginsheet.household_id', ${row.household_id}, true)`;\n",
+        "replace": "",
+        "note": "REMOVES THE DECLARATION, WHICH IS HOW IT SHIPPED rather than an invented break. The scheduled handler opens its transaction without declaring a household, correctly, because a sweep spans every household and there is no single one to declare. Nobody writes an obviously ungated write; what they write is a cross-household job whose caller cannot name a household, and the per-write declaration is the piece that was simply never added."
+      },
+      "distinction": "THE FIXTURE USED TO SUPPLY WHAT PRODUCTION OMITS, AND THAT IS WHY THE DEFECT SHIPPED. run() called set_config before sweepStuckSyncs, so this file proved the sweep works WHEN GIVEN A DECLARED TRANSACTION and nothing anywhere proved the real caller gives it one. It now calls the sweep exactly as the scheduled handler does, with no ambient GUC. NEITHER SOURCE SCAN COULD SEE IT: every-write-declares-a-household passes any statement naming household_id in its WHERE clause, and this one does; the GUC presence scan looks for a file that BOTH opens a connection AND contains a write, and here index.ts opens the connection while sweep.ts holds the write, so the pair falls between them. The defect was invisible in production too, because items_swept: 0 is documented as the normal case."
+    },
+    {
+      "id": "balance-change-is-not-balance-refresh",
+      "control": "applyBalances' two populations (4.9)",
+      "guards": "balances_updated fires on accounts whose balance MOVED, never on accounts merely read, so the signal gate is not deleted by widening its input.",
+      "test": "packages/schema/test/db/balance-change-detection.test.ts",
+      "name": "THE DISCRIMINATING CASE: the same balances again refresh both and change neither",
+      "planted": {
+        "kind": "source",
+        "file": "services/sync/src/apply-balances.ts",
+        "find": "      if (r.moved) changedAccountIds.push(r.id);",
+        "replace": "      changedAccountIds.push(r.id);",
+        "note": "COLLAPSES THE TWO POPULATIONS INTO ONE, which is what a reasonable engineer writes first: applyBalances already returns the refreshed set and reconciliation already consumes it, so reaching for it reads as reuse rather than as a mistake. It compiles, it reads correctly, and it passes every fixture where a balance actually moved. Plaid returns balances on every page of every sync, so under this mutation balances_updated fires on EVERY sync and the signal stops meaning anything."
+      },
+      "distinction": "THE FIXTURE THAT DISCRIMINATES IS THE ONE THAT LOOKS POINTLESS. 'The same balances again change nothing' reads as a triviality and is the only case that separates a changed population from a refreshed one. A fixture of syncs where balances moved passes against the collapsed version throughout. IT IS A DATABASE TEST BECAUSE THE CLAIM IS ABOUT IS DISTINCT FROM ON NULLABLE NUMERICS: a recorder proves the statement was constructed and says nothing about what Postgres does with a null, and `<>` on a null-since-creation column yields NULL rather than false, which reads as either answer depending on how it propagates through the OR."
     }
   ]
 }
