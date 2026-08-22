@@ -24,6 +24,10 @@ const register = JSON.parse(
     id: string;
     control: string;
     guards: string;
+    /** Declared per entry: this control's subject is an RLS policy, so its test
+     *  must adopt the role the policy is written to. Absent means NOT JUDGED,
+     *  never judged-and-cleared. */
+    guards_policy?: boolean;
     test: string;
     name: string;
     status?: "owed";
@@ -210,6 +214,69 @@ describe("owed entries are honest about being owed", () => {
           `control was built, remove the status and the harness will start ` +
           `exercising it. An owed label on a built control is a control nobody runs.`
       ).toBe(false);
+    });
+  }
+});
+
+describe("a control guarding a policy is exercised AS the role the policy is written to", () => {
+  // THE OWNER BYPASSES EVERYTHING, so a real database proves nothing about a
+  // policy unless the connection adopts the role. sweep.test.ts ran against a
+  // real Neon branch, imported the real function, planted both directions, and
+  // could not fail: sync_worker_write is written TO marginsheet_sync, and the
+  // test connected as the migration owner, so removing the household
+  // declaration left every assertion green.
+  //
+  // THE CHECK IS CHEAP AND THE DECLARATION IS THE COST. Nothing can infer which
+  // controls guard a policy, so guards_policy is declared per entry and this
+  // asserts what the declaration obligates. Its coverage grows as entries are
+  // judged; an absent flag means "not judged", never "judged and cleared".
+  //
+  // TWO ADOPTION FORMS ARE VALID AND THE SECOND IS STRONGER. SET ROLE re-enters
+  // the session as the role; connecting with a credential issued for the role
+  // never leaves it.
+  //
+  // THIS PATTERN WAS TOO NARROW TWICE BEFORE IT WAS RIGHT, which is the whole
+  // argument for testing a sweep against a known positive rather than reading
+  // it. Version one matched only SET ROLE and reported sync-write-policy.test.ts
+  // as unguarded; it connects as marginsheet_sync via rotateRole. Version two
+  // added rotateRole and reported rls-resolver.test.ts as unguarded; it uses
+  // rotateAppRole. Each version looked complete and each was a spelling short.
+  const ADOPTS = /set\s+(local\s+)?role|rotate\w*Role\s*\(/i;
+
+  type Guarding = { id: string; test: string; guards_policy?: boolean; role_adoption_owed?: string };
+  const guarding = (register.controls as Guarding[]).filter((c) => c.guards_policy);
+
+  const items = JSON.parse(
+    readFileSync(join(ROOT, "docs", "open-items.json"), "utf8")
+  ) as Array<{ id: string; owner: string }>;
+  const known = new Map(items.map((i) => [i.id, i.owner]));
+
+  it("found policy controls at all, so this is not asserting over an empty set", () => {
+    expect(guarding.length).toBeGreaterThan(5);
+  });
+
+  for (const c of guarding) {
+    it(`${c.id} adopts the role its policy is written to`, () => {
+      // AN EXEMPTION DECLARES AND THE OPEN ITEM IS WHAT MAKES IT OWNED. Without
+      // this it is a suppression, and a suppression pointing at nothing reads
+      // as reviewed.
+      if (c.role_adoption_owed) {
+        expect(
+          known.has(c.role_adoption_owed),
+          `${c.id} is exempted against open item "${c.role_adoption_owed}", which does not exist`
+        ).toBe(true);
+        expect(known.get(c.role_adoption_owed), `open item "${c.role_adoption_owed}" has no owner`).toBeTruthy();
+        return;
+      }
+      const path = join(ROOT, c.test);
+      expect(existsSync(path), `${c.id} names a test file that does not exist: ${c.test}`).toBe(true);
+      const src = readFileSync(path, "utf8");
+      expect(
+        ADOPTS.test(src),
+        `${c.id} guards a policy and its test never adopts a role. Postgres applies a policy to the role it names, ` +
+          `and the migration owner is not that role, so this test cannot observe the thing it claims to guard. ` +
+          `Either SET LOCAL ROLE inside the transaction, or connect with a credential issued for the role.`
+      ).toBe(true);
     });
   }
 });
