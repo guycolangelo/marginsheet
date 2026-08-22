@@ -362,9 +362,9 @@
       "planted": {
         "kind": "source",
         "file": "services/sync/src/reconnect.ts",
-        "find": "         where id = ${itemRowId}\n      `;\n    });\n  } finally {\n    await sql.end({ timeout: 5 });\n  }\n}",
-        "replace": "         where household_id = ${householdId}\n      `;\n    });\n  } finally {\n    await sql.end({ timeout: 5 });\n  }\n}",
-        "note": "WIDENS THE UPDATE from one Item to every Item the household owns, which is the shape of keying on anything but the Item. Verified 18 Aug 2026: both orphaning assertions go red, the three structural assertions stay green, all green on restore."
+        "find": "         where id = ${itemRowId} and household_id = ${householdId}\n        returning id",
+        "replace": "         where household_id = ${householdId}\n        returning id",
+        "note": "KEYS ON THE HOUSEHOLD INSTEAD OF THE ITEM, which clears needs_reauth on EVERY Item the household holds, including ones nobody repaired. The household then sees healthy accounts that are not syncing, which is worse than leaving the status set: a broken thing labelled broken is recoverable and a broken thing labelled healthy is not. It reads as a reasonable scoping predicate, which is why it is the plant. REPOINTED 22 AUG 2026 when the statement gained its household predicate. The find previously ran to the end of the function because `where id = ${itemRowId}` appeared twice in the file, in reconnectItem's select and markReconnected's update, and the trailing context was what disambiguated them. Both statements now name the household, so the discriminator is the `returning id` that only the update carries."
       },
       "distinction": "THE ASSERTION IS ON THE ITEM NOBODY ASKED ABOUT. From the reconnected Item's side, a correct reconnect and one keyed on the institution are IDENTICAL: it returns healthy, updated and syncing in both worlds. Only the other Item shows the difference. The other Item also starts BROKEN in the fixture, because an earlier version left it healthy and asserted it was still healthy, where the expected value and the wrong value were the same string."
     },
