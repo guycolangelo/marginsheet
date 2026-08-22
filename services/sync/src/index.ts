@@ -18,6 +18,7 @@ import { handlePlaidWebhook } from "./webhook-handler.js";
 import { setItemWebhook } from "./set-webhook.js";
 import { clearFirstSyncMilestone } from "./clear-milestone.js";
 import { enableLiabilities } from "./enable-liabilities.js";
+import { sweepStuckSyncs } from "./sweep.js";
 import { importRecurring } from "./import-recurring.js";
 import { verifyPlaidWebhook } from "./webhook-verify.js";
 import { itemStatus } from "./item-status.js";
@@ -55,6 +56,47 @@ export interface Env {
 
 
 export default {
+  /** THE WATCHDOG'S TRIGGER (4.8).
+   *
+   *  EVERY TEN MINUTES, AND THE NUMBER IS DERIVED RATHER THAN CHOSEN. The sweep
+   *  threshold is 30 minutes measured from sync start, so WORST-CASE TIME TO
+   *  SWEEP IS THRESHOLD PLUS INTERVAL: 40 minutes. The threshold dominates and
+   *  the interval adds at most ten, which is why a faster cron buys almost
+   *  nothing: five minutes would make it 35, a 12% improvement on a number
+   *  whose consumer is a hung sync nobody is waiting on.
+   *
+   *  40 MINUTES IS ACCEPTABLE FOR THIS PRODUCT AND THAT IS A JUDGEMENT WORTH
+   *  STATING. MarginSheet is webhook-driven and composes digests; no household
+   *  is watching a spinner. A hung sync costs freshness rather than a failed
+   *  interaction, and the recovery it needs is "before anybody reads a number",
+   *  not "before anybody notices". If a synchronous surface ever waits on a
+   *  sync, this number is wrong and the surface is what changes it.
+   *
+   *  IT ALSO BOUNDS THE TRACE'S STALENESS, which is the other consumer of the
+   *  interval: at ten minutes, a trace older than twenty-five means runs were
+   *  missed rather than that one was slow.
+   *
+   *  THE SWEEP IS THE ONLY THING HERE, deliberately. A cron that does several
+   *  jobs fails as one, and the watchdog's whole value is being the thing that
+   *  still runs when other things have stopped. */
+  async scheduled(_event: unknown, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }): Promise<void> {
+    if (!env.NEON_DATABASE_URL) return;
+    const sql = postgres(env.NEON_DATABASE_URL, { max: 1 });
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const outcome = await sql.begin(async (tx) => sweepStuckSyncs(tx as never, new Date()));
+          console.log(
+            `sweep: examined ${outcome.examined}, swept ${outcome.swept.length}` +
+              outcome.swept.map((s) => `\n  ${s.itemId}: ${s.reason}`).join("")
+          );
+        } finally {
+          await sql.end();
+        }
+      })()
+    );
+  },
+
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 

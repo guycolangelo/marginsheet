@@ -109,6 +109,14 @@
   // PLAID_REDIRECT_URI is the exact URI registered in the Plaid dashboard.
   // It is a public URL rather than a credential, so it lives here where it is
   // reviewable instead of in a secret nobody can read back.
+  // THE WATCHDOG'S TRIGGER. Ten minutes, derived in the scheduled handler:
+  // worst-case time to sweep is the 30 minute threshold plus this interval.
+  //
+  // DECLARED PER ENVIRONMENT, because named environments do not inherit
+  // top-level keys and this file already carries an incident about exactly
+  // that: production received a delete-class migration it was deliberately
+  // left out of, because omission read as scoping and was inheritance.
+  "triggers": { "crons": ["*/10 * * * *"] },
   "vars": {
     "ENVIRONMENT": "dev",
     "PLAID_BASE_URL": "https://sandbox.plaid.com",
@@ -126,6 +134,7 @@
         "bindings": [{ "name": "HOUSEHOLD_SYNC", "class_name": "HouseholdSync" }]
       },
       "migrations": [{ "tag": "v3", "new_sqlite_classes": ["HouseholdSync"] }],
+      "triggers": { "crons": ["*/10 * * * *"] },
       "vars": {
         "ENVIRONMENT": "staging",
         "PLAID_BASE_URL": "https://sandbox.plaid.com",
@@ -161,6 +170,7 @@
       // "take the default", and here the default is the parent's value. An
       // empty list is a statement; silence is an inheritance.
       "migrations": [{ "tag": "v3", "new_sqlite_classes": ["HouseholdSync"] }],
+      "triggers": { "crons": ["*/10 * * * *"] },
       "vars": {
         "ENVIRONMENT": "production",
         "PLAID_BASE_URL": "https://production.plaid.com",
