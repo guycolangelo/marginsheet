@@ -1,14 +1,21 @@
-// The watchdog threshold (4.4.3).
+// The watchdog threshold (4.4.3, amended by 4.8 and amendment 15).
 //
-// THE FIXTURE'S FAILURE CASE IS A HEALTHY LONG BACKFILL, and it has to exist
-// among the values the fixture can take or this proves nothing. A test whose
-// syncs all start recently cannot distinguish "measures from last progress"
-// from "measures from sync start": both answer the same for a short sync.
+// THE PROGRESS BRANCH AND ITS TESTS WERE DELETED, NOT ADAPTED. This file used
+// to open by saying its central case was an Item that started four hours ago
+// and wrote a cursor one minute ago, because only that shape distinguishes
+// "measures from progress" from "measures from start".
 //
-// So the central case is an Item that started FOUR HOURS AGO and wrote a cursor
-// ONE MINUTE AGO. Measured from start it is long overdue. Measured from
-// progress it is working. Only one of those answers is right, and the two
-// disagree only when the fixture contains this shape.
+// It was a good fixture for a branch that could never fire. run-sync writes
+// last_cursor_at inside the main transaction, so a syncing Item has no
+// committed cursor from its own run, and Plaid rejects mid-pagination
+// bookmarks, so a committed one could never be resumed from anyway. Ruled B on
+// 22 Aug 2026: start-only, and the branch deleted rather than left unreachable,
+// because an unreachable branch with its own tests is the coverage inversion
+// with our name on it.
+//
+// WHAT THE FIXTURE MUST STILL CONTAIN. Both sides of the threshold, so it
+// cannot pass by always answering one way, and the boundary itself, because
+// "exceeds" and "reaches" are one character apart in the implementation.
 
 import { describe, it, expect } from "vitest";
 import { sweepReason, onWebhook, onSyncComplete, STALE_AFTER_MS } from "../src/sync-state.js";
@@ -18,71 +25,45 @@ const ago = (ms: number) => new Date(NOW.getTime() - ms);
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
-describe("the threshold measures progress, not elapsed time", () => {
-  it("does NOT sweep a four-hour backfill that wrote a cursor a minute ago", () => {
-    // THE CASE THAT SEPARATES THE TWO IMPLEMENTATIONS. Measured from sync
-    // start this is swept, the sweep sets it back to queued, another sync
-    // starts and is swept again, and an Item that is working perfectly never
-    // finishes while every status looks busy.
+describe("the threshold measures elapsed time from the start of THIS sync", () => {
+  it("sweeps a sync that has run past the threshold", () => {
     expect(
-      sweepReason(
-        { syncStatus: "syncing", syncStartedAt: ago(4 * HOUR), lastCursorAt: ago(1 * MINUTE) },
-        NOW
-      ),
-      "a backfill making steady progress was swept for having run a long time"
+      sweepReason({ syncStatus: "syncing", syncStartedAt: ago(STALE_AFTER_MS + MINUTE) }, NOW)
+    ).toMatch(/running for \d+s without completing/);
+  });
+
+  it("does NOT sweep a sync still inside it", () => {
+    // Included so the fixture cannot pass by always answering "sweep", which
+    // is the direction that cancels a working backfill.
+    expect(
+      sweepReason({ syncStatus: "syncing", syncStartedAt: ago(STALE_AFTER_MS - MINUTE) }, NOW),
+      "a sync inside the threshold was swept"
     ).toBeNull();
   });
 
-  it("DOES sweep a sync that started a minute ago and has written nothing since", () => {
-    // The mirror image: recent start, no progress. Elapsed time says healthy,
-    // progress says dead. Included so the fixture cannot pass by always
-    // answering "do not sweep".
-    expect(
-      sweepReason(
-        { syncStatus: "syncing", syncStartedAt: ago(1 * MINUTE), lastCursorAt: ago(11 * MINUTE) },
-        NOW
-      )
-    ).toMatch(/no cursor written/);
+  it("does not sweep an Item exactly AT the threshold", () => {
+    // The boundary, because the implementation is > rather than >= and the two
+    // differ by one character.
+    expect(sweepReason({ syncStatus: "syncing", syncStartedAt: ago(STALE_AFTER_MS) }, NOW)).toBeNull();
   });
 
-  it("sweeps an Item whose last cursor is older than the threshold", () => {
+  it("sweeps an Item marked syncing with NO start time", () => {
+    // Nothing can reason about that row, and stuck forever is worse than
+    // returned to a re-syncable state. It also cannot happen through the
+    // marker, whose statement writes both in one go, so reaching it is
+    // evidence of a write nobody here made.
     expect(
-      sweepReason({ syncStatus: "syncing", syncStartedAt: ago(2 * HOUR), lastCursorAt: ago(STALE_AFTER_MS + 1000) }, NOW)
-    ).toMatch(/no cursor written/);
+      sweepReason({ syncStatus: "syncing", syncStartedAt: null }, NOW)
+    ).toMatch(/no start time/);
   });
 
-  it("does not sweep an Item exactly at the threshold", () => {
-    expect(
-      sweepReason({ syncStatus: "syncing", syncStartedAt: ago(2 * HOUR), lastCursorAt: ago(STALE_AFTER_MS - 1000) }, NOW)
-    ).toBeNull();
-  });
-});
-
-describe("the never-persisted case falls back to start, and only that case", () => {
-  it("sweeps a sync that has not completed a single page in time", () => {
-    expect(
-      sweepReason({ syncStatus: "syncing", syncStartedAt: ago(STALE_AFTER_MS + 1000), lastCursorAt: null }, NOW)
-    ).toMatch(/no first page/);
-  });
-
-  it("does not sweep a sync that started recently and has not paged yet", () => {
-    expect(
-      sweepReason({ syncStatus: "syncing", syncStartedAt: ago(30_000), lastCursorAt: null }, NOW)
-    ).toBeNull();
-  });
-
-  it("sweeps a syncing row with neither clock, because nothing can reason about it", () => {
-    expect(
-      sweepReason({ syncStatus: "syncing", syncStartedAt: null, lastCursorAt: null }, NOW)
-    ).toMatch(/no start time and no cursor/);
-  });
 });
 
 describe("only syncing Items are swept", () => {
   for (const status of ["idle", "queued", "error"] as const) {
     it(`leaves ${status} alone however old`, () => {
       expect(
-        sweepReason({ syncStatus: status, syncStartedAt: ago(9 * HOUR), lastCursorAt: ago(9 * HOUR) }, NOW)
+        sweepReason({ syncStatus: status, syncStartedAt: ago(9 * HOUR)}, NOW)
       ).toBeNull();
     });
   }
@@ -90,11 +71,23 @@ describe("only syncing Items are swept", () => {
 
 describe("the reason is returned, not a boolean", () => {
   it("names which condition fired, so a sweep can be audited", () => {
-    // A watchdog reporting only "stuck" cannot be distinguished from one
-    // sweeping healthy backfills, which is the failure this file exists for.
-    const noProgress = sweepReason({ syncStatus: "syncing", syncStartedAt: ago(HOUR), lastCursorAt: ago(HOUR) }, NOW);
-    const noFirstPage = sweepReason({ syncStatus: "syncing", syncStartedAt: ago(HOUR), lastCursorAt: null }, NOW);
-    expect(noProgress).not.toBe(noFirstPage);
+    // A watchdog reporting only "stuck" cannot be told apart from one sweeping
+    // healthy backfills, which is the failure this file exists for.
+    //
+    // IT COMPARED THE TWO BRANCHES AND ONE OF THEM WAS DELETED. As written it
+    // called sweepReason twice with identical arguments and asserted the
+    // results differed, which passed only while a second branch existed to
+    // reach. After the deletion it compared a value to itself. Rewritten
+    // against the two branches that remain rather than dropped, because the
+    // property it tests is still true and still worth holding.
+    const ranTooLong = sweepReason(
+      { syncStatus: "syncing", syncStartedAt: ago(STALE_AFTER_MS + MINUTE) }, NOW
+    );
+    const noClock = sweepReason({ syncStatus: "syncing", syncStartedAt: null }, NOW);
+
+    expect(ranTooLong).not.toBeNull();
+    expect(noClock).not.toBeNull();
+    expect(ranTooLong, "both branches return the same string, so a sweep cannot be audited").not.toBe(noClock);
   });
 });
 
