@@ -224,6 +224,42 @@ for (const control of controls) {
   process.stdout.write(`\n=== ${control.id}: ${control.control}\n`);
   let restore;
   try {
+    // THE TARGET MUST BE GREEN IN ISOLATION BEFORE ANYTHING IS MUTATED.
+    //
+    // The harness runs the named test ALONE, via -t, and runs it TWICE against
+    // one database. Neither is a property of a good test; both are properties
+    // of being a plant target, and the obligation is invisible from the test.
+    //
+    // WITHOUT THIS, A RED RESULT CANNOT BE TRUSTED EITHER. A target that fails
+    // in isolation reddens under the mutation for a reason that has nothing to
+    // do with the mutation, and the harness reports "went red" and passes it.
+    // The restore then reports STILL RED and the reading is that the control is
+    // broken. reconciliation-detects cost two cycles to that on 22 Aug 2026:
+    // its fixture inherited state from siblings that -t skipped.
+    //
+    // IT IS A DISTINCT VERDICT rather than a failure of the control, because
+    // they send a reader to opposite places: one is a fixture that needs
+    // isolating, the other is a test that does not notice its own subject.
+    const before = await testPasses(control);
+    if (!before.passed) {
+      process.stdout.write(`  TARGET NOT SELF-CONTAINED: it is already red before any mutation\n`);
+      process.stdout.write(`  WHY (raw, trust this over any reading):\n`);
+      for (const line of whyItFailed(before.output).split("\n")) {
+        process.stdout.write(`    | ${line}\n`);
+      }
+      results.push({
+        control,
+        ok: false,
+        notSelfContained: true,
+        error:
+          "TARGET NOT SELF-CONTAINED: the named test is already red before any mutation. " +
+          "The harness runs it ALONE via -t and TWICE against one database, so it must pass " +
+          "in isolation and be idempotent. That is a property of being a plant target rather " +
+          "than of being a good test. Fix the fixture, not the control.",
+      });
+      continue;
+    }
+
     restore = await breakIt(control);
     process.stdout.write(`  broke it, and confirmed the break took effect\n`);
 

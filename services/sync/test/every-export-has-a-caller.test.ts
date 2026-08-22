@@ -44,6 +44,21 @@ const BUILT_AND_NOT_WIRED: Record<string, string> = {
   "reconnect.ts:markReconnected": "reconnect-completion-is-built-and-unwired",
 };
 
+/** FIELDS ARE WATCHED TOO, BECAUSE THE SCAN ONLY SEES FUNCTIONS.
+ *
+ *  A field read by nothing is one refactor from deletion, and unlike an
+ *  unexported function it leaves no signature behind to notice. driftingAccounts
+ *  is returned by reconcileBalances and consumed by nobody, deliberately: the
+ *  block that will read it belongs to M6b, the first surface that ships a
+ *  customer-visible number, and it cannot exist before something ships one.
+ *
+ *  Same construction as BUILT_AND_NOT_WIRED: an entry must name an open item
+ *  that exists and has an owner, and must still be unreferenced, so the list
+ *  cannot rot in either direction. */
+const WATCHED_FIELDS: Record<string, string> = {
+  "reconcile-balances.ts:driftingAccounts": "reconciliation-drift-has-no-surfacing-path",
+};
+
 interface Export { file: string; name: string }
 
 function sources(): Record<string, string> {
@@ -109,6 +124,35 @@ describe("every exported function is reachable from production code", () => {
     for (const [key, id] of Object.entries(BUILT_AND_NOT_WIRED)) {
       expect(known.has(id), `${key} points at open item "${id}", which does not exist`).toBe(true);
       expect(known.get(id), `open item "${id}" has no owner`).toBeTruthy();
+    }
+  });
+
+  it("every watched field still exists and is still unconsumed", () => {
+    // BOTH DIRECTIONS. Gone means a refactor deleted the field the M6b block is
+    // owed; consumed means something now reads it and the entry should go.
+    const itemsPath = join(import.meta.dirname, "..", "..", "..", "docs", "open-items.json");
+    const items = JSON.parse(readFileSync(itemsPath, "utf8")) as Array<{ id: string; owner: string }>;
+    const known = new Map(items.map((i) => [i.id, i.owner]));
+
+    for (const [key, itemId] of Object.entries(WATCHED_FIELDS)) {
+      const [file, field] = key.split(":");
+      const body = files[file];
+      expect(body, `${key} names a file that no longer exists`).toBeTruthy();
+      expect(
+        new RegExp(`\\b${field}\\b`).test(body),
+        `${key} is gone. A field nothing reads is one refactor from deletion, and this one is owed to a consumer that does not exist yet.`
+      ).toBe(true);
+
+      const consumers = Object.entries(files).filter(
+        ([f, b]) => f !== file && new RegExp(`\\b${field}\\b`).test(b)
+      );
+      expect(
+        consumers.map(([f]) => f),
+        `${key} now has a consumer. Remove it from WATCHED_FIELDS and close ${itemId}.`
+      ).toEqual([]);
+
+      expect(known.has(itemId), `${key} names open item "${itemId}", which does not exist`).toBe(true);
+      expect(known.get(itemId), `open item "${itemId}" has no owner`).toBeTruthy();
     }
   });
 
