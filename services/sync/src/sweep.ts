@@ -82,5 +82,16 @@ export async function sweepStuckSyncs(tx: Tx, now: Date): Promise<SweepOutcome> 
     }
   }
 
+  // THE TRACE, WRITTEN ON EVERY RUN INCLUDING THIS ONE FINDING NOTHING.
+  //
+  // A cron that stopped firing and a cron with nothing to do produce the same
+  // observable: no Item swept. This row is what separates them, so it is
+  // written before the outcome is returned and regardless of what was found.
+  // A run that wrote no row is a run that did not happen.
+  await tx`
+    insert into sweep_runs (items_examined, items_swept)
+    values (${rows.length}, ${swept.length})
+  `;
+
   return { examined: rows.length, swept };
 }

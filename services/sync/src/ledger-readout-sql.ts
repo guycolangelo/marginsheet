@@ -176,6 +176,18 @@ export interface Readout {
     totalDue: string | null;
     note: string;
   };
+  /** THE WATCHDOG'S OWN TRACE, and its AGE is the signal rather than its
+   *  contents. A cron that stopped firing and a cron with nothing to do produce
+   *  the same observable, so the row's absence is the only thing that separates
+   *  them. Reported here and asserted by verify-deploy; neither is continuous,
+   *  which is stated on the table itself. */
+  sweepTrace: {
+    lastRunAt: string | null;
+    minutesSince: number | null;
+    lastExamined: number | null;
+    lastSwept: number | null;
+    note: string;
+  };
   settleCriterion: {
     discharged: boolean;
     firstObservedAt: string | null;
@@ -370,9 +382,30 @@ export async function readLedger(tx: Sql, householdId: string): Promise<Readout>
    where fa.household_id = ${householdId} and fa.type = 'credit' and fa.is_active
   `;
 
+  // ACROSS ALL HOUSEHOLDS, because the sweep is. This is the one read in the
+  // readout that is not household-scoped, and it is scoped by nothing because
+  // sweep_runs holds no household dimension to scope by.
+  const [trace] = await tx<{ ran_at: string | null; examined: number | null; swept: number | null; mins: number | null }[]>`
+    select (ran_at)::text as ran_at, items_examined as examined, items_swept as swept,
+           (extract(epoch from (now() - ran_at)) / 60)::int as mins
+      from sweep_runs order by ran_at desc limit 1
+  `;
+
   return {
     accounts,
     byType,
+    sweepTrace: {
+      lastRunAt: trace?.ran_at ?? null,
+      minutesSince: trace?.mins ?? null,
+      lastExamined: trace?.examined ?? null,
+      lastSwept: trace?.swept ?? null,
+      note:
+        !trace
+          ? "NO SWEEP HAS EVER RUN. Either the cron has never fired or this database has never had one, and those are different: check the Worker's triggers before assuming the watchdog is healthy."
+          : (trace.mins ?? 0) > 25
+            ? `STALE: the last sweep was ${trace.mins} minutes ago and the cron runs every 10. Runs were missed, which means the watchdog is not watching, and a hung sync would now sit indefinitely.`
+            : `healthy: swept ${trace.swept} of ${trace.examined} examined, ${trace.mins} minutes ago. ZERO SWEPT IS THE NORMAL CASE and the row is written anyway, which is what makes this line mean anything.`,
+    },
     committedOutflow: {
       cardsReported: cov?.reported ?? 0,
       cardsNotReported: cov?.not_reported ?? 0,

@@ -60,6 +60,8 @@ MarginSheet™ is a **Money Intelligence Platform**. MyKeeper™ is the househol
 
   Merging a fix produces both at once: the fix's own commit invalidates whatever is queued, and everything queued still predates the fix. **Neither is a defect and neither needs a change.** What makes it expensive is reading a run list and inferring one cause from four reds. Read the failing STEP first: "Refuse to deploy a commit main has moved past" needs nothing, and a verification failure needs the raw body.
 
+  **It recurred on 22 Aug 2026 and the record did not stop it.** A red deploy on `d9da9b6` was escalated as an incident before anybody read the step; it was the tip guard, main had moved to `f0e64bf`, and `gates`, `dev` and `staging` had all passed on the older commit. **The entry above already described it exactly, and pattern-matching to 16 August happened anyway.** Reading the step costs thirty seconds and is the whole remedy.
+
 - **The eighth is the one that was tracking the other seven.** This file has required since M0 that "open items travel with named owners and print in CI". Nothing implemented it. Every owed item across three modules lived in prose that no gate ever read: the reviewer that did not exist, the handler half owed to M4 and M7, the canon fixtures, the sandbox limits that fail closed only when a real recipient appears. They were recorded faithfully and tracked by nobody.
 
   That makes it different in kind from the other seven. **A control that guards nothing is one failure; the mechanism for remembering failures guarding nothing is how the other seven stayed open.** It was found the same way as the rest, by trying to use it: an item needed recording "like the others" and there were no others.
@@ -1196,6 +1198,20 @@ Fifty source-kind plants. **Two matched more than once, and they were not the sa
 
 Two entries, `reconciliation-detects` and `reconciliation-blocks`, carry `status: "owed"` and point at `services/sync/src/reconciliation.ts`, **a filename that has never existed.** 4.6's reconciler shipped as `reconcile-balances.ts` with twelve database tests and **the register was never updated**, so the built control has no registered plant and the applicability check skips both as owed. **A control can ship, be tested, and remain invisible to the harness that exists to verify controls.**
 
+
+## AN EXEMPTION LIST DECLARES, AND SOMETHING VERIFIES THE DECLARATION STAYS TRUE (locked 22 August 2026)
+
+**The house pattern for every exemption list, stated once so the next one starts from it.** Three instances now, arrived at separately:
+
+| List | Entry must name | And must still be |
+|---|---|---|
+| orphan control's `BUILT_AND_NOT_WIRED` | an open item that exists and has an owner | an orphan |
+| register's owed entries | an open item that exists and has an owner | unbuilt |
+| household scan's `HOUSEHOLDLESS_TABLES` | a reason | verified against the migrations to have no `household_id` |
+
+**Both halves are required and they fail in opposite directions.** Without the naming, an entry is a suppression nobody owns. **Without the staying-true check, the list rots into fiction**: a wired feature standing as a claim that it does not run sends the next reader to build what exists, and a table that gains a `household_id` turns a legitimate exemption into an evasion.
+
+**The third is the strongest because its check reads the schema rather than the list.** A reason is a claim, and a test that only records the claim is the weakest form of a rule; reading the `CREATE TABLE` makes the exemption non-negotiable. **Where an exemption asserts something checkable, check it.**
 
 ## Vocabulary and format (locked; lint-enforced)
 

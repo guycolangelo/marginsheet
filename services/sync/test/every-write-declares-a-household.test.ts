@@ -42,6 +42,23 @@ const WRITE = /^(insert\s+into|update|delete\s+from)\b/i;
 /** Names a household, either as the scoping column or as `households.id`. */
 const NAMES_HOUSEHOLD = /household_id|\bupdate\s+households\b/i;
 
+/** Tables with NO household dimension to name, so a write to one cannot declare
+ *  a household and is not evading anything.
+ *
+ *  DECLARED AND THEN VERIFIED AGAINST THE MIGRATIONS, because an exemption
+ *  asserted in a test is a claim the test also makes: the check below reads
+ *  every migration and refuses if the table turns out to have a household_id
+ *  after all. A list somebody can add to freely is a suppression. */
+const HOUSEHOLDLESS_TABLES: Record<string, string> = {
+  sweep_runs:
+    "the watchdog's own trace, written once per sweep across all households. It holds two counts and a timestamp, so there is no household to name, and 0044's policy says true because there is nothing to compare rather than because the boundary was forgotten.",
+};
+
+const WRITES_HOUSEHOLDLESS = new RegExp(
+  `^(?:insert\\s+into|update|delete\\s+from)\\s+"?(?:${Object.keys(HOUSEHOLDLESS_TABLES).join("|")})"?\\b`,
+  "i"
+);
+
 interface Finding { file: string; sql: string }
 const findings: Finding[] = [];
 let writesSeen = 0;
@@ -53,9 +70,37 @@ for (const file of files) {
     if (!WRITE.test(sql)) continue;
     writesSeen += 1;
     if (NAMES_HOUSEHOLD.test(sql) || setsGuc) continue;
+    if (WRITES_HOUSEHOLDLESS.test(sql)) continue;
     findings.push({ file, sql: sql.slice(0, 100) });
   }
 }
+
+describe("the householdless exemption is true, not merely claimed", () => {
+  const MIGRATIONS = join(SRC, "..", "..", "..", "packages", "schema", "migrations");
+
+  for (const [table, reason] of Object.entries(HOUSEHOLDLESS_TABLES)) {
+    it(`${table} really has no household_id column`, () => {
+      expect(reason, `${table} is exempt and gives no reason`).toBeTruthy();
+
+      // THE CREATE STATEMENT IS READ RATHER THAN TRUSTED. An exemption is a
+      // claim about the schema, and a test that only records the claim is the
+      // weakest form of a rule. If somebody later adds household_id to this
+      // table, the exemption becomes an evasion and this goes red.
+      const created = readdirSync(MIGRATIONS)
+        .filter((f) => f.endsWith(".sql") && !f.endsWith(".down.sql"))
+        .map((f) => readFileSync(join(MIGRATIONS, f), "utf8"))
+        .find((body) => new RegExp(`CREATE TABLE "${table}"`, "i").test(body));
+
+      expect(created, `no migration creates ${table}, so the exemption names nothing`).toBeTruthy();
+      const block = created!.slice(created!.indexOf(`CREATE TABLE "${table}"`));
+      const body = block.slice(0, block.indexOf(");"));
+      expect(
+        /household_id/i.test(body),
+        `${table} HAS a household_id column, so a write to it can and must name one. Remove the exemption.`
+      ).toBe(false);
+    });
+  }
+});
 
 describe("every sync write declares a household", () => {
   it("no write statement is unscoped", () => {
